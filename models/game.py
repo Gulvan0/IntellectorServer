@@ -4,7 +4,7 @@ from typing import Optional
 from sqlmodel import Field, Relationship, SQLModel
 
 from .utils import CURRENT_DATETIME_COLUMN, PLAYER_REF_COLUMN, SIP_COLUMN
-from rules import PieceColor, PieceKind, PlyKind
+from .common import PieceColorField, PieceKindField, PlyKindField
 from utils.datatypes import OfferAction, OfferKind, OutcomeKind, TimeControlKind
 
 
@@ -39,7 +39,7 @@ class GameOutcome(SQLModel, table=True):
     game_id: int = Field(primary_key=True, foreign_key="game.id")
     game_ended_at: datetime = CURRENT_DATETIME_COLUMN
     kind: OutcomeKind
-    winner: PieceColor
+    winner: PieceColorField
 
     game: Game = Relationship(back_populates="outcome")
 
@@ -50,15 +50,15 @@ class GamePlyEvent(SQLModel, table=True):  # Analytics-optimized
     game_id: int = Field(foreign_key="game.id")
     ply_index: int
     is_cancelled: bool = False
-    moving_color: PieceColor
+    moving_color: PieceColorField
     from_i: int
     from_j: int
     to_i: int
     to_j: int
-    kind: PlyKind
-    morph_into: PieceKind | None
-    moved_piece: PieceKind
-    target_piece: PieceKind | None
+    kind: PlyKindField
+    morph_into: PieceKindField | None
+    moved_piece: PieceKindField
+    target_piece: PieceKindField | None
     sip_after: str | None = SIP_COLUMN
 
     game: Game = Relationship(back_populates="ply_events")
@@ -81,7 +81,7 @@ class GameOfferEvent(SQLModel, table=True):
     game_id: int = Field(foreign_key="game.id")
     action: OfferAction
     offer_kind: OfferKind
-    offer_author: PieceColor
+    offer_author: PieceColorField
 
     game: Game = Relationship(back_populates="offer_events")
 
@@ -91,7 +91,7 @@ class GameTimeAddedEvent(SQLModel, table=True):
     occurred_at: datetime = CURRENT_DATETIME_COLUMN
     game_id: int = Field(foreign_key="game.id")
     amount_seconds: int
-    receiver: PieceColor
+    receiver: PieceColorField
 
     game: Game = Relationship(back_populates="time_added_events")
 
@@ -102,6 +102,6 @@ class GameRollbackEvent(SQLModel, table=True):
     game_id: int = Field(foreign_key="game.id")
     position_index_before: int
     position_index_after: int
-    requested_by: PieceColor
+    requested_by: PieceColorField
 
     game: Game = Relationship(back_populates="rollback_events")

@@ -1,13 +1,13 @@
-from enum import auto, Enum
+from enum import auto, StrEnum
 
 
-class ChallengeKind(Enum):
+class ChallengeKind(StrEnum):
     PUBLIC = auto()
     LINK_ONLY = auto()
     DIRECT = auto()
 
 
-class TimeControlKind(Enum):
+class TimeControlKind(StrEnum):
     HYPERBULLET = auto()
     BULLET = auto()
     BLITZ = auto()
@@ -16,13 +16,13 @@ class TimeControlKind(Enum):
     CORRESPONDENCE = auto()
 
 
-class ChallengeAcceptorColor(Enum):
+class ChallengeAcceptorColor(StrEnum):
     WHITE = auto()
     BLACK = auto()
     RANDOM = auto()
 
 
-class OutcomeKind(Enum):
+class OutcomeKind(StrEnum):
     MATE = auto()
     BREAKTHROUGH = auto()
     TIMEOUT = auto()
@@ -34,30 +34,31 @@ class OutcomeKind(Enum):
     ABORT = auto()
 
 
-class OfferKind(Enum):
+class OfferKind(StrEnum):
     DRAW = auto()
     TAKEBACK = auto()
 
 
-class OfferAction(Enum):
+class OfferAction(StrEnum):
     CREATE = auto()
     CANCEL = auto()
     ACCEPT = auto()
     DECLINE = auto()
 
 
-class UserRole(Enum):
+class UserRole(StrEnum):
     ADMIN = auto()
     ANACONDA_DEVELOPER = auto()
 
 
-class UserRestrictionKind(Enum):
+class UserRestrictionKind(StrEnum):
     RATED_GAMES = auto()
     SET_AVATAR = auto()
     CHAT = auto()
 
 
-class StudyPublicity(Enum):
+class StudyPublicity(StrEnum):
     PUBLIC = auto()
+    PROFILE_AND_LINK_ONLY = auto()
     LINK_ONLY = auto()
     PRIVATE = auto()

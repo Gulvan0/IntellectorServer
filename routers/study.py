@@ -1,4 +1,7 @@
+from typing import Annotated
+
 from fastapi import APIRouter, HTTPException, Depends, Query
+from pydantic import StringConstraints
 from sqlmodel import col, distinct, select, Session
 
 from globalstate import GlobalState
@@ -29,7 +32,7 @@ async def get_study(*, session: Session = Depends(get_session), study_id: int, t
     return db_study
 
 
-@router.post("/create", response_model=StudyPublic)
+@router.post("/create", response_model=StudyPublic, status_code=201)
 async def create_study(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), study: StudyCreate):
     client_login = GlobalState.token_to_login.get(token)
     if not client_login:
@@ -55,7 +58,7 @@ async def update_study(*, session: Session = Depends(get_session), token: str = 
         raise HTTPException(status_code=404, detail="Study not found")
 
     if db_study.deleted:
-        raise HTTPException(status_code=404, detail="Study deleted")
+        raise HTTPException(status_code=410, detail="Study deleted")
 
     if client_login != db_study.author_login:
         raise HTTPException(status_code=403, detail="Not the study's author")
@@ -80,7 +83,7 @@ async def delete_study(*, session: Session = Depends(get_session), token: str = 
         raise HTTPException(status_code=404, detail="Study not found")
 
     if db_study.deleted:
-        raise HTTPException(status_code=404, detail="Study deleted")
+        raise HTTPException(status_code=410, detail="Study has already been deleted before")
 
     if client_login != db_study.author_login:
         raise HTTPException(status_code=403, detail="Not the study's author")
@@ -95,7 +98,7 @@ async def delete_study(*, session: Session = Depends(get_session), token: str = 
 async def list_studies(
     *,
     session: Session = Depends(get_session),
-    author_login: str | None = None,
+    author_login: Annotated[str, StringConstraints(to_lower=True)] | None = None,
     tags: list[str] | None = None,
     offset: int = 0,
     limit: int = Query(default=10, le=50)

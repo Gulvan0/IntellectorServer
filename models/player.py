@@ -1,6 +1,8 @@
 from datetime import datetime
+from enum import auto, StrEnum
 from typing import TYPE_CHECKING
 
+from pydantic import BaseModel
 from sqlalchemy import CHAR, LargeBinary
 from sqlmodel import Field, Relationship, SQLModel, Column
 
@@ -11,12 +13,15 @@ if TYPE_CHECKING:
     from .study import Study
 
 
-class Player(SQLModel, table=True):
+class PlayerBase(SQLModel):
     login: str = Field(primary_key=True, max_length=32)
     joined_at: datetime = CURRENT_DATETIME_COLUMN
     nickname: str
-    avatar: bytes | None = Field(sa_column=Column(LargeBinary), default=None)
+
+
+class Player(PlayerBase, table=True):
     preferred_role: UserRole | None = None  # Don't trust that this role exists! It could have been revoked since then!
+    # avatar: bytes | None = Field(sa_column=Column(LargeBinary), default=None)
 
     password: "PlayerPassword" = Relationship(back_populates="player", cascade_delete=True)
     roles: list["PlayerRole"] = Relationship(back_populates="player", cascade_delete=True)
@@ -35,22 +40,36 @@ class PlayerPassword(SQLModel, table=True):
     player: Player = Relationship(back_populates="password")
 
 
-class PlayerRole(SQLModel, table=True):
-    login: str = Field(primary_key=True, foreign_key="player.login")
+class PlayerRoleBase(SQLModel):
     role: UserRole = Field(primary_key=True)
     granted_at: datetime = CURRENT_DATETIME_COLUMN
+
+
+class PlayerRole(PlayerRoleBase, table=True):
+    login: str = Field(primary_key=True, foreign_key="player.login")
 
     player: Player = Relationship(back_populates="roles")
 
 
-class PlayerRestriction(SQLModel, table=True):
+class PlayerRolePublic(PlayerRoleBase):
+    is_main: bool
+
+
+class PlayerRestrictionBase(SQLModel):
     id: int | None = Field(primary_key=True)
-    login: str = Field(foreign_key="player.login")
     casted_at: datetime = CURRENT_DATETIME_COLUMN
     expires: datetime | None
     kind: UserRestrictionKind
 
+
+class PlayerRestriction(PlayerRestrictionBase, table=True):
+    login: str = Field(foreign_key="player.login")
+
     player: Player = Relationship(back_populates="restrictions")
+
+
+class PlayerRestrictionPublic(PlayerRestrictionBase):
+    pass
 
 
 class PlayerFollowedPlayer(SQLModel, table=True):
@@ -68,3 +87,32 @@ class PlayerEloProgress(SQLModel, table=True):  # Used for: current elo retrieva
     delta: int
     causing_game_id: int = Field(foreign_key="game.id")
     ranked_games_played: int
+
+
+class PlayerStatus(StrEnum):
+    ONLINE = auto()
+    AWAY = auto()
+    OFFLINE = auto()
+
+
+class GameStats(BaseModel):
+    elo: int | None
+    is_elo_provisional: bool
+    games_cnt: int
+
+
+class PlayerPublic(PlayerBase):
+    is_friend: bool
+    status: PlayerStatus
+    per_time_control_stats: dict[TimeControlKind, GameStats]
+    total_stats: GameStats
+    studies_cnt: int
+    followed_players: list[str]
+    roles: list[PlayerRolePublic]
+    restrictions: list[PlayerRestrictionPublic]
+
+
+class PlayerUpdate(SQLModel):
+    nickname: str | None = None
+    password: str | None = Field(min_length=6, max_length=128, default=None)
+    preferred_role: UserRole | None = None

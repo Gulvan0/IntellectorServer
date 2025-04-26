@@ -10,7 +10,11 @@ from sqlalchemy.sql.functions import count
 from sqlmodel import col, desc, or_, select, Session
 
 from globalstate import GlobalState
-from models import PlayerBase, PlayerFollowedPlayer, PlayerPublic, Player, PlayerRestriction, PlayerRestrictionBase, PlayerRestrictionPublic, PlayerRole, PlayerRoleBase, PlayerRolePublic, PlayerUpdate, Study
+from models import (
+    PlayerBase, PlayerFollowedPlayer, PlayerPublic, Player, PlayerRestriction, PlayerRestrictionBase, PlayerRestrictionPublic, PlayerRole, PlayerRoleBase, PlayerRolePublic, PlayerUpdate, RestrictionBatchRemovalPayload,
+    RestrictionCastingPayload,
+    RestrictionRemovalPayload, RoleOperationPayload, Study,
+)
 from utils.datatypes import StudyPublicity, UserRestrictionKind, UserRole
 from .utils import get_session, OPTIONAL_USER_TOKEN_HEADER_SCHEME, USER_TOKEN_HEADER_SCHEME
 
@@ -132,7 +136,7 @@ async def update_player(*, session: Session = Depends(get_session), login: Annot
     session.commit()
 
 
-@router.post("/follow")
+@router.post("/{login}/follow")
 async def follow(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
     client_login = GlobalState.token_to_login.get(token)
     if not client_login:
@@ -155,7 +159,7 @@ async def follow(*, session: Session = Depends(get_session), login: Annotated[st
     session.commit()
 
 
-@router.post("/unfollow")
+@router.post("/{login}/unfollow")
 async def unfollow(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
     client_login = GlobalState.token_to_login.get(token)
     if not client_login:
@@ -172,8 +176,8 @@ async def unfollow(*, session: Session = Depends(get_session), login: Annotated[
     session.commit()
 
 
-@router.post("/role/add")
-async def add_role(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], role: UserRole, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
+@router.post("/{login}/role/add")
+async def add_role(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], payload: RoleOperationPayload, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
     client_login = GlobalState.token_to_login.get(token)
     if not client_login:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -184,19 +188,19 @@ async def add_role(*, session: Session = Depends(get_session), login: Annotated[
     if not session.get(Player, login):
         raise HTTPException(status_code=404, detail="Player not found")
 
-    if session.get(PlayerRole, (role, login)):
+    if session.get(PlayerRole, (payload.role, login)):
         raise HTTPException(status_code=400, detail="Role is already present")
 
     db_role = PlayerRole(
-        role=role,
+        role=payload.role,
         login=login
     )
     session.add(db_role)
     session.commit()
 
 
-@router.delete("/role/remove")
-async def remove_role(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], role: UserRole, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
+@router.delete("/{login}/role/remove")
+async def remove_role(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], payload: RoleOperationPayload, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
     client_login = GlobalState.token_to_login.get(token)
     if not client_login:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -208,11 +212,11 @@ async def remove_role(*, session: Session = Depends(get_session), login: Annotat
     if not db_player:
         raise HTTPException(status_code=404, detail="Player not found")
 
-    db_role = session.get(PlayerRole, (role, login))
+    db_role = session.get(PlayerRole, (payload.role, login))
     if not db_role:
         raise HTTPException(status_code=404, detail="Role is not assigned to this player")
 
-    if db_player.preferred_role == role:
+    if db_player.preferred_role == payload.role:
         db_player.preferred_role = None
         session.add(db_player)
 
@@ -220,8 +224,8 @@ async def remove_role(*, session: Session = Depends(get_session), login: Annotat
     session.commit()
 
 
-@router.post("/restriction/add")
-async def add_restriction(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], restriction: UserRestrictionKind, expires: datetime | None = None, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
+@router.post("/{login}/restriction/add")
+async def add_restriction(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], payload: RestrictionCastingPayload, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
     client_login = GlobalState.token_to_login.get(token)
     if not client_login:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -233,16 +237,16 @@ async def add_restriction(*, session: Session = Depends(get_session), login: Ann
         raise HTTPException(status_code=404, detail="Player not found")
 
     db_restriction = PlayerRestriction(
-        expires=expires,
-        kind=restriction,
+        expires=payload.expires,
+        kind=payload.restriction,
         login=login
     )
     session.add(db_restriction)
     session.commit()
 
 
-@router.delete("/restriction/remove")
-async def remove_restriction(*, session: Session = Depends(get_session), restriction_id: int, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
+@router.delete("/{login}/restriction/remove")
+async def remove_restriction(*, session: Session = Depends(get_session), payload: RestrictionRemovalPayload, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
     client_login = GlobalState.token_to_login.get(token)
     if not client_login:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -250,7 +254,7 @@ async def remove_restriction(*, session: Session = Depends(get_session), restric
     if not session.get(PlayerRole, (UserRole.ADMIN, client_login)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    db_restriction = session.get(PlayerRestriction, restriction_id)
+    db_restriction = session.get(PlayerRestriction, payload.restriction_id)
     if not db_restriction:
         raise HTTPException(status_code=404, detail="Not found")
 
@@ -259,8 +263,8 @@ async def remove_restriction(*, session: Session = Depends(get_session), restric
     session.commit()
 
 
-@router.delete("/restriction/purge")
-async def purge_restrictions(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], restriction_kind: UserRestrictionKind | None = None, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
+@router.delete("/{login}/restriction/purge")
+async def purge_restrictions(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], payload: RestrictionBatchRemovalPayload, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
     client_login = GlobalState.token_to_login.get(token)
     if not client_login:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -269,13 +273,13 @@ async def purge_restrictions(*, session: Session = Depends(get_session), login: 
         raise HTTPException(status_code=403, detail="Forbidden")
 
     update_query = update(PlayerRestriction).values(expires=datetime.now(UTC)).where(PlayerRestriction.login == login)
-    if restriction_kind:
-        update_query = update_query.where(PlayerRestriction.kind == restriction_kind)
+    if payload.restriction_kind:
+        update_query = update_query.where(PlayerRestriction.kind == payload.restriction_kind)
     session.exec(update_query)
 
     session.commit()
 
 
-@router.post("/avatar/update")
+@router.post("/{login}/avatar/update")
 async def update_avatar(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], image: UploadFile, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
     raise HTTPException(status_code=501, detail="Avatar upload is not yet available")

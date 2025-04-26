@@ -1,10 +1,4 @@
-from pydantic import BaseModel, Field as PydanticField
 from sqlmodel import Field, SQLModel
-
-
-class AuthCredentials(BaseModel):
-    login: str = PydanticField(min_length=2, max_length=32, pattern=r'^([@#\$\.]?\w)+[@#\$\.]?$')
-    password: str = PydanticField(min_length=6, max_length=128)
 
 
 class SavedQuery(SQLModel, table=True):

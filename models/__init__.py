@@ -1,3 +1,4 @@
+from .auth import *
 from .challenge import *
 from .common import *
 from .game import *

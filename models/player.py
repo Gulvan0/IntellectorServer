@@ -116,3 +116,20 @@ class PlayerUpdate(SQLModel):
     nickname: str | None = None
     password: str | None = Field(min_length=6, max_length=128, default=None)
     preferred_role: UserRole | None = None
+
+
+class RoleOperationPayload(BaseModel):
+    role: UserRole
+
+
+class RestrictionCastingPayload(BaseModel):
+    restriction: UserRestrictionKind
+    expires: datetime | None = None
+
+
+class RestrictionRemovalPayload(BaseModel):
+    restriction_id: int
+
+
+class RestrictionBatchRemovalPayload(BaseModel):
+    restriction: UserRestrictionKind | None = None

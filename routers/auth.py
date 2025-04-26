@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
 from globalstate import GlobalState
-from models import AuthCredentials, Player, PlayerPassword
+from models import AuthCredentials, Player, PlayerPassword, TokenResponse
 from .utils import get_session
 
 import bcrypt
@@ -12,8 +12,8 @@ import bcrypt
 router = APIRouter(prefix="/auth")
 
 
-@router.post("/signin", response_model=str)
-async def signin(*, session: Session = Depends(get_session()), credentials: AuthCredentials):
+@router.post("/signin", response_model=TokenResponse)
+async def signin(*, session: Session = Depends(get_session), credentials: AuthCredentials):
     login = credentials.login.lower()
     password_data = session.get(PlayerPassword, login)
     if not password_data:
@@ -22,11 +22,11 @@ async def signin(*, session: Session = Depends(get_session()), credentials: Auth
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = token_hex()
     GlobalState.token_to_login[token] = login
-    return token
+    return TokenResponse(token=token)
 
 
-@router.post("/register", response_model=str, status_code=201)
-async def register(*, session: Session = Depends(get_session()), credentials: AuthCredentials):
+@router.post("/register", response_model=TokenResponse, status_code=201)
+async def register(*, session: Session = Depends(get_session), credentials: AuthCredentials):
     login = credentials.login.lower()
 
     password_data = session.get(Player, login)
@@ -47,4 +47,4 @@ async def register(*, session: Session = Depends(get_session()), credentials: Au
 
     token = token_hex()
     GlobalState.token_to_login[token] = login
-    return token
+    return TokenResponse(token=token)

@@ -1,10 +1,10 @@
-import os
+from sqlmodel import create_engine
+from models import *
 
-from sqlmodel import SQLModel, create_engine
+from globalstate import GlobalState
 
 
-url = os.getenv("DB_URL") or f"mysql://{os.getenv("DB_USER")}:{os.getenv("DB_PASSWORD")}@{os.getenv("DB_HOST")}:{os.getenv("DB_PORT")}/{os.getenv("DB_SCHEMA")}"
-engine = create_engine(url)
+engine = create_engine(GlobalState.secret_config.db.url)
 
 
 def create_db_and_tables():

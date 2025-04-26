@@ -1,0 +1,13 @@
+common:
+  min_client_build: 1745671032
+  server_build: 1745671032
+  keep_alive:
+    beat_interval_ms: 2500
+    timeout_ms: 10000
+  elo:
+    default: 1200
+    max_log_slope: 7.0
+    normal_log_slope: 4.0
+    calibration_games: 12
+  rules:
+    secs_added_manually: 15

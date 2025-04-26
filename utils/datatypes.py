@@ -1,6 +1,28 @@
 from enum import auto, StrEnum
 
 
+class EventChannel:
+    DEFAULT = 'default'
+    OPEN_CHALLENGES = 'open_challenges'
+    ACTIVE_GAMES = 'active_games'
+
+    @staticmethod
+    def incoming_challenges(receiver_login: str) -> str:
+        return f'challenge/incoming/{receiver_login}'
+
+    @staticmethod
+    def game_public(game_id: int) -> str:
+        return f'game/{game_id}/public'
+
+    @staticmethod
+    def game_spectator_only(game_id: int) -> str:
+        return f'game/{game_id}/spectator_only'
+
+    @staticmethod
+    def started_player_games(watched_login: str) -> str:
+        return f'player/{watched_login}/started_games'
+
+
 class ChallengeKind(StrEnum):
     PUBLIC = auto()
     LINK_ONLY = auto()

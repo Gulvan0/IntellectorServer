@@ -5,11 +5,19 @@ from sqlmodel import Session
 
 from globalstate import GlobalState
 from models import AuthCredentials, Player, PlayerPassword, TokenResponse
+from models.auth import GuestTokenResponse
 from .utils import get_session
 
 import bcrypt
 
 router = APIRouter(prefix="/auth")
+
+
+@router.post("/guest", response_model=GuestTokenResponse)
+async def guest():
+    token = token_hex()
+    guest_id = GlobalState.add_guest(token)
+    return GuestTokenResponse(guest_id, token)
 
 
 @router.post("/signin", response_model=TokenResponse)
@@ -21,7 +29,7 @@ async def signin(*, session: Session = Depends(get_session), credentials: AuthCr
     if password_data.password_hash != bcrypt.hashpw(credentials.password, password_data.salt):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = token_hex()
-    GlobalState.token_to_login[token] = login
+    GlobalState.add_logged(token, login)
     return TokenResponse(token=token)
 
 
@@ -46,5 +54,5 @@ async def register(*, session: Session = Depends(get_session), credentials: Auth
     session.commit()
 
     token = token_hex()
-    GlobalState.token_to_login[token] = login
+    GlobalState.add_logged(token, login)
     return TokenResponse(token=token)

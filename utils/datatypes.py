@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import auto, StrEnum
 
 
@@ -7,8 +9,8 @@ class EventChannel:
     ACTIVE_GAMES = 'active_games'
 
     @staticmethod
-    def incoming_challenges(receiver_login: str) -> str:
-        return f'challenge/incoming/{receiver_login}'
+    def direct_challenges(login: str) -> str:
+        return f'challenge/direct/{login}'
 
     @staticmethod
     def game_public(game_id: int) -> str:
@@ -42,6 +44,9 @@ class ChallengeAcceptorColor(StrEnum):
     WHITE = auto()
     BLACK = auto()
     RANDOM = auto()
+
+    def mergeable_with(self, other: ChallengeAcceptorColor) -> bool:
+        return self == ChallengeAcceptorColor.RANDOM or other == ChallengeAcceptorColor.RANDOM or self != other
 
 
 class OutcomeKind(StrEnum):

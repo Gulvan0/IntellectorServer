@@ -14,12 +14,13 @@ router = APIRouter(prefix="/study")
 
 @router.get("/{study_id}", response_model=StudyPublic)
 async def get_study(*, session: Session = Depends(get_session), study_id: int, token: str | None = Depends(OPTIONAL_USER_TOKEN_HEADER_SCHEME)):
+    client_login = None
     if token is not None:
-        client_login = GlobalState.token_to_login.get(token)
-        if not client_login:
+        client = GlobalState.token_to_user.get(token)
+        if not client:
             raise HTTPException(status_code=401, detail="Invalid token")
-    else:
-        client_login = None
+        if not client.is_guest():
+            client_login = client.login
 
     db_study = session.get(Study, study_id)
 
@@ -34,9 +35,12 @@ async def get_study(*, session: Session = Depends(get_session), study_id: int, t
 
 @router.post("/create", response_model=StudyPublic, status_code=201)
 async def create_study(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), study: StudyCreate):
-    client_login = GlobalState.token_to_login.get(token)
-    if not client_login:
+    client = GlobalState.token_to_user.get(token)
+    if not client:
         raise HTTPException(status_code=401, detail="Invalid token")
+    if client.is_guest():
+        raise HTTPException(status_code=403, detail="Login required")
+    client_login = client.login
 
     db_study = study.build_table_model(client_login)
 
@@ -49,9 +53,12 @@ async def create_study(*, session: Session = Depends(get_session), token: str = 
 
 @router.patch("/{study_id}", response_model=StudyPublic)
 async def update_study(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), study_id: int, study: StudyUpdate):
-    client_login = GlobalState.token_to_login.get(token)
-    if not client_login:
+    client = GlobalState.token_to_user.get(token)
+    if not client:
         raise HTTPException(status_code=401, detail="Invalid token")
+    if client.is_guest():
+        raise HTTPException(status_code=403, detail="Login required")
+    client_login = client.login
 
     db_study = session.get(Study, study_id)
     if not db_study:
@@ -74,9 +81,12 @@ async def update_study(*, session: Session = Depends(get_session), token: str = 
 
 @router.delete("/{study_id}")
 async def delete_study(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), study_id: int):
-    client_login = GlobalState.token_to_login.get(token)
-    if not client_login:
+    client = GlobalState.token_to_user.get(token)
+    if not client:
         raise HTTPException(status_code=401, detail="Invalid token")
+    if client.is_guest():
+        raise HTTPException(status_code=403, detail="Login required")
+    client_login = client.login
 
     db_study = session.get(Study, study_id)
     if not db_study:

@@ -8,3 +8,8 @@ class AuthCredentials(BaseModel):
 
 class TokenResponse(BaseModel):
     token: str
+
+
+class GuestTokenResponse(BaseModel):
+    guest_id: int
+    token: str

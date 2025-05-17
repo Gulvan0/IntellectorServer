@@ -1,7 +1,7 @@
 from datetime import datetime, UTC
 from typing import Annotated
 
-import bcrypt
+import bcrypt  # type: ignore
 from fastapi import APIRouter, HTTPException, Depends, UploadFile
 from pydantic import StringConstraints
 from sqlalchemy import update
@@ -11,11 +11,25 @@ from sqlmodel import col, desc, or_, select, Session
 
 from globalstate import GlobalState
 from models import (
-    PlayerBase, PlayerFollowedPlayer, PlayerPublic, Player, PlayerRestriction, PlayerRestrictionBase, PlayerRestrictionPublic, PlayerRole, PlayerRoleBase, PlayerRolePublic, PlayerUpdate, RestrictionBatchRemovalPayload,
+    PlayerBase,
+    PlayerFollowedPlayer,
+    PlayerPublic,
+    Player,
+    PlayerRestriction,
+    PlayerRestrictionBase,
+    PlayerRestrictionPublic,
+    PlayerRole,
+    PlayerRoleBase,
+    PlayerRolePublic,
+    PlayerUpdate,
+    RestrictionBatchRemovalPayload,
     RestrictionCastingPayload,
-    RestrictionRemovalPayload, RoleOperationPayload, Study,
+    RestrictionRemovalPayload,
+    RoleOperationPayload,
+    Study,
 )
-from utils.datatypes import StudyPublicity, UserRestrictionKind, UserRole
+from utils.datatypes import StudyPublicity, UserRole
+from utils.query import not_expired
 from .utils import get_session, OPTIONAL_USER_TOKEN_HEADER_SCHEME, USER_TOKEN_HEADER_SCHEME
 
 router = APIRouter(prefix="/player")
@@ -23,12 +37,13 @@ router = APIRouter(prefix="/player")
 
 @router.get("/{login}", response_model=PlayerPublic)
 async def get_player(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], token: str | None = Depends(OPTIONAL_USER_TOKEN_HEADER_SCHEME)):
+    client_login = None
     if token is not None:
-        client_login = GlobalState.token_to_login.get(token)
-        if not client_login:
+        client = GlobalState.token_to_user.get(token)
+        if not client:
             raise HTTPException(status_code=401, detail="Invalid token")
-    else:
-        client_login = None
+        if not client.is_guest():
+            client_login = client.login
 
     db_player = session.get(Player, login)
 
@@ -39,8 +54,8 @@ async def get_player(*, session: Session = Depends(get_session), login: Annotate
     if client_login and client_login != login:
         is_friend = session.get(PlayerFollowedPlayer, (client_login, login)) is not None
 
-    studies_selection_query = select(  # noqa
-        count(Study.id)
+    studies_selection_query = select(
+        count(col(Study.id))
     ).where(
         Study.author_login == login
     )
@@ -48,22 +63,22 @@ async def get_player(*, session: Session = Depends(get_session), login: Annotate
         studies_selection_query = studies_selection_query.where(
             col(Study.publicity).in_([StudyPublicity.PROFILE_AND_LINK_ONLY, StudyPublicity.PUBLIC])
         )
-    studies_cnt = session.exec(studies_selection_query)  # noqa
+    studies_cnt = session.exec(studies_selection_query)
 
-    followed_players = list(session.exec(select(  # noqa
+    followed_players = list(session.exec(select(
         PlayerFollowedPlayer.followed_login
     ).where(
         PlayerFollowedPlayer.follower_login == login
     )))
 
-    db_roles: TupleResult[PlayerRole] = session.exec(select(  # noqa
+    db_roles = session.exec(select(
         PlayerRole
     ).where(
         PlayerRole.login == login
     ).order_by(
         desc(PlayerRole.granted_at)
     ))
-    roles = []
+    roles: list[PlayerRolePublic] = []
     for db_role in db_roles:
         is_main = db_role.role == db_player.preferred_role
         role = PlayerRolePublic(
@@ -75,14 +90,11 @@ async def get_player(*, session: Session = Depends(get_session), login: Annotate
         else:
             roles.append(role)
 
-    db_restrictions = session.exec(select(  # noqa
+    db_restrictions = session.exec(select(
         PlayerRestriction
     ).where(
         PlayerRestriction.login == login,
-        or_(
-            PlayerRestriction.expires == None,
-            PlayerRestriction.expires > datetime.now(UTC)
-        )
+        not_expired(PlayerRestriction.expires)
     ))
     restrictions = [
         PlayerRestrictionPublic(**PlayerRestrictionBase.model_validate(db_restriction).model_dump())
@@ -106,9 +118,12 @@ async def get_player(*, session: Session = Depends(get_session), login: Annotate
 
 @router.patch("/{login}")
 async def update_player(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], token: str = Depends(USER_TOKEN_HEADER_SCHEME), player: PlayerUpdate):
-    client_login = GlobalState.token_to_login.get(token)
-    if not client_login:
+    client = GlobalState.token_to_user.get(token)
+    if not client:
         raise HTTPException(status_code=401, detail="Invalid token")
+    if client.is_guest():
+        raise HTTPException(status_code=403, detail="Login required")
+    client_login = client.login
 
     if client_login != login and not session.get(PlayerRole, (UserRole.ADMIN, client_login)):
         raise HTTPException(status_code=403, detail="Forbidden")
@@ -138,9 +153,12 @@ async def update_player(*, session: Session = Depends(get_session), login: Annot
 
 @router.post("/{login}/follow")
 async def follow(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
-    client_login = GlobalState.token_to_login.get(token)
-    if not client_login:
+    client = GlobalState.token_to_user.get(token)
+    if not client:
         raise HTTPException(status_code=401, detail="Invalid token")
+    if client.is_guest():
+        raise HTTPException(status_code=403, detail="Login required")
+    client_login = client.login
 
     if client_login == login:
         raise HTTPException(status_code=400, detail="Cannot follow self")
@@ -161,9 +179,12 @@ async def follow(*, session: Session = Depends(get_session), login: Annotated[st
 
 @router.post("/{login}/unfollow")
 async def unfollow(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
-    client_login = GlobalState.token_to_login.get(token)
-    if not client_login:
+    client = GlobalState.token_to_user.get(token)
+    if not client:
         raise HTTPException(status_code=401, detail="Invalid token")
+    if client.is_guest():
+        raise HTTPException(status_code=403, detail="Login required")
+    client_login = client.login
 
     if client_login == login:
         raise HTTPException(status_code=400, detail="Cannot unfollow self")
@@ -178,9 +199,12 @@ async def unfollow(*, session: Session = Depends(get_session), login: Annotated[
 
 @router.post("/{login}/role/add")
 async def add_role(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], payload: RoleOperationPayload, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
-    client_login = GlobalState.token_to_login.get(token)
-    if not client_login:
+    client = GlobalState.token_to_user.get(token)
+    if not client:
         raise HTTPException(status_code=401, detail="Invalid token")
+    if client.is_guest():
+        raise HTTPException(status_code=403, detail="Login required")
+    client_login = client.login
 
     if not session.get(PlayerRole, (UserRole.ADMIN, client_login)):
         raise HTTPException(status_code=403, detail="Forbidden")
@@ -200,10 +224,19 @@ async def add_role(*, session: Session = Depends(get_session), login: Annotated[
 
 
 @router.delete("/{login}/role/remove")
-async def remove_role(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], payload: RoleOperationPayload, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
-    client_login = GlobalState.token_to_login.get(token)
-    if not client_login:
+async def remove_role(
+    *,
+    session: Session = Depends(get_session),
+    login: Annotated[str, StringConstraints(to_lower=True)],
+    payload: RoleOperationPayload,
+    token: str = Depends(USER_TOKEN_HEADER_SCHEME)
+):
+    client = GlobalState.token_to_user.get(token)
+    if not client:
         raise HTTPException(status_code=401, detail="Invalid token")
+    if client.is_guest():
+        raise HTTPException(status_code=403, detail="Login required")
+    client_login = client.login
 
     if not session.get(PlayerRole, (UserRole.ADMIN, client_login)):
         raise HTTPException(status_code=403, detail="Forbidden")
@@ -225,10 +258,19 @@ async def remove_role(*, session: Session = Depends(get_session), login: Annotat
 
 
 @router.post("/{login}/restriction/add")
-async def add_restriction(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], payload: RestrictionCastingPayload, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
-    client_login = GlobalState.token_to_login.get(token)
-    if not client_login:
+async def add_restriction(
+    *,
+    session: Session = Depends(get_session),
+    login: Annotated[str, StringConstraints(to_lower=True)],
+    payload: RestrictionCastingPayload,
+    token: str = Depends(USER_TOKEN_HEADER_SCHEME)
+):
+    client = GlobalState.token_to_user.get(token)
+    if not client:
         raise HTTPException(status_code=401, detail="Invalid token")
+    if client.is_guest():
+        raise HTTPException(status_code=403, detail="Login required")
+    client_login = client.login
 
     if not session.get(PlayerRole, (UserRole.ADMIN, client_login)):
         raise HTTPException(status_code=403, detail="Forbidden")
@@ -247,9 +289,12 @@ async def add_restriction(*, session: Session = Depends(get_session), login: Ann
 
 @router.delete("/{login}/restriction/remove")
 async def remove_restriction(*, session: Session = Depends(get_session), payload: RestrictionRemovalPayload, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
-    client_login = GlobalState.token_to_login.get(token)
-    if not client_login:
+    client = GlobalState.token_to_user.get(token)
+    if not client:
         raise HTTPException(status_code=401, detail="Invalid token")
+    if client.is_guest():
+        raise HTTPException(status_code=403, detail="Login required")
+    client_login = client.login
 
     if not session.get(PlayerRole, (UserRole.ADMIN, client_login)):
         raise HTTPException(status_code=403, detail="Forbidden")
@@ -264,18 +309,27 @@ async def remove_restriction(*, session: Session = Depends(get_session), payload
 
 
 @router.delete("/{login}/restriction/purge")
-async def purge_restrictions(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], payload: RestrictionBatchRemovalPayload, token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
-    client_login = GlobalState.token_to_login.get(token)
-    if not client_login:
+async def purge_restrictions(
+    *,
+    session: Session = Depends(get_session),
+    login: Annotated[str, StringConstraints(to_lower=True)],
+    payload: RestrictionBatchRemovalPayload,
+    token: str = Depends(USER_TOKEN_HEADER_SCHEME)
+):
+    client = GlobalState.token_to_user.get(token)
+    if not client:
         raise HTTPException(status_code=401, detail="Invalid token")
+    if client.is_guest():
+        raise HTTPException(status_code=403, detail="Login required")
+    client_login = client.login
 
     if not session.get(PlayerRole, (UserRole.ADMIN, client_login)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    update_query = update(PlayerRestriction).values(expires=datetime.now(UTC)).where(PlayerRestriction.login == login)
-    if payload.restriction_kind:
-        update_query = update_query.where(PlayerRestriction.kind == payload.restriction_kind)
-    session.exec(update_query)
+    update_query = update(PlayerRestriction).values(expires=datetime.now(UTC)).where(col(PlayerRestriction.login) == login)
+    if payload.restriction:
+        update_query = update_query.where(col(PlayerRestriction.kind) == payload.restriction)
+    session.exec(update_query)  # type: ignore
 
     session.commit()
 

@@ -17,12 +17,18 @@ class RuleParams(BaseModel):
     secs_added_manually: int
 
 
+class LimitParams(BaseModel):
+    max_total_active_challenges: int
+    max_same_callee_active_challenges: int
+
+
 class MainConfig(BaseModel):
     min_client_build: int
     server_build: int
     keep_alive: KeepAliveParams
     elo: EloParams
     rules: RuleParams
+    limits: LimitParams
 
 
 class DBParams(BaseModel):

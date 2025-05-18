@@ -5,8 +5,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 from .utils import CURRENT_DATETIME_COLUMN, PLAYER_REF_COLUMN, SIP_COLUMN
 from .common import PieceColorField, PieceKindField, PlyKindField
-from utils.datatypes import OfferAction, OfferKind, OutcomeKind, TimeControlKind
-
+from utils.datatypes import FischerTimeControlEntity, OfferAction, OfferKind, OutcomeKind, TimeControlKind
 
 
 class Game(SQLModel, table=True):
@@ -27,7 +26,7 @@ class Game(SQLModel, table=True):
     rollback_events: list["GameRollbackEvent"] = Relationship(back_populates="game", cascade_delete=True)
 
 
-class GameFischerTimeControl(SQLModel, table=True):
+class GameFischerTimeControl(SQLModel, FischerTimeControlEntity, table=True):
     game_id: int | None = Field(primary_key=True, foreign_key="game.id")
     start_seconds: int
     increment_seconds: int = 0

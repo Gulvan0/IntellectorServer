@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from typing import Any
 from models.config import MainConfig, SecretConfig
 from utils.config_loader import retrieve_config
+from utils.ds import BijectiveMap
+from utils.fastapi_wrappers import WebSocketWrapper
 
 
 @dataclass(frozen=True)
@@ -36,18 +38,19 @@ class UserReference:
 
 
 class GlobalState:
-    token_to_user: dict[str, UserReference] = dict()
+    shutdown_activated: bool = False  # TODO: Admin shutdown endpoint
+    token_to_user: BijectiveMap[str, UserReference] = BijectiveMap()
     last_guest_id: int = 0
-    ws_subscribers: dict[str, list[Any]] = dict()  # Channel as a key # TODO: Provide specific type
+    ws_subscribers: dict[str, list[WebSocketWrapper]] = dict()  # Channel as a key
     main_config: MainConfig = retrieve_config('main', MainConfig)
     secret_config: SecretConfig = retrieve_config('secret', SecretConfig)
 
     @classmethod
     def add_guest(cls, token: str) -> int:
         cls.last_guest_id += 1
-        cls.token_to_user[token] = UserReference.guest(cls.last_guest_id)
+        cls.token_to_user.add(token, UserReference.guest(cls.last_guest_id))
         return cls.last_guest_id
 
     @classmethod
     def add_logged(cls, token: str, login: str) -> None:
-        cls.token_to_user[token] = UserReference.logged(login)
+        cls.token_to_user.add(token, UserReference.logged(login))

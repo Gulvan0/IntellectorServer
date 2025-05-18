@@ -11,3 +11,6 @@ common:
     calibration_games: 12
   rules:
     secs_added_manually: 15
+  limits:
+    max_total_active_challenges: 5
+    max_same_callee_active_challenges: 3

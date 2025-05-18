@@ -1,21 +1,17 @@
-from contextlib import asynccontextmanager
-
-from fastapi import FastAPI
-
-from database import create_db_and_tables
-from models import *  # noqa
 from routers import study, player, auth, other, challenge
+from routers.websocket import game
+from utils.fastapi_wrappers import App
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    create_db_and_tables()
-    yield
-
-
-app = FastAPI(lifespan=lifespan)
-app.include_router(auth.router)
-app.include_router(challenge.router)
-app.include_router(player.router)
-app.include_router(study.router)
-app.include_router(other.router)
+app = App(
+    rest_routers=[
+        auth.router,
+        challenge.router,
+        player.router,
+        study.router,
+        other.router,
+    ],
+    ws_collections=[
+        game.collection,
+    ]
+)

@@ -1,0 +1,41 @@
+asyncapi: 2.4.0
+info:
+  title: Intellector WebSocket API
+  version: 1.0.0
+  description: |
+    This API is in charge of any event-driven interaction with the Intellector server (that is, anything that cannot be achieved via REST endpoints).
+
+    Primary uses: online status check, notifications, in-game events.
+
+    Any message sent by a client must be a valid JSON having the following structure:
+    ```
+    {
+      "event": "name_of_the_event",
+      "token": "authorization_token",
+      "body": {...event payload conforming to the respective schema...}
+    }
+    ```
+
+    Structure of the server-sent events is analogous:
+    ```
+    {
+      "event": "name_of_the_event",
+      "body": {...event payload conforming to the respective schema...}
+    }
+    ```
+
+    Valid client- and server-sent event names and their corresponding payload schemas are presented later in this specification.
+
+    Authorization token is obtained using the REST API /auth endpoints (there are one for guest authorization and one for logging in).
+channels:
+  /:
+    publish:
+      operationId: sendMessage
+      message:
+        oneOf: TO_BE_GENERATED
+    subscribe:
+      operationId: processMessage
+      message:
+        oneOf: TO_BE_GENERATED
+components:
+  messages: TO_BE_GENERATED

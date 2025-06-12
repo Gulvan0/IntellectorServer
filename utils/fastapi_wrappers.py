@@ -15,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 from database import create_db_and_tables
 from globalstate import GlobalState
 from models import *  # noqa
-from models import EVERYONE
+from models import EVERYONE, GamePublic
 
 import yaml  # type: ignore
 
@@ -30,7 +30,12 @@ class WebsocketOutgoingEvent[T: BaseModel]:
 
 
 class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
-    ...
+    GAME_STARTED = WebsocketOutgoingEvent(
+        "game_started",
+        GamePublic,
+        "Game Started",
+        "Broadcasted to `player/started_games` channel whenever a new game involving a respective player starts"
+    )
 
     @classmethod
     def generate_asyncapi_specification(cls) -> dict[str, Any]:

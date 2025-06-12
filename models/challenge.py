@@ -5,6 +5,7 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel
 from sqlmodel import Field, Relationship, SQLModel
 
+from models.game import Game, GamePublic
 from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, FischerTimeControlEntity, TimeControlKind
 from .utils import CURRENT_DATETIME_COLUMN, PLAYER_REF_COLUMN, SIP_COLUMN, PLAYER_REF_COLUMN_DEFAULT_NONE
 
@@ -23,9 +24,9 @@ class Challenge(ChallengeBase, table=True):
     kind: ChallengeKind
     time_control_kind: TimeControlKind
     active: bool = True
-    resulting_game_id: int | None = None
+    resulting_game_id: int | None = Field(default=None, foreign_key="game.id")
 
-    # TODO: Game relationship
+    resulting_game: Game | None = Relationship()
     fischer_time_control: Optional["ChallengeFischerTimeControl"] = Relationship(back_populates="challenge", cascade_delete=True)
 
 
@@ -71,11 +72,11 @@ class ChallengePublic(ChallengeBase):
     time_control_kind: TimeControlKind
     active: bool
     fischer_time_control: ChallengeFischerTimeControlPublic | None
-    # TODO: resulting_game: GamePublic
+    resulting_game: GamePublic | None
 
 
 class ChallengeCreateResponse(BaseModel):
     result: Literal["created", "merged"]
     challenge: ChallengePublic | None = None
     callee_online: bool | None = None
-    game: Any | None = None  # TODO: Assign proper type
+    game: GamePublic | None = None

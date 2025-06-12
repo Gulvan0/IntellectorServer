@@ -1,13 +1,18 @@
+import random
+from typing import assert_never
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlmodel import and_, col, or_, select, Session, func
 
 from globalstate import GlobalState, UserReference
 from models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic, PlayerRestriction
 from models.challenge import ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengeFischerTimeControlCreate
+from models.channel import DirectChallengesEventChannel, EventChannel, StartedPlayerGamesEventChannel
+from models.game import Game, GamePublic
 from models.player import Player
 from routers.utils import EarlyResponse, get_session, OPTIONAL_USER_TOKEN_HEADER_SCHEME, supports_early_responses
 from rules import DEFAULT_STARTING_SIP, Position
 from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, TimeControlKind, UserRestrictionKind
+from utils.fastapi_wrappers import WebsocketOutgoingEventRegistry
 from utils.query import exists, not_expired
 
 router = APIRouter(prefix="/challenge")
@@ -160,8 +165,8 @@ def _validate_direct_callee_returning_online_status(
         if not db_callee:
             raise HTTPException(status_code=404, detail=f"Player not found: {callee.login}")
 
-    # TODO: check player online and incorporate this info into the response
-    return False
+    direct_challenges_observer_channel = EventChannel(channel=DirectChallengesEventChannel(user_ref=challenge.callee_ref))
+    return GlobalState.ws_subscribers.has_user_subscriber(callee, direct_challenges_observer_channel)
 
 
 def _get_mergeable_challenge(
@@ -199,7 +204,50 @@ def _get_mergeable_challenge(
     return session.exec(query).first()
 
 
-def _attempt_merging(
+def _assign_player_colors(acceptor_color: ChallengeAcceptorColor, caller_ref: str, acceptor_ref: str) -> tuple[str, str]:
+    match acceptor_color:
+        case ChallengeAcceptorColor.RANDOM:
+            return random.choice([
+                (caller_ref, acceptor_ref),
+                (acceptor_ref, caller_ref)
+            ])
+        case ChallengeAcceptorColor.WHITE:
+            return acceptor_ref, caller_ref
+        case ChallengeAcceptorColor.BLACK:
+            return caller_ref, acceptor_ref
+        case _:
+            assert_never(acceptor_color)
+
+
+async def __create_game(challenge: Challenge, acceptor: UserReference, session: Session) -> GamePublic:
+    white_player_ref, black_player_ref = _assign_player_colors(challenge.acceptor_color, challenge.caller_ref, acceptor.reference)
+
+    db_game = Game(
+        white_player_ref=white_player_ref,
+        black_player_ref=black_player_ref,
+        time_control_kind=TimeControlKind.of(challenge.fischer_time_control),
+        rated=challenge.rated,
+        custom_starting_sip=challenge.custom_starting_sip,
+        fischer_time_control=challenge.fischer_time_control,
+    )
+    session.add(db_game)
+    session.commit()
+
+    public_game = GamePublic.model_construct(**db_game.model_dump())
+
+    # TODO: Notify challenge accepted
+
+    notified_channels = [
+        EventChannel(channel=StartedPlayerGamesEventChannel(watched_ref=white_player_ref)),
+        EventChannel(channel=StartedPlayerGamesEventChannel(watched_ref=black_player_ref))
+    ]
+    for channel in notified_channels:
+        await GlobalState.ws_subscribers.broadcast(WebsocketOutgoingEventRegistry.GAME_STARTED, public_game, channel)
+
+    return public_game
+
+
+async def _attempt_merging(
     challenge: ChallengeCreateOpen | ChallengeCreateDirect,
     caller: UserReference,
     session: Session,
@@ -207,8 +255,8 @@ def _attempt_merging(
 ) -> None:
     mergeable_challenge = _get_mergeable_challenge(challenge, caller, session, time_control_equality_conditions)
     if mergeable_challenge:
-        ...  # TODO: Cancel all outgoing challenges, create, add, commit db_game
-        response = ChallengeCreateResponse(result="merged", game=None)  # replace None with db_game
+        db_game = await __create_game(mergeable_challenge, caller, session)
+        response = ChallengeCreateResponse(result="merged", game=db_game)
         raise EarlyResponse(status_code=200, body=response)
 
 
@@ -224,7 +272,7 @@ async def create_open_challenge(*, session: Session = Depends(get_session), toke
 
     _perform_common_validations(challenge, caller, session)
     _validate_open_uniqueness(challenge, caller, session, time_control_equality_conditions)
-    _attempt_merging(challenge, caller, session, time_control_equality_conditions)
+    await _attempt_merging(challenge, caller, session, time_control_equality_conditions)
 
     db_challenge = Challenge(
         acceptor_color=challenge.acceptor_color,
@@ -237,7 +285,10 @@ async def create_open_challenge(*, session: Session = Depends(get_session), toke
     )
     session.add(db_challenge)
     session.commit()
-    return ChallengeCreateResponse(result="created", challenge=ChallengePublic.model_validate(db_challenge))
+
+    public_challenge = ChallengePublic.model_construct(**db_challenge.model_dump())
+    # TODO: Notify open challenge watchers, also outgoing challenge followers
+    return ChallengeCreateResponse(result="created", challenge=public_challenge)
 
 
 @supports_early_responses()
@@ -252,7 +303,7 @@ async def create_direct_challenge(*, session: Session = Depends(get_session), to
     _perform_common_validations(challenge, caller, session)
     _validate_direct_uniqueness(challenge, caller, session, time_control_equality_conditions)
     callee_online = _validate_direct_callee_returning_online_status(challenge, caller, session)
-    _attempt_merging(challenge, caller, session, time_control_equality_conditions)
+    await _attempt_merging(challenge, caller, session, time_control_equality_conditions)
 
     db_challenge = Challenge(
         acceptor_color=challenge.acceptor_color,
@@ -266,9 +317,21 @@ async def create_direct_challenge(*, session: Session = Depends(get_session), to
     )
     session.add(db_challenge)
     session.commit()
-    return ChallengeCreateResponse(result="created", challenge=ChallengePublic.model_validate(db_challenge), callee_online=callee_online)
 
-# TODO: Get challenge
+    public_challenge = ChallengePublic.model_construct(**db_challenge.model_dump())
+    # TODO: Notify recipient, also outgoing challenge followers
+    return ChallengeCreateResponse(result="created", challenge=public_challenge, callee_online=callee_online)
+
+
+@router.get("/{id}", response_model=ChallengePublic)
+async def get_challenge(*, session: Session = Depends(get_session), id: int):
+    db_challenge = session.get(Challenge, id)
+
+    if not db_challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+
+    return db_challenge
+
 
 # TODO: Delete (aka. cancel) challenge
 

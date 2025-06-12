@@ -18,7 +18,7 @@ class ActiveGamesEventChannel(BaseModel, frozen=True):
 
 class DirectChallengesEventChannel(BaseModel, frozen=True):
     channel_group: Literal['direct_challenges'] = 'direct_challenges'
-    login: str
+    user_ref: str
 
 
 class GamePublicEventChannel(BaseModel, frozen=True):
@@ -33,7 +33,7 @@ class GameSpectatorOnlyEventChannel(BaseModel, frozen=True):
 
 class StartedPlayerGamesEventChannel(BaseModel, frozen=True):
     channel_group: Literal['player/started_games'] = 'player/started_games'
-    watched_login: str
+    watched_ref: str
 
 
 class EventChannel(BaseModel, frozen=True):

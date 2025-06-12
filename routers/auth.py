@@ -8,7 +8,8 @@ from models import AuthCredentials, Player, PlayerPassword, TokenResponse
 from models.auth import GuestTokenResponse
 from .utils import get_session
 
-import bcrypt
+import bcrypt  # type: ignore
+
 
 router = APIRouter(prefix="/auth")
 

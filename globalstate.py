@@ -88,7 +88,7 @@ class SubscriberStorage:
         return self.has_token_subscriber(token, channel) if token else False
 
     async def broadcast[T: BaseModel](self, event: WebsocketOutgoingEvent[T], payload: T, channel: EventChannel = EVERYONE) -> None:
-        sending_coroutines = [websocket.send_event(event, payload) for websocket in self.subscribers[channel].values()]
+        sending_coroutines = [websocket.send_event(event, payload, channel.channel.model_dump()) for websocket in self.subscribers[channel].values()]
         await asyncio.gather(*sending_coroutines)
 
 

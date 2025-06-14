@@ -27,3 +27,7 @@ class CompatibilityResponse(BaseModel):
     resolution: CompatibilityResolution
     server_build: int
     min_client_build: int
+
+
+class Id(BaseModel):
+    id: int

@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Literal, Union
 
 from pydantic import BaseModel, Field
@@ -8,16 +7,21 @@ class EveryoneEventChannel(BaseModel, frozen=True):
     channel_group: Literal['everyone'] = 'everyone'
 
 
-class OpenChallengesEventChannel(BaseModel, frozen=True):
-    channel_group: Literal['open_challenges'] = 'open_challenges'
+class PublicChallengeListEventChannel(BaseModel, frozen=True):
+    channel_group: Literal['public_challenge_list'] = 'public_challenge_list'
 
 
-class ActiveGamesEventChannel(BaseModel, frozen=True):
-    channel_group: Literal['active_games'] = 'active_games'
+class GameListEventChannel(BaseModel, frozen=True):
+    channel_group: Literal['game_list'] = 'game_list'
 
 
-class DirectChallengesEventChannel(BaseModel, frozen=True):
-    channel_group: Literal['direct_challenges'] = 'direct_challenges'
+class IncomingChallengesEventChannel(BaseModel, frozen=True):
+    channel_group: Literal['incoming_challenges'] = 'incoming_challenges'
+    user_ref: str
+
+
+class OutgoingChallengesEventChannel(BaseModel, frozen=True):
+    channel_group: Literal['outgoing_challenges'] = 'outgoing_challenges'
     user_ref: str
 
 
@@ -39,9 +43,10 @@ class StartedPlayerGamesEventChannel(BaseModel, frozen=True):
 class EventChannel(BaseModel, frozen=True):
     channel: Union[
         EveryoneEventChannel,
-        OpenChallengesEventChannel,
-        ActiveGamesEventChannel,
-        DirectChallengesEventChannel,
+        PublicChallengeListEventChannel,
+        GameListEventChannel,
+        IncomingChallengesEventChannel,
+        OutgoingChallengesEventChannel,
         GamePublicEventChannel,
         GameSpectatorOnlyEventChannel,
         StartedPlayerGamesEventChannel,

@@ -45,6 +45,20 @@ class GamePublic(GameBase):
     rollback_events: list["HistoricalGameRollbackEventPublic"]
 
 
+class GameStartDetailsPublic(GameBase):
+    id: int
+
+    fischer_time_control: Optional["GameFischerTimeControlPublic"]
+
+
+class GameEndDetailsPublic(GameBase):
+    id: int
+
+    fischer_time_control: Optional["GameFischerTimeControlPublic"]
+    outcome: "GameOutcomePublic"
+    final_sip: str
+
+
 # Time Control
 
 

@@ -15,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 from database import create_db_and_tables
 from globalstate import GlobalState
 from models import *  # noqa
-from models import EVERYONE, GamePublic
+from models import EVERYONE, GamePublic, ChallengePublic, Id, GameStartDetailsPublic, GameEndDetailsPublic
 
 import yaml  # type: ignore
 
@@ -33,8 +33,78 @@ class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
     GAME_STARTED = WebsocketOutgoingEvent(
         "game_started",
         GamePublic,
-        "Game Started",
-        "Broadcasted to `player/started_games` channel whenever a new game involving a respective player starts"
+        "Game Started (for player's followers)",
+        "Broadcasted to `player/started_games` channel group whenever a new game involving a respective player starts"
+    )
+
+    NEW_PUBLIC_CHALLENGE = WebsocketOutgoingEvent(
+        "new_public_challenge",
+        ChallengePublic,
+        "New Public Challenge",
+        "Broadcasted to `public_challenge_list` channel group whenever a new public challenge is created"
+    )
+
+    PUBLIC_CHALLENGE_CANCELLED = WebsocketOutgoingEvent(
+        "public_challenge_cancelled",
+        Id,
+        "Public Challenge Cancelled",
+        "Broadcasted to `public_challenge_list` channel group whenever a public challenge is cancelled"
+    )
+
+    PUBLIC_CHALLENGE_FULFILLED = WebsocketOutgoingEvent(
+        "public_challenge_fulfilled",
+        Id,
+        "Public Challenge Fulfilled",
+        "Broadcasted to `public_challenge_list` channel group whenever a public challenge is fulfilled"
+    )
+
+    NEW_ACTIVE_GAME = WebsocketOutgoingEvent(
+        "new_active_game",
+        GameStartDetailsPublic,
+        "Game Started (for game lists watchers)",
+        "Broadcasted to `game_list` channel group whenever a new game starts"
+    )
+
+    NEW_RECENT_GAME = WebsocketOutgoingEvent(
+        "new_recent_game",
+        GameEndDetailsPublic,
+        "Game Ended (for game lists watchers)",
+        "Broadcasted to `game_list` channel group whenever a game ends"
+    )
+
+    INCOMING_CHALLENGE_RECEIVED = WebsocketOutgoingEvent(
+        "incoming_challenge_received",
+        ChallengePublic,
+        "Incoming Challenge Received",
+        "Broadcasted to `incoming_challenges` channel group whenever a direct challenge arrives"
+    )
+
+    INCOMING_CHALLENGE_CANCELLED = WebsocketOutgoingEvent(
+        "incoming_challenge_cancelled",
+        Id,
+        "Incoming Challenge Cancelled",
+        "Broadcasted to `incoming_challenges` channel group whenever an incoming direct challenge is cancelled"
+    )
+
+    INCOMING_CHALLENGE_FULFILLED = WebsocketOutgoingEvent(
+        "incoming_challenge_fulfilled",
+        Id,
+        "Incoming Challenge Fulfilled",
+        "Broadcasted to `incoming_challenges` channel group whenever an incoming direct challenge is fulfilled"
+    )
+
+    OUTGOING_CHALLENGE_ACCEPTED = WebsocketOutgoingEvent(
+        "outgoing_challenge_accepted",
+        Id,
+        "Outgoing Challenge Accepted",
+        "Broadcasted to `outgoing_challenges` channel group whenever an outgoing (direct or open) challenge is accepted"
+    )
+
+    OUTGOING_CHALLENGE_REJECTED = WebsocketOutgoingEvent(
+        "outgoing_challenge_rejected",
+        Id,
+        "Outgoing Challenge Rejected",
+        "Broadcasted to `outgoing_challenges` channel group whenever an outgoing direct challenge is rejected"
     )
 
     @classmethod
@@ -67,9 +137,10 @@ class WebSocketWrapper:
     def __post_init__(self):
         self.send_json = self.ws.send_json
 
-    async def send_event[T: BaseModel](self, event: WebsocketOutgoingEvent[T], payload: T) -> None:
+    async def send_event[T: BaseModel](self, event: WebsocketOutgoingEvent[T], payload: T, channel: dict | None = None) -> None:
         await self.ws.send_json(dict(
             event=event.name,
+            channel=channel,
             body=payload.model_dump()
         ))
 

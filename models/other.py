@@ -30,4 +30,4 @@ class CompatibilityResponse(BaseModel):
 
 
 class Id(BaseModel):
-    id: int | None
+    id: int

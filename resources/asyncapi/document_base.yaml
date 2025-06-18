@@ -2,7 +2,7 @@ asyncapi: 3.0.0
 info:
   title: Intellector WebSocket API
   version: 1.0.0
-  description: |
+  description: |  # TODO: Provide a more intuitive description + easy-to-understand examples
     This API is in charge of any event-driven interaction with the Intellector server (that is, anything that cannot be achieved via REST endpoints).
 
     Primary uses: online status check, notifications, in-game events.

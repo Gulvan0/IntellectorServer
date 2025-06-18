@@ -10,7 +10,7 @@ from models.channel import GameListEventChannel, IncomingChallengesEventChannel,
 from models.game import Game, GamePublic, GameStartDetailsPublic
 from models.other import Id
 from models.player import Player
-from routers.utils import EarlyResponse, get_session, OPTIONAL_USER_TOKEN_HEADER_SCHEME, supports_early_responses
+from routers.utils import USER_TOKEN_HEADER_SCHEME, EarlyResponse, get_session, OPTIONAL_USER_TOKEN_HEADER_SCHEME, supports_early_responses
 from rules import DEFAULT_STARTING_SIP, Position
 from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, TimeControlKind, UserRestrictionKind
 from utils.fastapi_wrappers import WebsocketOutgoingEventRegistry
@@ -232,8 +232,14 @@ async def __create_game(challenge: Challenge, acceptor: UserReference, session: 
         fischer_time_control=challenge.fischer_time_control,
     )
     session.add(db_game)
+
+    challenge.active = False
+    challenge.resulting_game = db_game
+    session.add(challenge)
+
     session.commit()
 
+    assert challenge.id
     challenge_id = Id(id=challenge.id)
     public_game = GamePublic.model_construct(**db_game.model_dump())
 
@@ -285,7 +291,7 @@ async def _attempt_merging(
 
 @supports_early_responses()
 @router.post("/create/open", status_code=201, response_model=ChallengeCreateResponse, response_model_exclude_none=True)
-async def create_open_challenge(*, session: Session = Depends(get_session), token: str = Depends(OPTIONAL_USER_TOKEN_HEADER_SCHEME), challenge: ChallengeCreateOpen):
+async def create_open_challenge(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), challenge: ChallengeCreateOpen):
     caller = GlobalState.token_to_user.get(token)
     if not caller:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -321,7 +327,7 @@ async def create_open_challenge(*, session: Session = Depends(get_session), toke
 
 @supports_early_responses()
 @router.post("/create/direct", status_code=201, response_model=ChallengeCreateResponse, response_model_exclude_none=True)
-async def create_direct_challenge(*, session: Session = Depends(get_session), token: str = Depends(OPTIONAL_USER_TOKEN_HEADER_SCHEME), challenge: ChallengeCreateDirect):
+async def create_direct_challenge(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), challenge: ChallengeCreateDirect):
     caller = GlobalState.token_to_user.get(token)
     if not caller:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -365,11 +371,43 @@ async def get_challenge(*, session: Session = Depends(get_session), id: int):
     return db_challenge
 
 
-# TODO: Delete (aka. cancel) challenge
+@router.delete("/{id}")
+async def cancel_challenge(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), id: int):
+    client = GlobalState.token_to_user.get(token)
+    if not client:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    db_challenge = session.get(Challenge, id)
+
+    if not db_challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+
+    if not db_challenge.active:
+        raise HTTPException(status_code=400, detail="Challenge is already inactive (i.e. cancelled, accepted or rejected)")
+
+    if db_challenge.caller_ref != client.reference:
+        raise HTTPException(status_code=403, detail="Only the author of this challenge may cancel it")
+
+    db_challenge.active = False
+    session.add(db_challenge)
+    session.commit()
+
+    if db_challenge.kind == ChallengeKind.PUBLIC:
+        await GlobalState.ws_subscribers.broadcast(
+            WebsocketOutgoingEventRegistry.PUBLIC_CHALLENGE_CANCELLED,
+            Id(id=id),
+            PublicChallengeListEventChannel()
+        )
+    elif db_challenge.kind == ChallengeKind.DIRECT and db_challenge.callee_ref:
+        await GlobalState.ws_subscribers.broadcast(
+            WebsocketOutgoingEventRegistry.INCOMING_CHALLENGE_CANCELLED,
+            Id(id=id),
+            IncomingChallengesEventChannel(user_ref=db_challenge.callee_ref)
+        )
 
 # TODO: Get open challenges with pagination
 
-# TODO: Get direct (both incoming and outgoing) challenges + expose for websocket
+# TODO: Get direct (both incoming and outgoing) challenges + expose for websocket (channel refresh operation)
 
 # TODO: Accept challenge - game starts
 

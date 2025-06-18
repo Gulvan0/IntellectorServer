@@ -968,15 +968,8 @@
                 "payload": {
                     "properties": {
                         "id": {
-                            "anyOf": [
-                                {
-                                    "type": "integer"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Id"
+                            "title": "Id",
+                            "type": "integer"
                         }
                     },
                     "required": [
@@ -993,15 +986,8 @@
                 "payload": {
                     "properties": {
                         "id": {
-                            "anyOf": [
-                                {
-                                    "type": "integer"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Id"
+                            "title": "Id",
+                            "type": "integer"
                         }
                     },
                     "required": [
@@ -1783,15 +1769,8 @@
                 "payload": {
                     "properties": {
                         "id": {
-                            "anyOf": [
-                                {
-                                    "type": "integer"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Id"
+                            "title": "Id",
+                            "type": "integer"
                         }
                     },
                     "required": [
@@ -1808,15 +1787,8 @@
                 "payload": {
                     "properties": {
                         "id": {
-                            "anyOf": [
-                                {
-                                    "type": "integer"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Id"
+                            "title": "Id",
+                            "type": "integer"
                         }
                     },
                     "required": [
@@ -1833,15 +1805,8 @@
                 "payload": {
                     "properties": {
                         "id": {
-                            "anyOf": [
-                                {
-                                    "type": "integer"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Id"
+                            "title": "Id",
+                            "type": "integer"
                         }
                     },
                     "required": [
@@ -1858,15 +1823,8 @@
                 "payload": {
                     "properties": {
                         "id": {
-                            "anyOf": [
-                                {
-                                    "type": "integer"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Id"
+                            "title": "Id",
+                            "type": "integer"
                         }
                     },
                     "required": [

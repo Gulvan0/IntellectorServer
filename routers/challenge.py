@@ -6,8 +6,9 @@ from sqlmodel import and_, col, or_, select, Session, func
 from globalstate import GlobalState, UserReference
 from models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic, PlayerRestriction
 from models.challenge import ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengeFischerTimeControlCreate
-from models.channel import IncomingChallengesEventChannel, EventChannel, StartedPlayerGamesEventChannel
-from models.game import Game, GamePublic
+from models.channel import GameListEventChannel, IncomingChallengesEventChannel, EventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
+from models.game import Game, GamePublic, GameStartDetailsPublic
+from models.other import Id
 from models.player import Player
 from routers.utils import EarlyResponse, get_session, OPTIONAL_USER_TOKEN_HEADER_SCHEME, supports_early_responses
 from rules import DEFAULT_STARTING_SIP, Position
@@ -165,7 +166,7 @@ def _validate_direct_callee_returning_online_status(
         if not db_callee:
             raise HTTPException(status_code=404, detail=f"Player not found: {callee.login}")
 
-    direct_challenges_observer_channel = EventChannel(channel=IncomingChallengesEventChannel(user_ref=challenge.callee_ref))
+    direct_challenges_observer_channel = IncomingChallengesEventChannel(user_ref=challenge.callee_ref)
     return GlobalState.ws_subscribers.has_user_subscriber(callee, direct_challenges_observer_channel)
 
 
@@ -233,16 +234,38 @@ async def __create_game(challenge: Challenge, acceptor: UserReference, session: 
     session.add(db_game)
     session.commit()
 
+    challenge_id = Id(id=challenge.id)
     public_game = GamePublic.model_construct(**db_game.model_dump())
 
-    # TODO: Notify challenge accepted
+    if challenge.kind == ChallengeKind.PUBLIC:
+        await GlobalState.ws_subscribers.broadcast(
+            WebsocketOutgoingEventRegistry.PUBLIC_CHALLENGE_FULFILLED,
+            challenge_id,
+            PublicChallengeListEventChannel()
+        )
+    elif challenge.kind == ChallengeKind.DIRECT:
+        await GlobalState.ws_subscribers.broadcast(
+            WebsocketOutgoingEventRegistry.INCOMING_CHALLENGE_FULFILLED,
+            challenge_id,
+            IncomingChallengesEventChannel(user_ref=acceptor.reference)
+        )
+        await GlobalState.ws_subscribers.broadcast(
+            WebsocketOutgoingEventRegistry.OUTGOING_CHALLENGE_ACCEPTED,
+            challenge_id,
+            OutgoingChallengesEventChannel(user_ref=challenge.caller_ref)
+        )
 
-    notified_channels = [
-        EventChannel(channel=StartedPlayerGamesEventChannel(watched_ref=white_player_ref)),
-        EventChannel(channel=StartedPlayerGamesEventChannel(watched_ref=black_player_ref))
-    ]
-    for channel in notified_channels:
-        await GlobalState.ws_subscribers.broadcast(WebsocketOutgoingEventRegistry.GAME_STARTED, public_game, channel)
+    for player_ref in [white_player_ref, black_player_ref]:
+        await GlobalState.ws_subscribers.broadcast(
+            WebsocketOutgoingEventRegistry.GAME_STARTED,
+            public_game,
+            StartedPlayerGamesEventChannel(watched_ref=player_ref)
+        )
+    await GlobalState.ws_subscribers.broadcast(
+        WebsocketOutgoingEventRegistry.NEW_ACTIVE_GAME,
+        GameStartDetailsPublic.model_construct(**public_game.model_dump()),
+        GameListEventChannel()
+    )
 
     return public_game
 
@@ -287,7 +310,12 @@ async def create_open_challenge(*, session: Session = Depends(get_session), toke
     session.commit()
 
     public_challenge = ChallengePublic.model_construct(**db_challenge.model_dump())
-    # TODO: Notify open challenge watchers, also outgoing challenge followers
+    if challenge_kind == ChallengeKind.PUBLIC:
+        await GlobalState.ws_subscribers.broadcast(
+            WebsocketOutgoingEventRegistry.NEW_PUBLIC_CHALLENGE,
+            public_challenge,
+            PublicChallengeListEventChannel()
+        )
     return ChallengeCreateResponse(result="created", challenge=public_challenge)
 
 
@@ -319,7 +347,11 @@ async def create_direct_challenge(*, session: Session = Depends(get_session), to
     session.commit()
 
     public_challenge = ChallengePublic.model_construct(**db_challenge.model_dump())
-    # TODO: Notify recipient, also outgoing challenge followers
+    await GlobalState.ws_subscribers.broadcast(
+        WebsocketOutgoingEventRegistry.INCOMING_CHALLENGE_RECEIVED,
+        public_challenge,
+        IncomingChallengesEventChannel(user_ref=challenge.callee_ref)
+    )
     return ChallengeCreateResponse(result="created", challenge=public_challenge, callee_online=callee_online)
 
 

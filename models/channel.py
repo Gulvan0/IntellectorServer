@@ -1,86 +1,59 @@
-from typing import ClassVar, Literal, Union
+from typing import Annotated, ClassVar, Literal, Union
 
-from pydantic import BaseModel, Field, create_model
-
-
-class EventChannelBase(BaseModel, frozen=True):
-    group: ClassVar[str] = ""
+from pydantic import BaseModel, Field
 
 
-def _create_event_channel_model(name: str, group: str, fields: dict = {}) -> type[EventChannelBase]:
-    return create_model(
-        name,
-        channel_group=(Literal[group], group),
-        group=(ClassVar[str], group),
-        __base__=EventChannelBase,
-        **fields
-    )
+class EveryoneEventChannel(BaseModel, frozen=True):
+    group: ClassVar[str] = 'everyone'
+    channel_group: Literal['everyone'] = 'everyone'
 
 
-EveryoneEventChannel = _create_event_channel_model(
-    'EveryoneEventChannel',
-    group='everyone'
-)
+class PublicChallengeListEventChannel(BaseModel, frozen=True):
+    group: ClassVar[str] = 'public_challenge_list'
+    channel_group: Literal['public_challenge_list'] = 'public_challenge_list'
 
 
-PublicChallengeListEventChannel = _create_event_channel_model(
-    'PublicChallengeListEventChannel',
-    group='public_challenge_list'
-)
+class GameListEventChannel(BaseModel, frozen=True):
+    group: ClassVar[str] = 'game_list'
+    channel_group: Literal['game_list'] = 'game_list'
 
 
-GameListEventChannel = _create_event_channel_model(
-    'GameListEventChannel',
-    group='game_list'
-)
+class IncomingChallengesEventChannel(BaseModel, frozen=True):
+    group: ClassVar[str] = 'incoming_challenges'
+    channel_group: Literal['incoming_challenges'] = 'incoming_challenges'
+
+    user_ref: str
 
 
-IncomingChallengesEventChannel = _create_event_channel_model(
-    'IncomingChallengesEventChannel',
-    group='incoming_challenges',
-    fields=dict(
-        user_ref=str
-    )
-)
+class OutgoingChallengesEventChannel(BaseModel, frozen=True):
+    group: ClassVar[str] = 'outgoing_challenges'
+    channel_group: Literal['outgoing_challenges'] = 'outgoing_challenges'
+
+    user_ref: str
 
 
-OutgoingChallengesEventChannel = _create_event_channel_model(
-    'OutgoingChallengesEventChannel',
-    group='outgoing_challenges',
-    fields=dict(
-        user_ref=str
-    )
-)
+class GamePublicEventChannel(BaseModel, frozen=True):
+    group: ClassVar[str] = 'game.public'
+    channel_group: Literal['game.public'] = 'game.public'
+
+    game_id: int
 
 
-GamePublicEventChannel = _create_event_channel_model(
-    'GamePublicEventChannel',
-    group='game.public',
-    fields=dict(
-        game_id=int
-    )
-)
+class GameSpectatorOnlyEventChannel(BaseModel, frozen=True):
+    group: ClassVar[str] = 'game.spectator_only'
+    channel_group: Literal['game.spectator_only'] = 'game.spectator_only'
+
+    game_id: int
 
 
-GameSpectatorOnlyEventChannel = _create_event_channel_model(
-    'GameSpectatorOnlyEventChannel',
-    group='game.spectator_only',
-    fields=dict(
-        game_id=int
-    )
-)
+class StartedPlayerGamesEventChannel(BaseModel, frozen=True):
+    group: ClassVar[str] = 'player.started_games'
+    channel_group: Literal['player.started_games'] = 'player.started_games'
+
+    watched_ref: str
 
 
-StartedPlayerGamesEventChannel = _create_event_channel_model(
-    'StartedPlayerGamesEventChannel',
-    group='player.started_games',
-    fields=dict(
-        watched_ref=str
-    )
-)
-
-
-channel_type = Union[
+EventChannel = Union[
     EveryoneEventChannel,
     PublicChallengeListEventChannel,
     GameListEventChannel,
@@ -92,8 +65,4 @@ channel_type = Union[
 ]
 
 
-class EventChannel(BaseModel, frozen=True):
-    channel: channel_type = Field(discriminator="channel_group")  # noqa
-
-
-EVERYONE = EventChannel(channel=EveryoneEventChannel())
+DISCRIMINATED_EVENT_CHANNEL_FIELD_ANNOTATION = Annotated[EventChannel, Field(discriminator="channel_group")]

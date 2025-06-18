@@ -3,11 +3,11 @@ from __future__ import annotations
 import asyncio
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, DefaultDict, Iterable
+from typing import TYPE_CHECKING, DefaultDict, Iterable
 from uuid import UUID
 
 from pydantic import BaseModel
-from models.channel import EVERYONE, EventChannel
+from models.channel import EventChannel, EveryoneEventChannel
 from models.config import MainConfig, SecretConfig
 from utils.config_loader import retrieve_config
 from utils.ds import BijectiveMap
@@ -68,27 +68,27 @@ class SubscriberStorage:
         uuid = self._resolve_websocket_reference(websocket_ref)
         return set(channel for channel, channel_subs in self.subscribers.items() if uuid in channel_subs)
 
-    def count_subscribers(self, channel: EventChannel = EVERYONE) -> int:
+    def count_subscribers(self, channel: EventChannel = EveryoneEventChannel()) -> int:
         return len(self.subscribers[channel])
 
-    def get_subscribers(self, channel: EventChannel = EVERYONE) -> Iterable[WebSocketWrapper]:
+    def get_subscribers(self, channel: EventChannel = EveryoneEventChannel()) -> Iterable[WebSocketWrapper]:
         return self.subscribers[channel].values()
 
-    def has_ws_subscriber(self, websocket_ref: WebSocketWrapper | UUID, channel: EventChannel = EVERYONE) -> bool:
+    def has_ws_subscriber(self, websocket_ref: WebSocketWrapper | UUID, channel: EventChannel = EveryoneEventChannel()) -> bool:
         return self._resolve_websocket_reference(websocket_ref) in self.subscribers[channel]
 
-    def has_token_subscriber(self, token: str, channel: EventChannel = EVERYONE) -> bool:
+    def has_token_subscriber(self, token: str, channel: EventChannel = EveryoneEventChannel()) -> bool:
         for ws in GlobalState.ws_subscribers.get_subscribers(channel):
             if ws.saved_token and ws.saved_token == token:
                 return True
         return False
 
-    def has_user_subscriber(self, user_ref: UserReference, channel: EventChannel = EVERYONE) -> bool:
+    def has_user_subscriber(self, user_ref: UserReference, channel: EventChannel = EveryoneEventChannel()) -> bool:
         token = GlobalState.token_to_user.get_inverse(user_ref)
         return self.has_token_subscriber(token, channel) if token else False
 
-    async def broadcast[T: BaseModel](self, event: WebsocketOutgoingEvent[T], payload: T, channel: EventChannel = EVERYONE) -> None:
-        sending_coroutines = [websocket.send_event(event, payload, channel.channel.model_dump()) for websocket in self.subscribers[channel].values()]
+    async def broadcast[T: BaseModel, C: EventChannel](self, event: WebsocketOutgoingEvent[T, C], payload: T, channel: C = EveryoneEventChannel()) -> None:  # type: ignore
+        sending_coroutines = [websocket.send_event(event, payload, channel) for websocket in self.subscribers[channel].values()]
         await asyncio.gather(*sending_coroutines)
 
 

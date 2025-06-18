@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
+import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, DefaultDict
+from typing import TYPE_CHECKING, Any, Callable, Coroutine
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
@@ -17,18 +17,18 @@ from database import create_db_and_tables
 from globalstate import GlobalState
 if TYPE_CHECKING:
     from models import (
-        EVERYONE,
         GamePublic,
         ChallengePublic,
         Id,
         GameStartDetailsPublic,
         GameEndDetailsPublic,
-        EventChannelBase,
         StartedPlayerGamesEventChannel,
         PublicChallengeListEventChannel,
         GameListEventChannel,
         IncomingChallengesEventChannel,
         OutgoingChallengesEventChannel,
+        EventChannel,
+        EveryoneEventChannel,
     )
 else:
     from models import *  # noqa
@@ -37,10 +37,10 @@ import yaml  # type: ignore
 
 
 @dataclass(frozen=True)
-class WebsocketOutgoingEvent[T: BaseModel, C: EventChannelBase]:
+class WebsocketOutgoingEvent[T: BaseModel, C: EventChannel]:
     event_name: str
     payload_type: type[T]
-    target_channel_group: type[C] | None
+    target_channel_class: type[C] | None
     title: str | None = None
     summary: str | None = None
     description: str | None = None
@@ -145,16 +145,17 @@ class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
             )
         )
         for outgoing_event in cls:
-            channel = outgoing_event.target_channel_group.group
+            channel_class: type[EventChannel] = outgoing_event.target_channel_class
+            channel_group = channel_class.group
             msg_ref = {"$ref": f"#/components/messages/{outgoing_event.event_name}"}
-            if channel not in result["channels"]:
-                result["channels"][channel] = dict(address=channel, messages={})
-                result["operations"][f"send_{channel}"] = dict(action="send", messages=[], channel={
-                    "$ref": f"#/channels/{channel}"
+            if channel_group not in result["channels"]:
+                result["channels"][channel_group] = dict(address=channel_group, messages={})
+                result["operations"][channel_group] = dict(action="send", messages=[], channel={
+                    "$ref": f"#/channels/{channel_group}"
                 })
-            result["channels"][channel]["messages"][outgoing_event.event_name] = msg_ref
-            result["operations"][f"send_{channel}"]["messages"].append({
-                "$ref": f"#/channels/{channel}/messages/{outgoing_event.event_name}"
+            result["channels"][channel_group]["messages"][outgoing_event.event_name] = msg_ref
+            result["operations"][channel_group]["messages"].append({
+                "$ref": f"#/channels/{channel_group}/messages/{outgoing_event.event_name}"
             })
 
             payload_type: type[BaseModel] = outgoing_event.payload_type
@@ -187,7 +188,7 @@ class WebSocketWrapper:
     def __post_init__(self):
         self.send_json = self.ws.send_json
 
-    async def send_event[T: BaseModel, C: EventChannelBase](self, event: WebsocketOutgoingEvent[T, C], payload: T, channel: C | None = None) -> None:
+    async def send_event[T: BaseModel, C: EventChannel](self, event: WebsocketOutgoingEvent[T, C], payload: T, channel: C | None = None) -> None:
         await self.ws.send_json(dict(
             event=event.event_name,
             channel=channel.model_dump(),
@@ -339,6 +340,7 @@ class App(FastAPI):
         document_base = resource_dir / 'document_base.yaml'
         page_template = resource_dir / 'docs_page_template.html'
         output_file = resource_dir / 'docs_page.html'
+        output_spec = resource_dir / 'asyncapi_spec.json'
 
         document = yaml.safe_load(document_base.read_text())
         document.update(outgoing_spec)
@@ -347,6 +349,7 @@ class App(FastAPI):
         document["components"]["messages"].update(incoming_spec["components"]["messages"])
         document["info"]["description"] = document["info"]["description"].replace('\n', '\\n').replace('"', '\\"')
 
+        output_spec.write_text(json.dumps(document, indent=4, ensure_ascii=False))
         result = Template(page_template.read_text()).render(schema=document)
         output_file.write_text(result)
 
@@ -356,7 +359,7 @@ class App(FastAPI):
     async def websocket_endpoint(self, websocket: WebSocket):
         await websocket.accept()
         ws_wrapper = WebSocketWrapper(websocket)
-        GlobalState.ws_subscribers.subscribe(ws_wrapper, EVERYONE)
+        GlobalState.ws_subscribers.subscribe(ws_wrapper, EveryoneEventChannel())
         try:
             while True:
                 data = await websocket.receive_json()

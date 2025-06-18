@@ -1,4 +1,4 @@
-asyncapi: 2.4.0
+asyncapi: 3.0.0
 info:
   title: Intellector WebSocket API
   version: 1.0.0
@@ -27,15 +27,7 @@ info:
     Valid client- and server-sent event names and their corresponding payload schemas are presented later in this specification.
 
     Authorization token is obtained using the REST API /auth endpoints (there are one for guest authorization and one for logging in).
-channels:
-  /:
-    publish:
-      operationId: sendMessage
-      message:
-        oneOf: TO_BE_GENERATED
-    subscribe:
-      operationId: processMessage
-      message:
-        oneOf: TO_BE_GENERATED
+channels: TO_BE_GENERATED
 components:
   messages: TO_BE_GENERATED
+operations: TO_BE_GENERATED

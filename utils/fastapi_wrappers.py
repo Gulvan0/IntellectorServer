@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Coroutine
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, DefaultDict
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
@@ -14,111 +15,160 @@ from pydantic import BaseModel, ValidationError
 
 from database import create_db_and_tables
 from globalstate import GlobalState
-from models import *  # noqa
-from models import EVERYONE, GamePublic, ChallengePublic, Id, GameStartDetailsPublic, GameEndDetailsPublic
+if TYPE_CHECKING:
+    from models import (
+        EVERYONE,
+        GamePublic,
+        ChallengePublic,
+        Id,
+        GameStartDetailsPublic,
+        GameEndDetailsPublic,
+        EventChannelBase,
+        StartedPlayerGamesEventChannel,
+        PublicChallengeListEventChannel,
+        GameListEventChannel,
+        IncomingChallengesEventChannel,
+        OutgoingChallengesEventChannel,
+    )
+else:
+    from models import *  # noqa
 
 import yaml  # type: ignore
 
 
 @dataclass(frozen=True)
-class WebsocketOutgoingEvent[T: BaseModel]:
-    name: str
+class WebsocketOutgoingEvent[T: BaseModel, C: EventChannelBase]:
+    event_name: str
     payload_type: type[T]
+    target_channel_group: type[C] | None
     title: str | None = None
     summary: str | None = None
     description: str | None = None
 
 
 class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
-    GAME_STARTED = WebsocketOutgoingEvent(
+    GAME_STARTED = (
         "game_started",
         GamePublic,
+        StartedPlayerGamesEventChannel,
         "Game Started (for player's followers)",
-        "Broadcasted to `player/started_games` channel group whenever a new game involving a respective player starts"
+        "Broadcasted to `player.started_games` channel group whenever a new game involving a respective player starts"
     )
 
-    NEW_PUBLIC_CHALLENGE = WebsocketOutgoingEvent(
+    NEW_PUBLIC_CHALLENGE = (
         "new_public_challenge",
         ChallengePublic,
+        PublicChallengeListEventChannel,
         "New Public Challenge",
         "Broadcasted to `public_challenge_list` channel group whenever a new public challenge is created"
     )
 
-    PUBLIC_CHALLENGE_CANCELLED = WebsocketOutgoingEvent(
+    PUBLIC_CHALLENGE_CANCELLED = (
         "public_challenge_cancelled",
         Id,
+        PublicChallengeListEventChannel,
         "Public Challenge Cancelled",
         "Broadcasted to `public_challenge_list` channel group whenever a public challenge is cancelled"
     )
 
-    PUBLIC_CHALLENGE_FULFILLED = WebsocketOutgoingEvent(
+    PUBLIC_CHALLENGE_FULFILLED = (
         "public_challenge_fulfilled",
         Id,
+        PublicChallengeListEventChannel,
         "Public Challenge Fulfilled",
         "Broadcasted to `public_challenge_list` channel group whenever a public challenge is fulfilled"
     )
 
-    NEW_ACTIVE_GAME = WebsocketOutgoingEvent(
+    NEW_ACTIVE_GAME = (
         "new_active_game",
         GameStartDetailsPublic,
+        GameListEventChannel,
         "Game Started (for game lists watchers)",
         "Broadcasted to `game_list` channel group whenever a new game starts"
     )
 
-    NEW_RECENT_GAME = WebsocketOutgoingEvent(
+    NEW_RECENT_GAME = (
         "new_recent_game",
         GameEndDetailsPublic,
+        GameListEventChannel,
         "Game Ended (for game lists watchers)",
         "Broadcasted to `game_list` channel group whenever a game ends"
     )
 
-    INCOMING_CHALLENGE_RECEIVED = WebsocketOutgoingEvent(
+    INCOMING_CHALLENGE_RECEIVED = (
         "incoming_challenge_received",
         ChallengePublic,
+        IncomingChallengesEventChannel,
         "Incoming Challenge Received",
         "Broadcasted to `incoming_challenges` channel group whenever a direct challenge arrives"
     )
 
-    INCOMING_CHALLENGE_CANCELLED = WebsocketOutgoingEvent(
+    INCOMING_CHALLENGE_CANCELLED = (
         "incoming_challenge_cancelled",
         Id,
+        IncomingChallengesEventChannel,
         "Incoming Challenge Cancelled",
         "Broadcasted to `incoming_challenges` channel group whenever an incoming direct challenge is cancelled"
     )
 
-    INCOMING_CHALLENGE_FULFILLED = WebsocketOutgoingEvent(
+    INCOMING_CHALLENGE_FULFILLED = (
         "incoming_challenge_fulfilled",
         Id,
+        IncomingChallengesEventChannel,
         "Incoming Challenge Fulfilled",
         "Broadcasted to `incoming_challenges` channel group whenever an incoming direct challenge is fulfilled"
     )
 
-    OUTGOING_CHALLENGE_ACCEPTED = WebsocketOutgoingEvent(
+    OUTGOING_CHALLENGE_ACCEPTED = (
         "outgoing_challenge_accepted",
         Id,
+        OutgoingChallengesEventChannel,
         "Outgoing Challenge Accepted",
         "Broadcasted to `outgoing_challenges` channel group whenever an outgoing (direct or open) challenge is accepted"
     )
 
-    OUTGOING_CHALLENGE_REJECTED = WebsocketOutgoingEvent(
+    OUTGOING_CHALLENGE_REJECTED = (
         "outgoing_challenge_rejected",
         Id,
+        OutgoingChallengesEventChannel,
         "Outgoing Challenge Rejected",
         "Broadcasted to `outgoing_challenges` channel group whenever an outgoing direct challenge is rejected"
     )
 
     @classmethod
     def generate_asyncapi_specification(cls) -> dict[str, Any]:
-        result = {}
-        for outgoing_event in cls:
-            payload_type: type[BaseModel] = outgoing_event.payload_type
-            result[outgoing_event.name] = dict(
-                name=outgoing_event.name,
-                title=outgoing_event.title,
-                summary=outgoing_event.summary,
-                description=outgoing_event.description,
-                payload=payload_type.model_json_schema()
+        result = dict(
+            channels={},
+            operations={},
+            components=dict(
+                messages={}
             )
+        )
+        for outgoing_event in cls:
+            channel = outgoing_event.target_channel_group.group
+            msg_ref = {"$ref": f"#/components/messages/{outgoing_event.event_name}"}
+            if channel not in result["channels"]:
+                result["channels"][channel] = dict(address=channel, messages={})
+                result["operations"][f"send_{channel}"] = dict(action="send", messages=[], channel={
+                    "$ref": f"#/channels/{channel}"
+                })
+            result["channels"][channel]["messages"][outgoing_event.event_name] = msg_ref
+            result["operations"][f"send_{channel}"]["messages"].append({
+                "$ref": f"#/channels/{channel}/messages/{outgoing_event.event_name}"
+            })
+
+            payload_type: type[BaseModel] = outgoing_event.payload_type
+            msg_definition = dict(
+                name=outgoing_event.event_name,
+                payload=payload_type.model_json_schema(ref_template=f'#/components/messages/{outgoing_event.event_name}/payload/$defs/{{model}}')
+            )
+            if outgoing_event.title:
+                msg_definition["title"] = outgoing_event.title
+            if outgoing_event.summary:
+                msg_definition["summary"] = outgoing_event.summary
+            if outgoing_event.description:
+                msg_definition["description"] = outgoing_event.description
+            result["components"]["messages"][outgoing_event.event_name] = msg_definition
         return result
 
 
@@ -137,10 +187,10 @@ class WebSocketWrapper:
     def __post_init__(self):
         self.send_json = self.ws.send_json
 
-    async def send_event[T: BaseModel](self, event: WebsocketOutgoingEvent[T], payload: T, channel: dict | None = None) -> None:
+    async def send_event[T: BaseModel, C: EventChannelBase](self, event: WebsocketOutgoingEvent[T, C], payload: T, channel: C | None = None) -> None:
         await self.ws.send_json(dict(
-            event=event.name,
-            channel=channel,
+            event=event.event_name,
+            channel=channel.model_dump(),
             body=payload.model_dump()
         ))
 
@@ -221,28 +271,55 @@ class WebSocketHandlerCollection:
         await handler.handle(ws, data.get("body"))
 
     def generate_asyncapi_specification(self) -> dict[str, Any]:
-        result = {}
-        for name, incoming_event in self._slug_to_handler.items():
-            payload_type: type[BaseModel] = incoming_event.payload_type
-            result[name] = dict(
-                name=name,
-                title=incoming_event.title,
-                summary=incoming_event.summary,
-                description=incoming_event.description,
-                payload=payload_type.model_json_schema()
+        result = dict(
+            channels=dict(
+                NO_CHANNEL=dict(
+                    messages={}
+                )
+            ),
+            operations=dict(
+                receive=dict(
+                    action="receive",
+                    channel={
+                        "$ref": "#/channels/NO_CHANNEL"
+                    },
+                    messages=[]
+                )
+            ),
+            components=dict(
+                messages={}
             )
+        )
+        for name, incoming_event in self._slug_to_handler.items():
+            msg_ref = {"$ref": f"#/components/messages/{name}"}
+            result["channels"]["NO_CHANNEL"]["messages"][name] = msg_ref
+            result["operations"]["receive"]["messages"].append({
+                "$ref": f"#/channels/NO_CHANNEL/messages/{name}"
+            })
+
+            payload_type: type[BaseModel] = incoming_event.payload_type
+            msg_definition = dict(
+                name=name,
+                payload=payload_type.model_json_schema(ref_template=f'#/components/messages/{name}/payload/$defs/{{model}}')
+            )
+            if incoming_event.title:
+                msg_definition["title"] = incoming_event.title
+            if incoming_event.summary:
+                msg_definition["summary"] = incoming_event.summary
+            if incoming_event.description:
+                msg_definition["description"] = incoming_event.description
+            result["components"]["messages"][name] = msg_definition
         return result
 
 
-@asynccontextmanager
-async def __lifespan(_: FastAPI):
-    create_db_and_tables()  # All models were imported using wildcard at the top of this file
-    yield
-
-
 class App(FastAPI):
+    @asynccontextmanager
+    async def __lifespan(self: FastAPI):
+        create_db_and_tables()  # All models were imported using wildcard at the top of this file
+        yield
+
     def __init__(self, rest_routers: list[APIRouter], ws_collections: list[WebSocketHandlerCollection]) -> None:
-        super().__init__(lifespan=__lifespan)
+        super().__init__(lifespan=App.__lifespan)
 
         for router in rest_routers:
             self.include_router(router)
@@ -264,9 +341,11 @@ class App(FastAPI):
         output_file = resource_dir / 'docs_page.html'
 
         document = yaml.safe_load(document_base.read_text())
-        document["channels"]["/"]["publish"]["message"]["oneOf"] = list(incoming_spec.keys())
-        document["channels"]["/"]["subscribe"]["message"]["oneOf"] = list(outgoing_spec.keys())
-        document["components"]["messages"] = incoming_spec | outgoing_spec
+        document.update(outgoing_spec)
+        document["channels"].update(incoming_spec["channels"])
+        document["operations"].update(incoming_spec["operations"])
+        document["components"]["messages"].update(incoming_spec["components"]["messages"])
+        document["info"]["description"] = document["info"]["description"].replace('\n', '\\n').replace('"', '\\"')
 
         result = Template(page_template.read_text()).render(schema=document)
         output_file.write_text(result)

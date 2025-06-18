@@ -1,12 +1,12 @@
 import random
 from typing import assert_never
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import and_, col, or_, select, Session, func
 
 from globalstate import GlobalState, UserReference
 from models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic, PlayerRestriction
 from models.challenge import ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengeFischerTimeControlCreate
-from models.channel import DirectChallengesEventChannel, EventChannel, StartedPlayerGamesEventChannel
+from models.channel import IncomingChallengesEventChannel, EventChannel, StartedPlayerGamesEventChannel
 from models.game import Game, GamePublic
 from models.player import Player
 from routers.utils import EarlyResponse, get_session, OPTIONAL_USER_TOKEN_HEADER_SCHEME, supports_early_responses
@@ -165,7 +165,7 @@ def _validate_direct_callee_returning_online_status(
         if not db_callee:
             raise HTTPException(status_code=404, detail=f"Player not found: {callee.login}")
 
-    direct_challenges_observer_channel = EventChannel(channel=DirectChallengesEventChannel(user_ref=challenge.callee_ref))
+    direct_challenges_observer_channel = EventChannel(channel=IncomingChallengesEventChannel(user_ref=challenge.callee_ref))
     return GlobalState.ws_subscribers.has_user_subscriber(callee, direct_challenges_observer_channel)
 
 

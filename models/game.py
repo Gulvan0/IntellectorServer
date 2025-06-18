@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -62,18 +62,22 @@ class GameEndDetailsPublic(GameBase):
 # Time Control
 
 
-class GameFischerTimeControlBase(SQLModel, FischerTimeControlEntity):
+class GameFischerTimeControlBase(SQLModel):
     start_seconds: int
     increment_seconds: int = 0
 
 
-class GameFischerTimeControl(GameFischerTimeControlBase, FischerTimeControlEntity, table=True):
+if TYPE_CHECKING:
+    _: type[FischerTimeControlEntity] = GameFischerTimeControlBase
+
+
+class GameFischerTimeControl(GameFischerTimeControlBase, table=True):
     game_id: int | None = Field(primary_key=True, foreign_key="game.id")
 
     game: Game = Relationship(back_populates="fischer_time_control")
 
 
-class GameFischerTimeControlPublic(GameFischerTimeControlBase, FischerTimeControlEntity):
+class GameFischerTimeControlPublic(GameFischerTimeControlBase):
     pass
 
 

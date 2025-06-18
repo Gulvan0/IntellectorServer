@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import TYPE_CHECKING, Literal, Optional
 
 from pydantic import BaseModel
 from sqlmodel import Field, Relationship, SQLModel
@@ -30,9 +30,13 @@ class Challenge(ChallengeBase, table=True):
     fischer_time_control: Optional["ChallengeFischerTimeControl"] = Relationship(back_populates="challenge", cascade_delete=True)
 
 
-class ChallengeFischerTimeControlBase(SQLModel, FischerTimeControlEntity):
+class ChallengeFischerTimeControlBase(SQLModel):
     start_seconds: int = Field(gt=0, le=60 * 60 * 6)
     increment_seconds: int = Field(default=0, ge=0, le=60 * 2)
+
+
+if TYPE_CHECKING:
+    _: type[FischerTimeControlEntity] = ChallengeFischerTimeControlBase
 
 
 class ChallengeFischerTimeControl(ChallengeFischerTimeControlBase, table=True):

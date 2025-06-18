@@ -6,11 +6,11 @@ from sqlmodel import and_, col, or_, select, Session, func
 from globalstate import GlobalState, UserReference
 from models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic, PlayerRestriction
 from models.challenge import ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengeFischerTimeControlCreate
-from models.channel import GameListEventChannel, IncomingChallengesEventChannel, EventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
+from models.channel import GameListEventChannel, IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
 from models.game import Game, GamePublic, GameStartDetailsPublic
 from models.other import Id
 from models.player import Player
-from routers.utils import USER_TOKEN_HEADER_SCHEME, EarlyResponse, get_session, OPTIONAL_USER_TOKEN_HEADER_SCHEME, supports_early_responses
+from routers.utils import USER_TOKEN_HEADER_SCHEME, EarlyResponse, get_session, supports_early_responses
 from rules import DEFAULT_STARTING_SIP, Position
 from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, TimeControlKind, UserRestrictionKind
 from utils.fastapi_wrappers import WebsocketOutgoingEventRegistry
@@ -409,6 +409,43 @@ async def cancel_challenge(*, session: Session = Depends(get_session), token: st
 
 # TODO: Get direct (both incoming and outgoing) challenges + expose for websocket (channel refresh operation)
 
-# TODO: Accept challenge - game starts
+
+@router.post("/{id}/accept", response_model=GamePublic)
+async def accept_challenge(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), id: int):
+    client = GlobalState.token_to_user.get(token)
+    if not client:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    db_challenge = session.get(Challenge, id)
+
+    if not db_challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+
+    if not db_challenge.active:
+        raise HTTPException(status_code=400, detail="Challenge is inactive (i.e. cancelled, accepted or rejected)")
+
+    if db_challenge.kind == ChallengeKind.DIRECT:
+        if db_challenge.callee_ref != client.reference:
+            raise HTTPException(status_code=403, detail="You are not the callee of this challenge")
+    else:
+        if db_challenge.caller_ref == client.reference:
+            raise HTTPException(status_code=400, detail="Cannot accept own challenge")
+
+    db_game = await __create_game(db_challenge, client, session)
+
+    await GlobalState.ws_subscribers.broadcast(
+        WebsocketOutgoingEventRegistry.OUTGOING_CHALLENGE_ACCEPTED,
+        Id(id=id),
+        OutgoingChallengesEventChannel(user_ref=db_challenge.caller_ref)
+    )
+
+    if db_challenge.kind == ChallengeKind.DIRECT:
+        await GlobalState.ws_subscribers.broadcast(
+            WebsocketOutgoingEventRegistry.INCOMING_CHALLENGE_FULFILLED,
+            Id(id=id),
+            IncomingChallengesEventChannel(user_ref=client.reference)
+        )
+
+    return db_game
 
 # TODO: Decline challenge - notification is sent

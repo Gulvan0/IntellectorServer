@@ -16,6 +16,7 @@ from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, TimeControlKi
 from utils.fastapi_wrappers import WebsocketOutgoingEventRegistry
 from utils.query import exists, not_expired
 
+
 router = APIRouter(prefix="/challenge")
 
 

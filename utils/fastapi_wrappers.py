@@ -206,6 +206,7 @@ class WebSocketIncomingEventHandler[T:BaseModel]:
     description: str | None
 
     async def handle(self, ws: WebSocketWrapper, payload_json: Any) -> None:
+        # TODO: Implement user forwarding
         try:
             payload = self.payload_type.model_validate(payload_json)
         except ValidationError as e:
@@ -250,6 +251,10 @@ class WebSocketHandlerCollection:
         if not isinstance(data, dict):
             await ws.send_error("parsing_error", "WebSocket message isn't a dictionary (mapping)")
             return
+
+        # TODO: Validate model using pydantic, get user by token (or call send_error and skip), pass user-based model
+        # if "token" in data and data["token"] != ws_wrapper.saved_token:
+        #     GlobalState.token_to_user.get(...)...
 
         event_slug = data.get("event")
         if not event_slug:

@@ -1,6 +1,6 @@
 import random
 from typing import Sequence, assert_never
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import and_, col, or_, select, Session, func
 
 from globalstate import GlobalState, UserReference
@@ -401,7 +401,14 @@ async def cancel_challenge(*, session: Session = Depends(get_session), token: st
         )
 
 
-# TODO: Get open challenges with pagination
+@router.get("/public", response_model=list[ChallengePublic])
+async def get_public_challenges(*, session: Session = Depends(get_session), offset: int = 0, limit: int = Query(default=50, le=50)):
+    return session.exec(select(
+        Challenge
+    ).where(
+        Challenge.active == True,  # noqa
+        Challenge.kind == ChallengeKind.PUBLIC
+    ).offset(offset).limit(limit)).all()
 
 
 async def get_direct_challenges(session: Session, user: UserReference, include_incoming: bool = True, include_outgoing: bool = True) -> Sequence[Challenge]:

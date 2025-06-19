@@ -1,17 +1,16 @@
-from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel
 from sqlalchemy import ColumnElement
 from sqlmodel import Field, Relationship, SQLModel, or_
 
-from .utils import CURRENT_DATETIME_COLUMN, PLAYER_REF_COLUMN, SIP_COLUMN, PLAYER_REF_COLUMN_DEFAULT_NONE
+from .column_types import CurrentDatetime, OptionalSip, PlayerRef, Sip, OptionalPlayerRef
 from .common import PieceColorField, PieceKindField, PlyKindField
 from utils.datatypes import FischerTimeControlEntity, OfferAction, OfferKind, OutcomeKind, TimeControlKind
 
 
 class GameFilter(BaseModel):
-    player_ref: str | None = PLAYER_REF_COLUMN_DEFAULT_NONE
+    player_ref: OptionalPlayerRef = None
     time_control_kind: TimeControlKind | None = None
 
     def construct_conditions(self) -> list[bool | ColumnElement[bool]]:
@@ -30,13 +29,13 @@ class GameFilter(BaseModel):
 
 
 class GameBase(SQLModel):
-    started_at: datetime = CURRENT_DATETIME_COLUMN
+    started_at: CurrentDatetime
 
-    white_player_ref: str = PLAYER_REF_COLUMN
-    black_player_ref: str = PLAYER_REF_COLUMN
+    white_player_ref: PlayerRef
+    black_player_ref: PlayerRef
     time_control_kind: TimeControlKind
     rated: bool
-    custom_starting_sip: str | None = SIP_COLUMN
+    custom_starting_sip: OptionalSip
 
 
 class Game(GameBase, table=True):
@@ -103,7 +102,7 @@ class GameFischerTimeControlPublic(GameFischerTimeControlBase):
 
 
 class GameOutcomeBase(SQLModel):
-    game_ended_at: datetime = CURRENT_DATETIME_COLUMN
+    game_ended_at: CurrentDatetime
     kind: OutcomeKind
     winner: PieceColorField
 
@@ -122,7 +121,7 @@ class GameOutcomePublic(GameOutcomeBase):
 
 
 class GamePlyEventBase(SQLModel):
-    occurred_at: datetime = CURRENT_DATETIME_COLUMN
+    occurred_at: CurrentDatetime
     ply_index: int
     from_i: int
     from_j: int
@@ -139,7 +138,7 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
     moving_color: PieceColorField
     moved_piece: PieceKindField
     target_piece: PieceKindField | None
-    sip_after: str = SIP_COLUMN
+    sip_after: Sip
 
     game: Game = Relationship(back_populates="ply_events")
 
@@ -157,8 +156,8 @@ class MessageGamePlyEventPublic(GamePlyEventBase):  # Broadcasted when a new mov
 
 
 class GameChatMessageEventBase(SQLModel):
-    occurred_at: datetime = CURRENT_DATETIME_COLUMN
-    author_ref: str = PLAYER_REF_COLUMN
+    occurred_at: CurrentDatetime
+    author_ref: PlayerRef
     text: str
     spectator: bool
 
@@ -182,7 +181,7 @@ class MessageGameChatMessagePlyEventPublic(GameChatMessageEventBase):  # Broadca
 
 
 class GameOfferEventBase(SQLModel):
-    occurred_at: datetime = CURRENT_DATETIME_COLUMN
+    occurred_at: CurrentDatetime
     action: OfferAction
     offer_kind: OfferKind
     offer_author: PieceColorField
@@ -207,7 +206,7 @@ class MessageGameOfferEventPublic(GameOfferEventBase):
 
 
 class GameTimeAddedEventBase(SQLModel):
-    occurred_at: datetime = CURRENT_DATETIME_COLUMN
+    occurred_at: CurrentDatetime
     amount_seconds: int
     receiver: PieceColorField
 
@@ -231,7 +230,7 @@ class MessageGameTimeAddedEventPublic(GameTimeAddedEventBase):
 
 
 class GameRollbackEventBase(SQLModel):
-    occurred_at: datetime = CURRENT_DATETIME_COLUMN
+    occurred_at: CurrentDatetime
     position_index_before: int
     position_index_after: int
     requested_by: PieceColorField

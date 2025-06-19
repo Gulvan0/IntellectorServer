@@ -7,20 +7,20 @@ from sqlmodel import Field, Relationship, SQLModel
 
 from models.game import Game, GamePublic
 from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, FischerTimeControlEntity, TimeControlKind
-from .utils import CURRENT_DATETIME_COLUMN, PLAYER_REF_COLUMN, SIP_COLUMN, PLAYER_REF_COLUMN_DEFAULT_NONE
+from .column_types import CurrentDatetime, PlayerRef, OptionalSip, OptionalPlayerRef
 
 
 class ChallengeBase(SQLModel):
     acceptor_color: ChallengeAcceptorColor = ChallengeAcceptorColor.RANDOM
-    custom_starting_sip: str | None = SIP_COLUMN
+    custom_starting_sip: OptionalSip
     rated: bool
 
 
 class Challenge(ChallengeBase, table=True):
     id: int | None = Field(primary_key=True)
-    created_at: datetime = CURRENT_DATETIME_COLUMN
-    caller_ref: str = PLAYER_REF_COLUMN
-    callee_ref: str | None = PLAYER_REF_COLUMN_DEFAULT_NONE
+    created_at: CurrentDatetime
+    caller_ref: PlayerRef
+    callee_ref: OptionalPlayerRef = None
     kind: ChallengeKind
     time_control_kind: TimeControlKind
     active: bool = True
@@ -64,14 +64,14 @@ class ChallengeCreateOpen(ChallengeBase):
 
 class ChallengeCreateDirect(ChallengeBase):
     fischer_time_control: ChallengeFischerTimeControlCreate | None = None
-    callee_ref: str = PLAYER_REF_COLUMN
+    callee_ref: PlayerRef
 
 
 class ChallengePublic(ChallengeBase):
     id: int
     created_at: datetime
-    caller_ref: str = PLAYER_REF_COLUMN
-    callee_ref: str | None = PLAYER_REF_COLUMN_DEFAULT_NONE
+    caller_ref: PlayerRef
+    callee_ref: OptionalPlayerRef
     kind: ChallengeKind
     time_control_kind: TimeControlKind
     active: bool

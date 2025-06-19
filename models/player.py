@@ -3,10 +3,10 @@ from enum import auto, StrEnum
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
-from sqlalchemy import CHAR, LargeBinary
+from sqlalchemy import CHAR
 from sqlmodel import Field, Relationship, SQLModel, Column
 
-from models.utils import CURRENT_DATETIME_COLUMN
+from models.column_types import CurrentDatetime
 from utils.datatypes import TimeControlKind, UserRestrictionKind, UserRole
 
 if TYPE_CHECKING:
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 class PlayerBase(SQLModel):
     login: str = Field(primary_key=True, max_length=32)
-    joined_at: datetime = CURRENT_DATETIME_COLUMN
+    joined_at: CurrentDatetime
     nickname: str
 
 
@@ -33,7 +33,7 @@ class Player(PlayerBase, table=True):
 # <private>
 class PlayerPassword(SQLModel, table=True):
     login: str = Field(primary_key=True, foreign_key="player.login")
-    created_at: datetime = CURRENT_DATETIME_COLUMN
+    created_at: CurrentDatetime
     salt: str = Field(sa_column=Column(CHAR(6)))
     password_hash: str = Field(sa_column=Column(CHAR(32)))
 
@@ -42,7 +42,7 @@ class PlayerPassword(SQLModel, table=True):
 
 class PlayerRoleBase(SQLModel):
     role: UserRole = Field(primary_key=True)
-    granted_at: datetime = CURRENT_DATETIME_COLUMN
+    granted_at: CurrentDatetime
 
 
 class PlayerRole(PlayerRoleBase, table=True):
@@ -57,7 +57,7 @@ class PlayerRolePublic(PlayerRoleBase):
 
 class PlayerRestrictionBase(SQLModel):
     id: int | None = Field(primary_key=True)
-    casted_at: datetime = CURRENT_DATETIME_COLUMN
+    casted_at: CurrentDatetime
     expires: datetime | None
     kind: UserRestrictionKind
 
@@ -75,13 +75,13 @@ class PlayerRestrictionPublic(PlayerRestrictionBase):
 class PlayerFollowedPlayer(SQLModel, table=True):
     follower_login: str = Field(primary_key=True, foreign_key="player.login")
     followed_login: str = Field(primary_key=True, foreign_key="player.login")
-    follows_since: datetime = CURRENT_DATETIME_COLUMN
+    follows_since: CurrentDatetime
 
 
 class PlayerEloProgress(SQLModel, table=True):  # Used for: current elo retrieval, elo history plotting, antifraud checks
     id: int | None = Field(primary_key=True)
     login: str = Field(foreign_key="player.login")
-    ts: datetime = CURRENT_DATETIME_COLUMN
+    ts: CurrentDatetime
     time_control_kind: TimeControlKind
     elo: int
     delta: int

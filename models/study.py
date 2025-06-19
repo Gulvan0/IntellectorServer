@@ -1,10 +1,10 @@
 from datetime import datetime
-from typing import Any, Self, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from sqlmodel import Field, Relationship, SQLModel
 
 from .common import PieceKindField, VariationNode
-from .utils import CURRENT_DATETIME_COLUMN, SIP_COLUMN
+from .column_types import CurrentDatetime, Sip
 from utils.datatypes import StudyPublicity
 
 if TYPE_CHECKING:
@@ -15,14 +15,14 @@ class StudyBase(SQLModel):
     name: str = Field(max_length=64)
     description: str = Field(max_length=2000)
     publicity: StudyPublicity
-    starting_sip: str = SIP_COLUMN
-    key_sip: str = SIP_COLUMN
+    starting_sip: Sip
+    key_sip: Sip
 
 
 class Study(StudyBase, table=True):
     id: int | None = Field(primary_key=True)
-    created_at: datetime = CURRENT_DATETIME_COLUMN
-    modified_at: datetime = CURRENT_DATETIME_COLUMN
+    created_at: CurrentDatetime
+    modified_at: CurrentDatetime
     author_login: str = Field(foreign_key="player.login")
     deleted: bool = False
 
@@ -60,7 +60,7 @@ class StudyVariationNode(StudyVariationNodeBase, table=True):
     study: Study = Relationship(back_populates="nodes")
 
     @classmethod
-    def from_api_model(cls, node: VariationNode) -> Self:
+    def from_api_model(cls, node: VariationNode) -> "StudyVariationNode":
         return StudyVariationNode(
             joined_path=node.path,
             ply_from_i=node.ply.departure.i,

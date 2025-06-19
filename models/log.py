@@ -1,22 +1,20 @@
-from datetime import datetime
-
-from sqlalchemy import CHAR 
+from sqlalchemy import CHAR
 from sqlmodel import Field, SQLModel, Column
 
-from .utils import CURRENT_DATETIME_COLUMN, PLAYER_REF_COLUMN
+from .column_types import CurrentDatetime, OptionalPlayerRef
 
 
 class ServerLaunch(SQLModel, table=True):
     id: int | None = Field(primary_key=True)
-    launched_at: datetime = CURRENT_DATETIME_COLUMN
+    launched_at: CurrentDatetime
 
 
 # <private>
 class RESTLog(SQLModel, table=True):
     id: int | None = Field(primary_key=True)
-    ts: datetime = CURRENT_DATETIME_COLUMN
+    ts: CurrentDatetime
     client_host: str
-    authorized_as: str | None = PLAYER_REF_COLUMN
+    authorized_as: OptionalPlayerRef
     endpoint: str
     method: str = Field(sa_column=Column(CHAR(4)))
     headers_json: str
@@ -28,9 +26,9 @@ class RESTLog(SQLModel, table=True):
 # <private>
 class WSLog(SQLModel, table=True):
     id: int | None = Field(primary_key=True)
-    ts: datetime = CURRENT_DATETIME_COLUMN
+    ts: CurrentDatetime
     connection_id: str = Field(sa_column=Column(CHAR(32)))
-    authorized_as: str | None = PLAYER_REF_COLUMN
+    authorized_as: OptionalPlayerRef
     payload_json: str
     incoming: bool
 
@@ -38,6 +36,6 @@ class WSLog(SQLModel, table=True):
 # <private>
 class ServiceLog(SQLModel, table=True):
     id: int | None = Field(primary_key=True)
-    ts: datetime = CURRENT_DATETIME_COLUMN
+    ts: CurrentDatetime
     service: str
     message: str

@@ -1,9 +1,6 @@
 from typing import Sequence
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, desc, or_, select
-from sqlmodel.sql.expression import SelectOfScalar
-
-from globalstate import UserReference
+from sqlmodel import Session, desc, select
 from models.game import Game, GameFilter, GamePublic
 from routers.utils import get_session
 

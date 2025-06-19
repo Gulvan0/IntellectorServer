@@ -1,5 +1,5 @@
 import random
-from typing import assert_never
+from typing import Sequence, assert_never
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import and_, col, or_, select, Session, func
 
@@ -400,9 +400,34 @@ async def cancel_challenge(*, session: Session = Depends(get_session), token: st
             IncomingChallengesEventChannel(user_ref=db_challenge.callee_ref)
         )
 
+
 # TODO: Get open challenges with pagination
 
-# TODO: Get direct (both incoming and outgoing) challenges + expose for websocket (channel refresh operation)
+
+async def get_direct_challenges(session: Session, user: UserReference, include_incoming: bool = True, include_outgoing: bool = True) -> Sequence[Challenge]:
+    assert include_incoming or include_outgoing
+
+    user_filters = []
+    if include_incoming:
+        user_filters.append(Challenge.callee_ref == user.reference)
+    if include_outgoing:
+        user_filters.append(Challenge.caller_ref == user.reference)
+
+    return session.exec(select(
+        Challenge
+    ).where(
+        Challenge.active == True,  # noqa
+        or_(*user_filters)
+    )).all()
+
+
+@router.get("/my_direct", response_model=list[ChallengePublic])
+async def get_my_direct_challenges(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
+    client = GlobalState.token_to_user.get(token)
+    if not client:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    return get_direct_challenges(session, client)
 
 
 @router.post("/{id}/accept", response_model=GamePublic)

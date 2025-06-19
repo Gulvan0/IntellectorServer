@@ -249,17 +249,12 @@ async def __create_game(challenge: Challenge, acceptor: UserReference, session: 
             challenge_id,
             PublicChallengeListEventChannel()
         )
-    elif challenge.kind == ChallengeKind.DIRECT:
-        await GlobalState.ws_subscribers.broadcast(
-            WebsocketOutgoingEventRegistry.INCOMING_CHALLENGE_FULFILLED,
-            challenge_id,
-            IncomingChallengesEventChannel(user_ref=acceptor.reference)
-        )
-        await GlobalState.ws_subscribers.broadcast(
-            WebsocketOutgoingEventRegistry.OUTGOING_CHALLENGE_ACCEPTED,
-            challenge_id,
-            OutgoingChallengesEventChannel(user_ref=challenge.caller_ref)
-        )
+
+    await GlobalState.ws_subscribers.broadcast(
+        WebsocketOutgoingEventRegistry.OUTGOING_CHALLENGE_ACCEPTED,
+        challenge_id,
+        OutgoingChallengesEventChannel(user_ref=challenge.caller_ref)
+    )
 
     for player_ref in [white_player_ref, black_player_ref]:
         await GlobalState.ws_subscribers.broadcast(
@@ -426,26 +421,42 @@ async def accept_challenge(*, session: Session = Depends(get_session), token: st
 
     if db_challenge.kind == ChallengeKind.DIRECT:
         if db_challenge.callee_ref != client.reference:
-            raise HTTPException(status_code=403, detail="You are not the callee of this challenge")
+            raise HTTPException(status_code=403, detail="You are not the recepient of this challenge")
     else:
         if db_challenge.caller_ref == client.reference:
             raise HTTPException(status_code=400, detail="Cannot accept own challenge")
 
     db_game = await __create_game(db_challenge, client, session)
 
+    return db_game
+
+
+@router.post("/{id}/decline")
+async def decline_challenge(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), id: int):
+    client = GlobalState.token_to_user.get(token)
+    if not client:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    db_challenge = session.get(Challenge, id)
+
+    if not db_challenge:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+
+    if not db_challenge.active:
+        raise HTTPException(status_code=400, detail="Challenge is inactive (i.e. cancelled, accepted or rejected)")
+
+    if db_challenge.kind != ChallengeKind.DIRECT:
+        raise HTTPException(status_code=400, detail="Cannot decline an open challenge")
+
+    if db_challenge.callee_ref != client.reference:
+        raise HTTPException(status_code=403, detail="You are not the recepient of this challenge")
+
+    db_challenge.active = False
+    session.add(db_challenge)
+    session.commit()
+
     await GlobalState.ws_subscribers.broadcast(
-        WebsocketOutgoingEventRegistry.OUTGOING_CHALLENGE_ACCEPTED,
+        WebsocketOutgoingEventRegistry.OUTGOING_CHALLENGE_REJECTED,
         Id(id=id),
         OutgoingChallengesEventChannel(user_ref=db_challenge.caller_ref)
     )
-
-    if db_challenge.kind == ChallengeKind.DIRECT:
-        await GlobalState.ws_subscribers.broadcast(
-            WebsocketOutgoingEventRegistry.INCOMING_CHALLENGE_FULFILLED,
-            Id(id=id),
-            IncomingChallengesEventChannel(user_ref=client.reference)
-        )
-
-    return db_game
-
-# TODO: Decline challenge - notification is sent

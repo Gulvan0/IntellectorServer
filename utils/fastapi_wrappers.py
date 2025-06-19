@@ -76,7 +76,7 @@ class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
         Id,
         PublicChallengeListEventChannel,
         "Public Challenge Fulfilled",
-        "Broadcasted to `public_challenge_list` channel group whenever a public challenge is fulfilled"
+        "Broadcasted to `public_challenge_list` channel group whenever a public challenge is fulfilled (i.e. accepted by someone)"
     )
 
     NEW_ACTIVE_GAME = (
@@ -109,14 +109,6 @@ class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
         IncomingChallengesEventChannel,
         "Incoming Challenge Cancelled",
         "Broadcasted to `incoming_challenges` channel group whenever an incoming direct challenge is cancelled"
-    )
-
-    INCOMING_CHALLENGE_FULFILLED = (
-        "incoming_challenge_fulfilled",
-        Id,
-        IncomingChallengesEventChannel,
-        "Incoming Challenge Fulfilled",
-        "Broadcasted to `incoming_challenges` channel group whenever an incoming direct challenge is fulfilled"
     )
 
     OUTGOING_CHALLENGE_ACCEPTED = (

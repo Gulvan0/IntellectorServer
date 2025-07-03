@@ -7,10 +7,10 @@ from globalstate import GlobalState, UserReference
 from models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic, PlayerRestriction
 from models.challenge import ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengeFischerTimeControlCreate
 from models.channel import GameListEventChannel, IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
-from models.game import Game, GamePublic, GameStartDetailsPublic
+from models.game import Game, GamePublic, GameStartedBroadcastedData
 from models.other import Id
 from models.player import Player
-from routers.utils import USER_TOKEN_HEADER_SCHEME, EarlyResponse, get_session, supports_early_responses
+from routers.utils import EarlyResponse, get_mandatory_user, get_session, supports_early_responses
 from rules import DEFAULT_STARTING_SIP, Position
 from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, TimeControlKind, UserRestrictionKind
 from utils.fastapi_wrappers import WebsocketOutgoingEventRegistry
@@ -265,7 +265,7 @@ async def __create_game(challenge: Challenge, acceptor: UserReference, session: 
         )
     await GlobalState.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.NEW_ACTIVE_GAME,
-        GameStartDetailsPublic.model_construct(**public_game.model_dump()),
+        GameStartedBroadcastedData.model_construct(**public_game.model_dump()),
         GameListEventChannel()
     )
 
@@ -287,11 +287,7 @@ async def _attempt_merging(
 
 @supports_early_responses()
 @router.post("/create/open", status_code=201, response_model=ChallengeCreateResponse, response_model_exclude_none=True)
-async def create_open_challenge(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), challenge: ChallengeCreateOpen):
-    caller = GlobalState.token_to_user.get(token)
-    if not caller:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
+async def create_open_challenge(*, session: Session = Depends(get_session), caller: UserReference = Depends(get_mandatory_user), challenge: ChallengeCreateOpen):
     challenge_kind = ChallengeKind.LINK_ONLY if challenge.link_only else ChallengeKind.PUBLIC
     time_control_equality_conditions = _get_time_control_equality_conditions(challenge.fischer_time_control)
 
@@ -323,11 +319,7 @@ async def create_open_challenge(*, session: Session = Depends(get_session), toke
 
 @supports_early_responses()
 @router.post("/create/direct", status_code=201, response_model=ChallengeCreateResponse, response_model_exclude_none=True)
-async def create_direct_challenge(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), challenge: ChallengeCreateDirect):
-    caller = GlobalState.token_to_user.get(token)
-    if not caller:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
+async def create_direct_challenge(*, session: Session = Depends(get_session), caller: UserReference = Depends(get_mandatory_user), challenge: ChallengeCreateDirect):
     time_control_equality_conditions = _get_time_control_equality_conditions(challenge.fischer_time_control)
 
     _perform_common_validations(challenge, caller, session)
@@ -368,11 +360,7 @@ async def get_challenge(*, session: Session = Depends(get_session), id: int):
 
 
 @router.delete("/{id}")
-async def cancel_challenge(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), id: int):
-    client = GlobalState.token_to_user.get(token)
-    if not client:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
+async def cancel_challenge(*, session: Session = Depends(get_session), client: UserReference = Depends(get_mandatory_user), id: int):
     db_challenge = session.get(Challenge, id)
 
     if not db_challenge:
@@ -430,20 +418,12 @@ async def get_direct_challenges(session: Session, user: UserReference, include_i
 
 
 @router.get("/my_direct", response_model=list[ChallengePublic])
-async def get_my_direct_challenges(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME)):
-    client = GlobalState.token_to_user.get(token)
-    if not client:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
+async def get_my_direct_challenges(*, session: Session = Depends(get_session), client: UserReference = Depends(get_mandatory_user)):
     return get_direct_challenges(session, client)
 
 
 @router.post("/{id}/accept", response_model=GamePublic)
-async def accept_challenge(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), id: int):
-    client = GlobalState.token_to_user.get(token)
-    if not client:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
+async def accept_challenge(*, session: Session = Depends(get_session), client: UserReference = Depends(get_mandatory_user), id: int):
     db_challenge = session.get(Challenge, id)
 
     if not db_challenge:
@@ -465,11 +445,7 @@ async def accept_challenge(*, session: Session = Depends(get_session), token: st
 
 
 @router.post("/{id}/decline")
-async def decline_challenge(*, session: Session = Depends(get_session), token: str = Depends(USER_TOKEN_HEADER_SCHEME), id: int):
-    client = GlobalState.token_to_user.get(token)
-    if not client:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
+async def decline_challenge(*, session: Session = Depends(get_session), client: UserReference = Depends(get_mandatory_user), id: int):
     db_challenge = session.get(Challenge, id)
 
     if not db_challenge:

@@ -20,8 +20,8 @@ if TYPE_CHECKING:
         GamePublic,
         ChallengePublic,
         Id,
-        GameStartDetailsPublic,
-        GameEndDetailsPublic,
+        GameStartedBroadcastedData,
+        GameEndedBroadcastedData,
         StartedPlayerGamesEventChannel,
         PublicChallengeListEventChannel,
         GameListEventChannel,
@@ -81,7 +81,7 @@ class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
 
     NEW_ACTIVE_GAME = (
         "new_active_game",
-        GameStartDetailsPublic,
+        GameStartedBroadcastedData,
         GameListEventChannel,
         "Game Started (for game lists watchers)",
         "Broadcasted to `game_list` channel group whenever a new game starts"
@@ -89,7 +89,7 @@ class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
 
     NEW_RECENT_GAME = (
         "new_recent_game",
-        GameEndDetailsPublic,
+        GameEndedBroadcastedData,
         GameListEventChannel,
         "Game Ended (for game lists watchers)",
         "Broadcasted to `game_list` channel group whenever a game ends"

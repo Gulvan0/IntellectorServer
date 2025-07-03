@@ -44,3 +44,6 @@ async def get_recent_games(session: Session, game_filter: GameFilter, offset: in
 @router.get("/recent", response_model=list[GamePublic])
 async def get_recent_games_route(*, session: Session = Depends(get_session), offset: int = 0, limit: int = Query(default=10, le=50), game_filter: GameFilter = GameFilter()):
     return get_recent_games(session, game_filter, offset, limit)
+
+
+# TODO: Decide how to implement timeout logic

@@ -1,5 +1,5 @@
-from sqlmodel import create_engine
-from models import *
+from sqlmodel import SQLModel, create_engine
+from models import *  # noqa
 
 from globalstate import GlobalState
 

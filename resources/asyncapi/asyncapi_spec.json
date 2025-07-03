@@ -47,9 +47,6 @@
                 },
                 "incoming_challenge_cancelled": {
                     "$ref": "#/components/messages/incoming_challenge_cancelled"
-                },
-                "incoming_challenge_fulfilled": {
-                    "$ref": "#/components/messages/incoming_challenge_fulfilled"
                 }
             }
         },
@@ -911,7 +908,6 @@
                                     "type": "null"
                                 }
                             ],
-                            "default": null,
                             "title": "Callee Ref"
                         },
                         "kind": {
@@ -951,6 +947,7 @@
                         "id",
                         "created_at",
                         "caller_ref",
+                        "callee_ref",
                         "kind",
                         "time_control_kind",
                         "active",
@@ -997,7 +994,7 @@
                     "type": "object"
                 },
                 "title": "Public Challenge Fulfilled",
-                "summary": "Broadcasted to `public_challenge_list` channel group whenever a public challenge is fulfilled"
+                "summary": "Broadcasted to `public_challenge_list` channel group whenever a public challenge is fulfilled (i.e. accepted by someone)"
             },
             "new_active_game": {
                 "name": "new_active_game",
@@ -1712,7 +1709,6 @@
                                     "type": "null"
                                 }
                             ],
-                            "default": null,
                             "title": "Callee Ref"
                         },
                         "kind": {
@@ -1752,6 +1748,7 @@
                         "id",
                         "created_at",
                         "caller_ref",
+                        "callee_ref",
                         "kind",
                         "time_control_kind",
                         "active",
@@ -1781,24 +1778,6 @@
                 },
                 "title": "Incoming Challenge Cancelled",
                 "summary": "Broadcasted to `incoming_challenges` channel group whenever an incoming direct challenge is cancelled"
-            },
-            "incoming_challenge_fulfilled": {
-                "name": "incoming_challenge_fulfilled",
-                "payload": {
-                    "properties": {
-                        "id": {
-                            "title": "Id",
-                            "type": "integer"
-                        }
-                    },
-                    "required": [
-                        "id"
-                    ],
-                    "title": "Id",
-                    "type": "object"
-                },
-                "title": "Incoming Challenge Fulfilled",
-                "summary": "Broadcasted to `incoming_challenges` channel group whenever an incoming direct challenge is fulfilled"
             },
             "outgoing_challenge_accepted": {
                 "name": "outgoing_challenge_accepted",
@@ -2023,9 +2002,6 @@
                 },
                 {
                     "$ref": "#/channels/incoming_challenges/messages/incoming_challenge_cancelled"
-                },
-                {
-                    "$ref": "#/channels/incoming_challenges/messages/incoming_challenge_fulfilled"
                 }
             ],
             "channel": {

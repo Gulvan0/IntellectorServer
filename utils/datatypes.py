@@ -1,7 +1,37 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import auto, StrEnum
 from typing import Protocol, assert_never, runtime_checkable
+
+
+@dataclass(frozen=True)
+class UserReference:
+    reference: str
+
+    @classmethod
+    def logged(cls, login: str) -> UserReference:
+        return UserReference(login)
+
+    @classmethod
+    def guest(cls, id: int) -> UserReference:
+        return UserReference(f"_{id}")
+
+    def is_guest(self) -> bool:
+        return self.reference.startswith("_")
+
+    @property
+    def login(self) -> str:
+        assert not self.is_guest()
+        return self.reference
+
+    @property
+    def guest_id(self) -> int:
+        assert self.is_guest()
+        return int(self.reference[1:])
+
+    def __str__(self) -> str:
+        return self.reference
 
 
 class ChallengeKind(StrEnum):
@@ -94,3 +124,18 @@ class StudyPublicity(StrEnum):
     PROFILE_AND_LINK_ONLY = auto()
     LINK_ONLY = auto()
     PRIVATE = auto()
+
+
+class UserStatus(StrEnum):
+    ONLINE = auto()
+    AWAY = auto()
+    OFFLINE = auto()
+
+    def is_more_active_than(self, other: UserStatus) -> bool:
+        match other:
+            case UserStatus.AWAY:
+                return self == UserStatus.ONLINE
+            case UserStatus.OFFLINE:
+                return self != UserStatus.OFFLINE
+            case _:
+                return False

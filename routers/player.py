@@ -2,11 +2,11 @@ from datetime import datetime, UTC
 from typing import Annotated
 
 import bcrypt  # type: ignore
-from fastapi import APIRouter, HTTPException, Depends, UploadFile
+from fastapi import APIRouter, HTTPException, UploadFile, Depends
 from pydantic import StringConstraints
 from sqlalchemy import update
 from sqlalchemy.sql.functions import count
-from sqlmodel import col, desc, select, Session
+from sqlmodel import col, desc, select
 
 from models import (
     PlayerBase,
@@ -26,15 +26,17 @@ from models import (
     RoleOperationPayload,
     Study,
 )
-from utils.datatypes import StudyPublicity, UserRole
+from models.channel import IncomingChallengesEventChannel
+from utils.datatypes import StudyPublicity, UserReference, UserRole
 from utils.query import not_expired
-from .utils import get_mandatory_admin_login, get_mandatory_player_login, get_optional_player_login, get_session
+from .utils import MutableStateDependency, OptionalPlayerLoginDependency, PlayerLogin, verify_admin, MandatoryPlayerLoginDependency, SessionDependency
+
 
 router = APIRouter(prefix="/player")
 
 
 @router.get("/{login}", response_model=PlayerPublic)
-async def get_player(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], client_login: str | None = Depends(get_optional_player_login)):
+async def get_player(*, login: PlayerLogin, session: SessionDependency, state: MutableStateDependency, client_login: OptionalPlayerLoginDependency):
     db_player = session.get(Player, login)
 
     if not db_player:
@@ -91,9 +93,10 @@ async def get_player(*, session: Session = Depends(get_session), login: Annotate
         for db_restriction in db_restrictions
     ]
 
+    user_ref = UserReference.logged(login)
     player = PlayerPublic(
         is_friend=is_friend,
-        status=None,  # TODO (after the websocket processing is introduced)
+        status=state.get_user_status_in_channel(user_ref, IncomingChallengesEventChannel(user_ref=login)),
         per_time_control_stats=None,  # TODO (after the game models are ready)
         total_stats=None,  # TODO (after the game models are ready)
         studies_cnt=studies_cnt,
@@ -109,9 +112,9 @@ async def get_player(*, session: Session = Depends(get_session), login: Annotate
 @router.patch("/{login}")
 async def update_player(
     *,
-    session: Session = Depends(get_session),
-    login: Annotated[str, StringConstraints(to_lower=True)],
-    client_login: str = Depends(get_mandatory_player_login),
+    session: SessionDependency,
+    login: PlayerLogin,
+    client_login: MandatoryPlayerLoginDependency,
     player: PlayerUpdate
 ):
     if client_login != login and not session.get(PlayerRole, (UserRole.ADMIN, client_login)):
@@ -141,7 +144,7 @@ async def update_player(
 
 
 @router.post("/{login}/follow")
-async def follow(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], client_login: str = Depends(get_mandatory_player_login)):
+async def follow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency):
     if client_login == login:
         raise HTTPException(status_code=400, detail="Cannot follow self")
 
@@ -160,7 +163,7 @@ async def follow(*, session: Session = Depends(get_session), login: Annotated[st
 
 
 @router.post("/{login}/unfollow")
-async def unfollow(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], client_login: str = Depends(get_mandatory_player_login)):
+async def unfollow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency):
     if client_login == login:
         raise HTTPException(status_code=400, detail="Cannot unfollow self")
 
@@ -172,8 +175,8 @@ async def unfollow(*, session: Session = Depends(get_session), login: Annotated[
     session.commit()
 
 
-@router.post("/{login}/role/add")
-async def add_role(*, session: Session = Depends(get_session), login: Annotated[str, StringConstraints(to_lower=True)], payload: RoleOperationPayload, _: str = Depends(get_mandatory_admin_login)):
+@router.post("/{login}/role/add", dependencies=[Depends(verify_admin)])
+async def add_role(*, session: SessionDependency, login: PlayerLogin, payload: RoleOperationPayload):
     if not session.get(Player, login):
         raise HTTPException(status_code=404, detail="Player not found")
 
@@ -188,13 +191,12 @@ async def add_role(*, session: Session = Depends(get_session), login: Annotated[
     session.commit()
 
 
-@router.delete("/{login}/role/remove")
+@router.delete("/{login}/role/remove", dependencies=[Depends(verify_admin)])
 async def remove_role(
     *,
-    session: Session = Depends(get_session),
-    login: Annotated[str, StringConstraints(to_lower=True)],
-    payload: RoleOperationPayload,
-    _: str = Depends(get_mandatory_admin_login)
+    session: SessionDependency,
+    login: PlayerLogin,
+    payload: RoleOperationPayload
 ):
     db_player = session.get(Player, login)
     if not db_player:
@@ -212,13 +214,12 @@ async def remove_role(
     session.commit()
 
 
-@router.post("/{login}/restriction/add")
+@router.post("/{login}/restriction/add", dependencies=[Depends(verify_admin)])
 async def add_restriction(
     *,
-    session: Session = Depends(get_session),
-    login: Annotated[str, StringConstraints(to_lower=True)],
-    payload: RestrictionCastingPayload,
-    _: str = Depends(get_mandatory_admin_login)
+    session: SessionDependency,
+    login: PlayerLogin,
+    payload: RestrictionCastingPayload
 ):
     if not session.get(Player, login):
         raise HTTPException(status_code=404, detail="Player not found")
@@ -232,8 +233,8 @@ async def add_restriction(
     session.commit()
 
 
-@router.delete("/{login}/restriction/remove")
-async def remove_restriction(*, session: Session = Depends(get_session), payload: RestrictionRemovalPayload, _: str = Depends(get_mandatory_admin_login)):
+@router.delete("/{login}/restriction/remove", dependencies=[Depends(verify_admin)])
+async def remove_restriction(*, session: SessionDependency, payload: RestrictionRemovalPayload):
     db_restriction = session.get(PlayerRestriction, payload.restriction_id)
     if not db_restriction:
         raise HTTPException(status_code=404, detail="Not found")
@@ -243,13 +244,12 @@ async def remove_restriction(*, session: Session = Depends(get_session), payload
     session.commit()
 
 
-@router.delete("/{login}/restriction/purge")
+@router.delete("/{login}/restriction/purge", dependencies=[Depends(verify_admin)])
 async def purge_restrictions(
     *,
-    session: Session = Depends(get_session),
-    login: Annotated[str, StringConstraints(to_lower=True)],
-    payload: RestrictionBatchRemovalPayload,
-    _: str = Depends(get_mandatory_admin_login)
+    session: SessionDependency,
+    login: PlayerLogin,
+    payload: RestrictionBatchRemovalPayload
 ):
     update_query = update(PlayerRestriction).values(expires=datetime.now(UTC)).where(col(PlayerRestriction.login) == login)
     if payload.restriction:
@@ -262,9 +262,9 @@ async def purge_restrictions(
 @router.post("/{login}/avatar/update")
 async def update_avatar(
     *,
-    session: Session = Depends(get_session),
-    login: Annotated[str, StringConstraints(to_lower=True)],
+    session: SessionDependency,
+    login: PlayerLogin,
     image: UploadFile,
-    client_login: str = Depends(get_mandatory_player_login)
+    client_login: MandatoryPlayerLoginDependency
 ):
     raise HTTPException(status_code=501, detail="Avatar upload is not yet available")

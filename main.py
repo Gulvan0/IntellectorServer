@@ -1,6 +1,7 @@
+from fastapi import Request, Response
 from routers import study, player, auth, other, challenge, game
 from routers.websocket import game as ws_game
-from utils.fastapi_wrappers import App
+from net.fastapi_wrapper import App
 
 
 app = App(
@@ -16,3 +17,11 @@ app = App(
         ws_game.collection,
     ]
 )
+
+
+@app.middleware("http")
+async def middleware(request: Request, call_next):
+    ...
+    response: Response = await call_next(request)
+    ...
+    return response

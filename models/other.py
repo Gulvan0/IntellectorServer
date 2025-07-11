@@ -31,3 +31,9 @@ class CompatibilityResponse(BaseModel):
 
 class Id(BaseModel):
     id: int
+
+
+class WebsocketIncomingMessage(BaseModel):
+    event: str
+    token: str | None = None
+    body: dict = Field(default_factory=dict)

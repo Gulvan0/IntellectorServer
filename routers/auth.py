@@ -1,12 +1,9 @@
 from secrets import token_hex
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
-
-from globalstate import GlobalState
+from fastapi import APIRouter, HTTPException
 from models import AuthCredentials, Player, PlayerPassword, TokenResponse
 from models.auth import GuestTokenResponse
-from .utils import get_session
+from .utils import MutableStateDependency, SessionDependency
 
 import bcrypt  # type: ignore
 
@@ -15,14 +12,14 @@ router = APIRouter(prefix="/auth")
 
 
 @router.post("/guest", response_model=GuestTokenResponse)
-async def guest():
+async def guest(state: MutableStateDependency):
     token = token_hex()
-    guest_id = GlobalState.add_guest(token)
-    return GuestTokenResponse(guest_id, token)
+    guest_id = state.add_guest(token)
+    return GuestTokenResponse(guest_id=guest_id, token=token)
 
 
 @router.post("/signin", response_model=TokenResponse)
-async def signin(*, session: Session = Depends(get_session), credentials: AuthCredentials):
+async def signin(*, credentials: AuthCredentials, session: SessionDependency, state: MutableStateDependency):
     login = credentials.login.lower()
     password_data = session.get(PlayerPassword, login)
     if not password_data:
@@ -30,12 +27,12 @@ async def signin(*, session: Session = Depends(get_session), credentials: AuthCr
     if password_data.password_hash != bcrypt.hashpw(credentials.password, password_data.salt):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = token_hex()
-    GlobalState.add_logged(token, login)
+    state.add_logged(token, login)
     return TokenResponse(token=token)
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
-async def register(*, session: Session = Depends(get_session), credentials: AuthCredentials):
+async def register(*, credentials: AuthCredentials, session: SessionDependency, state: MutableStateDependency):
     login = credentials.login.lower()
 
     password_data = session.get(Player, login)
@@ -55,5 +52,5 @@ async def register(*, session: Session = Depends(get_session), credentials: Auth
     session.commit()
 
     token = token_hex()
-    GlobalState.add_logged(token, login)
+    state.add_logged(token, login)
     return TokenResponse(token=token)

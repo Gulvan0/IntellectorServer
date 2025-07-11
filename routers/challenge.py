@@ -1,28 +1,24 @@
 import random
 from typing import Sequence, assert_never
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import and_, col, or_, select, Session, func
 
-from globalstate import GlobalState, UserReference
 from models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic, PlayerRestriction
 from models.challenge import ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengeFischerTimeControlCreate
 from models.channel import GameListEventChannel, IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
+from models.config import LimitParams
 from models.game import Game, GamePublic, GameStartedBroadcastedData
 from models.other import Id
 from models.player import Player
-from routers.utils import EarlyResponse, get_mandatory_user, get_session, supports_early_responses
+from net.fastapi_wrapper import MutableState
+from routers.utils import EarlyResponse, MandatoryUserDependency, SessionDependency, MutableStateDependency, MainConfigDependency, supports_early_responses
 from rules import DEFAULT_STARTING_SIP, Position
-from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, TimeControlKind, UserRestrictionKind
-from utils.fastapi_wrappers import WebsocketOutgoingEventRegistry
+from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, TimeControlKind, UserReference, UserRestrictionKind
+from net.outgoing import WebsocketOutgoingEventRegistry
 from utils.query import exists, not_expired
 
 
 router = APIRouter(prefix="/challenge")
-
-
-# In some other places...
-# TODO: Cancel all challenges when a server is shutting down
-# TODO: Broadcast shutdown announcement to everyone
 
 
 def _is_player_banned_in_ranked(session: Session, caller: UserReference) -> bool:
@@ -67,6 +63,7 @@ def _validate_starting_position(challenge: ChallengeCreateOpen | ChallengeCreate
 def _validate_spam_limits(
     challenge: ChallengeCreateDirect | ChallengeCreateOpen,
     caller: UserReference,
+    limits: LimitParams,
     session: Session
 ):
     total_active_challenges = session.exec(select(
@@ -75,7 +72,7 @@ def _validate_spam_limits(
         Challenge.active,
         Challenge.caller_ref == caller.reference
     )).one()
-    max_total = GlobalState.main_config.limits.max_total_active_challenges
+    max_total = limits.max_total_active_challenges
     if total_active_challenges >= max_total:
         raise HTTPException(status_code=400, detail=f"Too many active challenges (present {total_active_challenges}, max {max_total})")
 
@@ -88,7 +85,7 @@ def _validate_spam_limits(
             Challenge.kind == ChallengeKind.DIRECT,
             Challenge.callee_ref == challenge.callee_ref
         )).one()
-        max_same_callee = GlobalState.main_config.limits.max_same_callee_active_challenges
+        max_same_callee = limits.max_same_callee_active_challenges
         if total_active_challenges >= max_total:
             raise HTTPException(
                 status_code=400,
@@ -99,11 +96,13 @@ def _validate_spam_limits(
 def _perform_common_validations(
     challenge: ChallengeCreateOpen | ChallengeCreateDirect,
     caller: UserReference,
+    shutdown_activated: bool,
+    limits: LimitParams,
     session: Session
 ) -> None:
-    if GlobalState.shutdown_activated:
+    if shutdown_activated:
         raise HTTPException(status_code=503, detail="Server is preparing to be restarted")
-    _validate_spam_limits(challenge, caller, session)
+    _validate_spam_limits(challenge, caller, limits, session)
     _disable_ranked_bracket_if_necessary(challenge, session, caller)
     _disable_special_conditions_if_rated(challenge)
     _validate_starting_position(challenge)
@@ -151,24 +150,24 @@ def _validate_direct_uniqueness(
         raise HTTPException(status_code=400, detail=f"Challenge already exists ({identical_challenge.id})")
 
 
-def _validate_direct_callee_returning_online_status(
+def _validate_and_return_direct_callee(
     challenge: ChallengeCreateDirect,
     caller: UserReference,
+    last_guest_id: int,
     session: Session
-) -> bool:
+) -> UserReference:
     if challenge.callee_ref == caller.reference:
         raise HTTPException(status_code=400, detail="Callee and caller cannot be the same user")
 
     callee = UserReference(challenge.callee_ref)
-    if callee.is_guest() and callee.guest_id > GlobalState.last_guest_id:
+    if callee.is_guest() and callee.guest_id > last_guest_id:
         raise HTTPException(status_code=404, detail=f"Guest not found: {callee.guest_id}")
     else:
         db_callee = session.get(Player, callee.login)
         if not db_callee:
             raise HTTPException(status_code=404, detail=f"Player not found: {callee.login}")
 
-    direct_challenges_observer_channel = IncomingChallengesEventChannel(user_ref=challenge.callee_ref)
-    return GlobalState.ws_subscribers.has_user_subscriber(callee, direct_challenges_observer_channel)
+    return callee
 
 
 def _get_mergeable_challenge(
@@ -221,7 +220,7 @@ def _assign_player_colors(acceptor_color: ChallengeAcceptorColor, caller_ref: st
             assert_never(acceptor_color)
 
 
-async def __create_game(challenge: Challenge, acceptor: UserReference, session: Session) -> GamePublic:
+async def __create_game(challenge: Challenge, acceptor: UserReference, session: Session, state: MutableState) -> GamePublic:
     white_player_ref, black_player_ref = _assign_player_colors(challenge.acceptor_color, challenge.caller_ref, acceptor.reference)
 
     db_game = Game(
@@ -245,25 +244,25 @@ async def __create_game(challenge: Challenge, acceptor: UserReference, session: 
     public_game = GamePublic.model_construct(**db_game.model_dump())
 
     if challenge.kind == ChallengeKind.PUBLIC:
-        await GlobalState.ws_subscribers.broadcast(
+        await state.ws_subscribers.broadcast(
             WebsocketOutgoingEventRegistry.PUBLIC_CHALLENGE_FULFILLED,
             challenge_id,
             PublicChallengeListEventChannel()
         )
 
-    await GlobalState.ws_subscribers.broadcast(
+    await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.OUTGOING_CHALLENGE_ACCEPTED,
         challenge_id,
         OutgoingChallengesEventChannel(user_ref=challenge.caller_ref)
     )
 
     for player_ref in [white_player_ref, black_player_ref]:
-        await GlobalState.ws_subscribers.broadcast(
+        await state.ws_subscribers.broadcast(
             WebsocketOutgoingEventRegistry.GAME_STARTED,
             public_game,
             StartedPlayerGamesEventChannel(watched_ref=player_ref)
         )
-    await GlobalState.ws_subscribers.broadcast(
+    await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.NEW_ACTIVE_GAME,
         GameStartedBroadcastedData.model_construct(**public_game.model_dump()),
         GameListEventChannel()
@@ -276,24 +275,32 @@ async def _attempt_merging(
     challenge: ChallengeCreateOpen | ChallengeCreateDirect,
     caller: UserReference,
     session: Session,
+    state: MutableState,
     time_control_equality_conditions: list[bool]
 ) -> None:
     mergeable_challenge = _get_mergeable_challenge(challenge, caller, session, time_control_equality_conditions)
     if mergeable_challenge:
-        db_game = await __create_game(mergeable_challenge, caller, session)
+        db_game = await __create_game(mergeable_challenge, caller, session, state)
         response = ChallengeCreateResponse(result="merged", game=db_game)
         raise EarlyResponse(status_code=200, body=response)
 
 
 @supports_early_responses()
 @router.post("/create/open", status_code=201, response_model=ChallengeCreateResponse, response_model_exclude_none=True)
-async def create_open_challenge(*, session: Session = Depends(get_session), caller: UserReference = Depends(get_mandatory_user), challenge: ChallengeCreateOpen):
+async def create_open_challenge(
+    *,
+    challenge: ChallengeCreateOpen,
+    session: SessionDependency,
+    caller: MandatoryUserDependency,
+    state: MutableStateDependency,
+    main_config: MainConfigDependency
+):
     challenge_kind = ChallengeKind.LINK_ONLY if challenge.link_only else ChallengeKind.PUBLIC
     time_control_equality_conditions = _get_time_control_equality_conditions(challenge.fischer_time_control)
 
-    _perform_common_validations(challenge, caller, session)
+    _perform_common_validations(challenge, caller, state.shutdown_activated, main_config.limits, session)
     _validate_open_uniqueness(challenge, caller, session, time_control_equality_conditions)
-    await _attempt_merging(challenge, caller, session, time_control_equality_conditions)
+    await _attempt_merging(challenge, caller, session, state, time_control_equality_conditions,)
 
     db_challenge = Challenge(
         acceptor_color=challenge.acceptor_color,
@@ -309,7 +316,7 @@ async def create_open_challenge(*, session: Session = Depends(get_session), call
 
     public_challenge = ChallengePublic.model_construct(**db_challenge.model_dump())
     if challenge_kind == ChallengeKind.PUBLIC:
-        await GlobalState.ws_subscribers.broadcast(
+        await state.ws_subscribers.broadcast(
             WebsocketOutgoingEventRegistry.NEW_PUBLIC_CHALLENGE,
             public_challenge,
             PublicChallengeListEventChannel()
@@ -319,13 +326,23 @@ async def create_open_challenge(*, session: Session = Depends(get_session), call
 
 @supports_early_responses()
 @router.post("/create/direct", status_code=201, response_model=ChallengeCreateResponse, response_model_exclude_none=True)
-async def create_direct_challenge(*, session: Session = Depends(get_session), caller: UserReference = Depends(get_mandatory_user), challenge: ChallengeCreateDirect):
+async def create_direct_challenge(
+    *,
+    challenge: ChallengeCreateDirect,
+    session: SessionDependency,
+    caller: MandatoryUserDependency,
+    state: MutableStateDependency,
+    main_config: MainConfigDependency
+):
     time_control_equality_conditions = _get_time_control_equality_conditions(challenge.fischer_time_control)
 
-    _perform_common_validations(challenge, caller, session)
+    _perform_common_validations(challenge, caller, state.shutdown_activated, main_config.limits, session)
     _validate_direct_uniqueness(challenge, caller, session, time_control_equality_conditions)
-    callee_online = _validate_direct_callee_returning_online_status(challenge, caller, session)
-    await _attempt_merging(challenge, caller, session, time_control_equality_conditions)
+    callee = _validate_and_return_direct_callee(challenge, caller, state.last_guest_id, session)
+    await _attempt_merging(challenge, caller, session, state, time_control_equality_conditions)
+
+    direct_challenges_observer_channel = IncomingChallengesEventChannel(user_ref=challenge.callee_ref)
+    callee_online = state.has_user_subscriber(callee, direct_challenges_observer_channel)
 
     db_challenge = Challenge(
         acceptor_color=challenge.acceptor_color,
@@ -341,7 +358,7 @@ async def create_direct_challenge(*, session: Session = Depends(get_session), ca
     session.commit()
 
     public_challenge = ChallengePublic.model_construct(**db_challenge.model_dump())
-    await GlobalState.ws_subscribers.broadcast(
+    await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.INCOMING_CHALLENGE_RECEIVED,
         public_challenge,
         IncomingChallengesEventChannel(user_ref=challenge.callee_ref)
@@ -350,7 +367,7 @@ async def create_direct_challenge(*, session: Session = Depends(get_session), ca
 
 
 @router.get("/{id}", response_model=ChallengePublic)
-async def get_challenge(*, session: Session = Depends(get_session), id: int):
+async def get_challenge(*, session: SessionDependency, id: int):
     db_challenge = session.get(Challenge, id)
 
     if not db_challenge:
@@ -360,7 +377,7 @@ async def get_challenge(*, session: Session = Depends(get_session), id: int):
 
 
 @router.delete("/{id}")
-async def cancel_challenge(*, session: Session = Depends(get_session), client: UserReference = Depends(get_mandatory_user), id: int):
+async def cancel_challenge(*, id: int, session: SessionDependency, client: MandatoryUserDependency, state: MutableStateDependency):
     db_challenge = session.get(Challenge, id)
 
     if not db_challenge:
@@ -377,13 +394,13 @@ async def cancel_challenge(*, session: Session = Depends(get_session), client: U
     session.commit()
 
     if db_challenge.kind == ChallengeKind.PUBLIC:
-        await GlobalState.ws_subscribers.broadcast(
+        await state.ws_subscribers.broadcast(
             WebsocketOutgoingEventRegistry.PUBLIC_CHALLENGE_CANCELLED,
             Id(id=id),
             PublicChallengeListEventChannel()
         )
     elif db_challenge.kind == ChallengeKind.DIRECT and db_challenge.callee_ref:
-        await GlobalState.ws_subscribers.broadcast(
+        await state.ws_subscribers.broadcast(
             WebsocketOutgoingEventRegistry.INCOMING_CHALLENGE_CANCELLED,
             Id(id=id),
             IncomingChallengesEventChannel(user_ref=db_challenge.callee_ref)
@@ -391,7 +408,7 @@ async def cancel_challenge(*, session: Session = Depends(get_session), client: U
 
 
 @router.get("/public", response_model=list[ChallengePublic])
-async def get_public_challenges(*, session: Session = Depends(get_session), offset: int = 0, limit: int = Query(default=50, le=50)):
+async def get_public_challenges(*, session: SessionDependency, offset: int = 0, limit: int = Query(default=50, le=50)):
     return session.exec(select(
         Challenge
     ).where(
@@ -418,12 +435,12 @@ async def get_direct_challenges(session: Session, user: UserReference, include_i
 
 
 @router.get("/my_direct", response_model=list[ChallengePublic])
-async def get_my_direct_challenges(*, session: Session = Depends(get_session), client: UserReference = Depends(get_mandatory_user)):
+async def get_my_direct_challenges(*, session: SessionDependency, client: MandatoryUserDependency):
     return get_direct_challenges(session, client)
 
 
 @router.post("/{id}/accept", response_model=GamePublic)
-async def accept_challenge(*, session: Session = Depends(get_session), client: UserReference = Depends(get_mandatory_user), id: int):
+async def accept_challenge(*, id: int, session: SessionDependency, client: MandatoryUserDependency, state: MutableStateDependency):
     db_challenge = session.get(Challenge, id)
 
     if not db_challenge:
@@ -439,13 +456,13 @@ async def accept_challenge(*, session: Session = Depends(get_session), client: U
         if db_challenge.caller_ref == client.reference:
             raise HTTPException(status_code=400, detail="Cannot accept own challenge")
 
-    db_game = await __create_game(db_challenge, client, session)
+    db_game = await __create_game(db_challenge, client, session, state)
 
     return db_game
 
 
 @router.post("/{id}/decline")
-async def decline_challenge(*, session: Session = Depends(get_session), client: UserReference = Depends(get_mandatory_user), id: int):
+async def decline_challenge(*, id: int, session: SessionDependency, client: MandatoryUserDependency, state: MutableStateDependency):
     db_challenge = session.get(Challenge, id)
 
     if not db_challenge:
@@ -464,7 +481,7 @@ async def decline_challenge(*, session: Session = Depends(get_session), client: 
     session.add(db_challenge)
     session.commit()
 
-    await GlobalState.ws_subscribers.broadcast(
+    await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.OUTGOING_CHALLENGE_REJECTED,
         Id(id=id),
         OutgoingChallengesEventChannel(user_ref=db_challenge.caller_ref)

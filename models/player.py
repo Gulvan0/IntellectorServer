@@ -7,7 +7,7 @@ from sqlalchemy import CHAR
 from sqlmodel import Field, Relationship, SQLModel, Column
 
 from models.column_types import CurrentDatetime
-from utils.datatypes import TimeControlKind, UserRestrictionKind, UserRole
+from utils.datatypes import TimeControlKind, UserRestrictionKind, UserRole, UserStatus
 
 if TYPE_CHECKING:
     from .study import Study
@@ -89,12 +89,6 @@ class PlayerEloProgress(SQLModel, table=True):  # Used for: current elo retrieva
     ranked_games_played: int
 
 
-class PlayerStatus(StrEnum):
-    ONLINE = auto()
-    AWAY = auto()
-    OFFLINE = auto()
-
-
 class GameStats(BaseModel):
     elo: int | None
     is_elo_provisional: bool
@@ -103,7 +97,7 @@ class GameStats(BaseModel):
 
 class PlayerPublic(PlayerBase):
     is_friend: bool
-    status: PlayerStatus
+    status: UserStatus
     per_time_control_stats: dict[TimeControlKind, GameStats]
     total_stats: GameStats
     studies_cnt: int

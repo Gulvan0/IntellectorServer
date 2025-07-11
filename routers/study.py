@@ -1,18 +1,18 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import StringConstraints
-from sqlmodel import col, distinct, select, Session
+from sqlmodel import col, distinct, select
 
 from models import Study, StudyCreate, StudyPublic, StudyTag, StudyUpdate
 from utils.datatypes import StudyPublicity
-from .utils import get_mandatory_player_login, get_optional_player_login, get_session
+from .utils import OptionalPlayerLoginDependency, PlayerLogin, SessionDependency, MandatoryPlayerLoginDependency
 
 router = APIRouter(prefix="/study")
 
 
 @router.get("/{study_id}", response_model=StudyPublic)
-async def get_study(*, session: Session = Depends(get_session), study_id: int, client_login: str | None = Depends(get_optional_player_login)):
+async def get_study(*, session: SessionDependency, study_id: int, client_login: OptionalPlayerLoginDependency):
     db_study = session.get(Study, study_id)
 
     if not db_study:
@@ -25,7 +25,7 @@ async def get_study(*, session: Session = Depends(get_session), study_id: int, c
 
 
 @router.post("/create", response_model=StudyPublic, status_code=201)
-async def create_study(*, session: Session = Depends(get_session), client_login: str = Depends(get_mandatory_player_login), study: StudyCreate):
+async def create_study(*, session: SessionDependency, client_login: MandatoryPlayerLoginDependency, study: StudyCreate):
     db_study = study.build_table_model(client_login)
 
     session.add(db_study)
@@ -36,7 +36,7 @@ async def create_study(*, session: Session = Depends(get_session), client_login:
 
 
 @router.patch("/{study_id}", response_model=StudyPublic)
-async def update_study(*, session: Session = Depends(get_session), client_login: str = Depends(get_mandatory_player_login), study_id: int, study: StudyUpdate):
+async def update_study(*, session: SessionDependency, client_login: MandatoryPlayerLoginDependency, study_id: int, study: StudyUpdate):
     db_study = session.get(Study, study_id)
     if not db_study:
         raise HTTPException(status_code=404, detail="Study not found")
@@ -57,7 +57,7 @@ async def update_study(*, session: Session = Depends(get_session), client_login:
 
 
 @router.delete("/{study_id}")
-async def delete_study(*, session: Session = Depends(get_session), client_login: str = Depends(get_mandatory_player_login), study_id: int):
+async def delete_study(*, session: SessionDependency, client_login: MandatoryPlayerLoginDependency, study_id: int):
     db_study = session.get(Study, study_id)
     if not db_study:
         raise HTTPException(status_code=404, detail="Study not found")
@@ -77,8 +77,8 @@ async def delete_study(*, session: Session = Depends(get_session), client_login:
 @router.get("/list", response_model=list[StudyPublic])
 async def list_studies(
     *,
-    session: Session = Depends(get_session),
-    author_login: Annotated[str, StringConstraints(to_lower=True)] | None = None,
+    session: SessionDependency,
+    author_login: PlayerLogin | None = None,
     tags: list[str] | None = None,
     offset: int = 0,
     limit: int = Query(default=10, le=50)

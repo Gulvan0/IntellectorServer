@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import auto, StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 from pydantic import BaseModel
 from sqlalchemy import CHAR
@@ -93,6 +93,9 @@ class GameStats(BaseModel):
     elo: int | None
     is_elo_provisional: bool
     games_cnt: int
+
+    def is_better_than(self, other: Self) -> bool:
+        return other.elo is not None and (self.elo is None or self.elo < other.elo)
 
 
 class PlayerPublic(PlayerBase):

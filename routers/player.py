@@ -1,12 +1,11 @@
+from dataclasses import dataclass, field
 from datetime import datetime, UTC
-from typing import Annotated
 
 import bcrypt  # type: ignore
 from fastapi import APIRouter, HTTPException, UploadFile, Depends
-from pydantic import StringConstraints
 from sqlalchemy import update
-from sqlalchemy.sql.functions import count
-from sqlmodel import col, desc, select
+import sqlalchemy.sql.functions as func
+from sqlmodel import Session, col, desc, or_, select
 
 from models import (
     PlayerBase,
@@ -27,52 +26,73 @@ from models import (
     Study,
 )
 from models.channel import IncomingChallengesEventChannel
-from utils.datatypes import StudyPublicity, UserReference, UserRole
+from models.game import Game
+from models.player import GameStats, PlayerEloProgress
+from utils.datatypes import StudyPublicity, TimeControlKind, UserReference, UserRole
 from utils.query import not_expired
-from .utils import MutableStateDependency, OptionalPlayerLoginDependency, PlayerLogin, verify_admin, MandatoryPlayerLoginDependency, SessionDependency
+from .utils import MainConfigDependency, MutableStateDependency, OptionalPlayerLoginDependency, PlayerLogin, verify_admin, MandatoryPlayerLoginDependency, SessionDependency
 
 
 router = APIRouter(prefix="/player")
 
 
-@router.get("/{login}", response_model=PlayerPublic)
-async def get_player(*, login: PlayerLogin, session: SessionDependency, state: MutableStateDependency, client_login: OptionalPlayerLoginDependency):
-    db_player = session.get(Player, login)
+@dataclass
+class OverallGameCounts:
+    by_time_control: dict[TimeControlKind, int] = field(default_factory=dict)
+    total: int = 0
 
-    if not db_player:
-        raise HTTPException(status_code=404, detail="Player not found")
 
-    is_friend = False
-    if client_login and client_login != login:
-        is_friend = session.get(PlayerFollowedPlayer, (client_login, login)) is not None
+@dataclass
+class OverallGameStats:
+    by_time_control: dict[TimeControlKind, GameStats] = field(default_factory=dict)
+    best: GameStats = field(default=GameStats(elo=None, is_elo_provisional=True, games_cnt=0))
 
+    def extend_with(self, time_control_kind: TimeControlKind, stats: GameStats) -> None:
+        if time_control_kind in self.by_time_control:
+            return
+        self.by_time_control[time_control_kind] = stats
+        if stats.is_better_than(self.best):
+            self.best = stats
+
+
+def is_player_following_player(session: Session, follower: str | None, followed: str | None) -> bool:
+    if follower and followed and follower != followed:
+        return session.get(PlayerFollowedPlayer, (follower, followed)) is not None
+    return False
+
+
+def get_studies_cnt(session: Session, author_login: str, include_private: bool) -> int:
     studies_selection_query = select(
-        count(col(Study.id))
+        func.count(col(Study.id))
     ).where(
-        Study.author_login == login
+        Study.author_login == author_login
     )
-    if client_login != login:
+    if not include_private:
         studies_selection_query = studies_selection_query.where(
             col(Study.publicity).in_([StudyPublicity.PROFILE_AND_LINK_ONLY, StudyPublicity.PUBLIC])
         )
-    studies_cnt = session.exec(studies_selection_query)
+    return session.exec(studies_selection_query).one()
 
-    followed_players = list(session.exec(select(
+
+def get_followed_player_logins(session: Session, follower: str) -> list[str]:
+    return list(session.exec(select(
         PlayerFollowedPlayer.followed_login
     ).where(
-        PlayerFollowedPlayer.follower_login == login
+        PlayerFollowedPlayer.follower_login == follower
     )))
 
+
+def get_roles(session: Session, role_owner_login: str, preferred_role: UserRole | None) -> list[PlayerRolePublic]:
     db_roles = session.exec(select(
         PlayerRole
     ).where(
-        PlayerRole.login == login
+        PlayerRole.login == role_owner_login
     ).order_by(
         desc(PlayerRole.granted_at)
     ))
     roles: list[PlayerRolePublic] = []
     for db_role in db_roles:
-        is_main = db_role.role == db_player.preferred_role
+        is_main = db_role.role == preferred_role
         role = PlayerRolePublic(
             is_main=is_main,
             **PlayerRoleBase.model_validate(db_role).model_dump()
@@ -81,28 +101,89 @@ async def get_player(*, login: PlayerLogin, session: SessionDependency, state: M
             roles.insert(0, role)
         else:
             roles.append(role)
+    return roles
 
+
+def get_restrictions(session: Session, restriction_owner_login: str) -> list[PlayerRestrictionPublic]:
     db_restrictions = session.exec(select(
         PlayerRestriction
     ).where(
-        PlayerRestriction.login == login,
+        PlayerRestriction.login == restriction_owner_login,
         not_expired(PlayerRestriction.expires)
     ))
-    restrictions = [
+    return [
         PlayerRestrictionPublic(**PlayerRestrictionBase.model_validate(db_restriction).model_dump())
         for db_restriction in db_restrictions
     ]
 
+
+def get_overall_game_counts(session: Session, player_login: str) -> OverallGameCounts:
+    db_games_cnt = session.exec(select(
+        Game.time_control_kind,
+        func.count(col(Game.id))
+    ).where(
+        or_(
+            Game.white_player_ref == player_login,
+            Game.black_player_ref == player_login
+        )
+    ).group_by(
+        Game.time_control_kind
+    ))
+
+    game_counts = OverallGameCounts()
+    for db_games_cnt_item in db_games_cnt:
+        game_counts.by_time_control[TimeControlKind(db_games_cnt_item[0])] = db_games_cnt_item[1]
+        game_counts.total += db_games_cnt_item[1]
+    return game_counts
+
+
+def get_overall_game_stats(session: Session, player_login: str, overall_counts: OverallGameCounts, required_calibration_games_cnt: int) -> OverallGameStats:
+    db_elo_entries = session.exec(select(
+        PlayerEloProgress
+    ).where(
+        PlayerEloProgress.login == player_login
+    ).group_by(
+        PlayerEloProgress.time_control_kind
+    ).having(
+        PlayerEloProgress.ts == func.max(PlayerEloProgress.ts)
+    ))
+
+    full_stats = OverallGameStats()
+    for db_elo_entry in db_elo_entries:
+        full_stats.extend_with(db_elo_entry.time_control_kind, GameStats(
+            elo=db_elo_entry.elo,
+            is_elo_provisional=db_elo_entry.ranked_games_played >= required_calibration_games_cnt,
+            games_cnt=overall_counts.by_time_control[db_elo_entry.time_control_kind]
+        ))
+    return full_stats
+
+
+@router.get("/{login}", response_model=PlayerPublic)
+async def get_player(
+    *,
+    login: PlayerLogin,
+    session: SessionDependency,
+    state: MutableStateDependency,
+    client_login: OptionalPlayerLoginDependency,
+    main_config: MainConfigDependency
+):
+    db_player = session.get(Player, login)
+    if not db_player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    game_counts = get_overall_game_counts(session, login)
+    game_stats = get_overall_game_stats(session, login, game_counts, main_config.elo.calibration_games)
+
     user_ref = UserReference.logged(login)
     player = PlayerPublic(
-        is_friend=is_friend,
+        is_friend=is_player_following_player(session, client_login, login),
         status=state.get_user_status_in_channel(user_ref, IncomingChallengesEventChannel(user_ref=login)),
-        per_time_control_stats=None,  # TODO (after the game models are ready)
-        total_stats=None,  # TODO (after the game models are ready)
-        studies_cnt=studies_cnt,
-        followed_players=followed_players,
-        roles=roles,
-        restrictions=restrictions,
+        per_time_control_stats=game_stats.by_time_control,
+        total_stats=GameStats(elo=game_stats.best.elo, is_elo_provisional=game_stats.best.is_elo_provisional, games_cnt=game_counts.total),
+        studies_cnt=get_studies_cnt(session, login, client_login == login),
+        followed_players=get_followed_player_logins(session, login),
+        roles=get_roles(session, login, db_player.preferred_role),
+        restrictions=get_restrictions(session, login),
         **PlayerBase.model_validate(db_player).model_dump()
     )
 

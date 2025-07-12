@@ -32,12 +32,21 @@ async def middleware(request: Request, call_next):
 
     try:
         body = await request.body()
-        decoded_body = body.decode() if body else "missing"
+        if not body:
+            decoded_body = "missing"
+        elif len(body) > 4000:
+            decoded_body = "too_long"
+        else:
+            decoded_body = body.decode()
     except Exception:
         decoded_body = "unparsable"
 
     token = request.headers.get(USER_TOKEN_HEADER)
-    authorized_as = app.mutable_state.token_to_user.get(token) if token else None
+    if token:
+        user_ref = app.mutable_state.token_to_user.get(token)
+        authorized_as = user_ref.reference if user_ref else None
+    else:
+        authorized_as = None
 
     with Session(app.db_engine) as session:
         request_entry = RESTRequestLog(
@@ -55,10 +64,13 @@ async def middleware(request: Request, call_next):
     response: Response = await call_next(request)
 
     if isinstance(response.body, bytes):
-        try:
-            decoded_response = response.body.decode()
-        except Exception:
-            decoded_response = "unparsable"
+        if len(response.body) > 4000:
+            decoded_response = "too_long"
+        else:
+            try:
+                decoded_response = response.body.decode()
+            except Exception:
+                decoded_response = "unparsable"
     else:
         decoded_response = "stream"
 

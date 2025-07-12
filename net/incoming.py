@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 import time
 from typing import TYPE_CHECKING, Any, Callable, Coroutine
 
 from pydantic import BaseModel, ValidationError
+from sqlmodel import Session
 
+from models.log import WSLog
 from models.other import WebsocketIncomingMessage
 from net.util import ErrorKind, WebSocketException
 from utils.datatypes import UserReference
@@ -61,8 +64,26 @@ class WebSocketHandlerCollection:
         ws.last_message = now_ts
 
         try:
+            payload = json.dumps(data, ensure_ascii=False)[:1000]
+        except Exception:
+            try:
+                payload = str(data)[:1000]
+            except Exception:
+                payload = "unparsable"
+
+        log_entry = WSLog(
+            connection_id=str(ws.uuid),
+            authorized_as=None,
+            payload=payload,
+            incoming=True
+        )
+
+        try:
             message = WebsocketIncomingMessage.model_validate(data)
         except ValidationError as e:
+            with Session(ws.app.db_engine) as session:
+                session.add(log_entry)
+                session.commit()
             await ws.send_validation_error(e)
             return
 
@@ -75,16 +96,23 @@ class WebSocketHandlerCollection:
 
         ws.last_activity = now_ts
 
+        if message.token:
+            client = token_map.get(message.token)
+            if not client:
+                with Session(ws.app.db_engine) as session:
+                    session.add(log_entry)
+                    session.commit()
+                await ws.send_error(ErrorKind.AUTH_ERROR, "Invalid token")
+                return
+            log_entry.authorized_as = client.reference
+            with Session(ws.app.db_engine) as session:
+                session.add(log_entry)
+                session.commit()
+
         handler = self._slug_to_handler.get(message.event)
         if not handler:
             await ws.send_error(ErrorKind.UNKNOWN_EVENT, f"Event not found: {message.event}")
             return
-
-        if message.token:
-            client = token_map.get(message.token)
-            if not client:
-                await ws.send_error(ErrorKind.AUTH_ERROR, "Invalid token")
-                return
         else:
             client = None
 

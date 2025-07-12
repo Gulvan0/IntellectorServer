@@ -46,7 +46,7 @@ class OverallGameCounts:
 @dataclass
 class OverallGameStats:
     by_time_control: dict[TimeControlKind, GameStats] = field(default_factory=dict)
-    best: GameStats = field(default=GameStats(elo=None, is_elo_provisional=True, games_cnt=0))
+    best: GameStats = field(default_factory=lambda: GameStats(elo=None, is_elo_provisional=True, games_cnt=0))
 
     def extend_with(self, time_control_kind: TimeControlKind, stats: GameStats) -> None:
         if time_control_kind in self.by_time_control:

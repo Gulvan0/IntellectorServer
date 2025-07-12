@@ -17,7 +17,7 @@ from sqlalchemy import Engine
 
 from models.channel import EventChannel
 from models.config import MainConfig, SecretConfig
-from models.log import ServerLaunch
+from models.log import ServerLaunch, WSLog
 from net.incoming import WebSocketHandlerCollection
 from net.outgoing import WebsocketOutgoingEvent, WebsocketOutgoingEventRegistry
 from net.sub_storage import SubscriberStorage
@@ -35,6 +35,7 @@ import yaml  # type: ignore
 
 @dataclass
 class WebSocketWrapper:
+    app: App
     ws: WebSocket
     last_activity: int  # unixsecs of last user activity on the front-end (received with pings; cannot decrease or be less than last_message; activity usually assumes mouse movement)
     last_message: int  # unixsecs of any last message got from this socket (including pings and invalid messages)
@@ -44,8 +45,27 @@ class WebSocketWrapper:
     def __post_init__(self):
         self.send_json = self.ws.send_json
 
+    def get_user_ref(self) -> str | None:
+        if self.saved_token:
+            user = self.app.mutable_state.token_to_user.get(self.saved_token)
+            if user:
+                return user.reference
+        return None
+
+    async def _send_logged_json(self, payload: dict) -> None:
+        with Session(self.app.db_engine) as session:
+            session.add(WSLog(
+                connection_id=str(self.uuid),
+                authorized_as=self.get_user_ref(),
+                payload=json.dumps(payload, ensure_ascii=False),
+                incoming=False
+            ))
+            session.commit()
+
+        await self.ws.send_json(payload)
+
     async def send_event[T: BaseModel, C: EventChannel](self, event: WebsocketOutgoingEvent[T, C], payload: T, channel: C | None = None) -> None:
-        await self.ws.send_json(dict(
+        await self._send_logged_json(dict(
             event=event.event_name,
             channel=channel.model_dump(),
             body=payload.model_dump()
@@ -55,7 +75,7 @@ class WebSocketWrapper:
         await self.ws.send_text("pong")
 
     async def send_error(self, error: ErrorKind, details: Any) -> None:
-        await self.ws.send_json(dict(
+        await self._send_logged_json(dict(
             error=error.value,
             details=details
         ))
@@ -151,7 +171,7 @@ class App(FastAPI):
     async def websocket_endpoint(self, websocket: WebSocket):
         await websocket.accept()
         now_ts = int(time.time())
-        ws_wrapper = WebSocketWrapper(websocket, now_ts, now_ts)
+        ws_wrapper = WebSocketWrapper(self, websocket, now_ts, now_ts)
         self.mutable_state.ws_subscribers.subscribe(ws_wrapper, EveryoneEventChannel())
         try:
             while True:

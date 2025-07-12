@@ -1,4 +1,3 @@
-from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal, Optional
 
@@ -45,7 +44,7 @@ class ChallengeFischerTimeControl(ChallengeFischerTimeControlBase, table=True):
     challenge: Challenge = Relationship(back_populates="fischer_time_control")
 
     @classmethod
-    def from_create_model(cls, model: ChallengeFischerTimeControlCreate | None) -> ChallengeFischerTimeControl | None:
+    def from_create_model(cls, model: Optional["ChallengeFischerTimeControlCreate"]) -> Optional["ChallengeFischerTimeControl"] | None:
         return ChallengeFischerTimeControl(**model.model_dump()) if model else None
 
 

@@ -38,9 +38,9 @@ class RESTResponseLog(SQLModel, table=True):
 class WSLog(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     ts: CurrentDatetime
-    connection_id: str = Field(sa_column=Column(CHAR(32)))
+    connection_id: str = Field(sa_column=Column(CHAR(36)))
     authorized_as: OptionalPlayerRef
-    payload_json: str
+    payload: str
     incoming: bool
 
 

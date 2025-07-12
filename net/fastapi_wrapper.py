@@ -12,8 +12,8 @@ from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from jinja2 import Template
 from pydantic import BaseModel, ValidationError
-from sqlmodel import SQLModel, Session, create_engine
-from sqlalchemy import Engine
+from sqlmodel import SQLModel, Session, create_engine, select
+from sqlalchemy import Engine, text
 
 from models.channel import EventChannel
 from models.config import MainConfig, SecretConfig
@@ -114,13 +114,32 @@ class MutableState:
         return self.ws_subscribers.get_user_status_in_channel(self.token_to_user, user_ref, channel)
 
 
+LAST_GUEST_ID_RETRIEVAL_QUERY = r"""
+SELECT
+    MAX(CAST(SUBSTR(authorized_as, 2) AS UNSIGNED))
+FROM (
+    SELECT
+        authorized_as
+    FROM
+        test_schema.restrequestlog
+    UNION ALL
+    SELECT
+        authorized_as
+    FROM
+        test_schema.wslog
+) AS src
+WHERE
+    authorized_as LIKE "\_%"
+"""
+
+
 class App(FastAPI):
     @asynccontextmanager
-    async def __lifespan(self: FastAPI):
+    async def __lifespan(self: App):
         SQLModel.metadata.create_all(self.db_engine)  # All models were imported using wildcard at the top of this file
         with Session(self.db_engine) as session:
             session.add(ServerLaunch())
-            ...  # TODO: Assign correct last_guest_id
+            self.mutable_state.last_guest_id = session.connection().execute(text(LAST_GUEST_ID_RETRIEVAL_QUERY)).scalar() or 0
             session.commit()
         yield
 

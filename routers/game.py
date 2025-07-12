@@ -47,3 +47,4 @@ async def get_recent_games_route(*, session: SessionDependency, offset: int = 0,
 
 
 # TODO: Decide how to implement timeout logic
+# TODO: Bot game routes

@@ -94,7 +94,7 @@ class WebSocketWrapper:
 
 @dataclass
 class MutableState:
-    shutdown_activated: bool = False  # TODO: Admin shutdown endpoint (Cancel all challenges; Broadcast announcement)
+    shutdown_activated: bool = False
     token_to_user: BijectiveMap[str, UserReference] = BijectiveMap()
     ws_subscribers: SubscriberStorage = SubscriberStorage()
     last_guest_id: int = 0

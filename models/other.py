@@ -4,6 +4,10 @@ from pydantic import BaseModel
 from sqlmodel import Field, SQLModel
 
 
+class EmptyModel(BaseModel):
+    pass
+
+
 class SavedQuery(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     author_login: str

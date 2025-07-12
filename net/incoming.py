@@ -58,7 +58,6 @@ class WebSocketHandlerCollection:
             return handler_callable
         return decorator
 
-    # TODO: WS logging (and REST logging via adapter as well)
     async def handle(self, token_map: BijectiveMap[str, UserReference], ws: WebSocketWrapper, data: Any) -> None:
         now_ts = int(time.time())
         ws.last_message = now_ts

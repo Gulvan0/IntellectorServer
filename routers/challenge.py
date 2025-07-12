@@ -426,6 +426,28 @@ async def get_challenge(*, session: SessionDependency, id: int):
     return db_challenge
 
 
+async def _cancel_specific_challenge(challenge: Challenge, state: MutableState, secret_config: SecretConfig) -> None:
+    assert challenge.id
+
+    if challenge.vk_announcement_message_id:
+        delete_vk_message(challenge.vk_announcement_message_id, secret_config.integrations.vk.community_chat_id, secret_config.integrations.vk.token)
+
+    challenge.active = False
+
+    if challenge.kind == ChallengeKind.PUBLIC:
+        await state.ws_subscribers.broadcast(
+            WebsocketOutgoingEventRegistry.PUBLIC_CHALLENGE_CANCELLED,
+            Id(id=challenge.id),
+            PublicChallengeListEventChannel()
+        )
+    elif challenge.kind == ChallengeKind.DIRECT and challenge.callee_ref:
+        await state.ws_subscribers.broadcast(
+            WebsocketOutgoingEventRegistry.INCOMING_CHALLENGE_CANCELLED,
+            Id(id=challenge.id),
+            IncomingChallengesEventChannel(user_ref=challenge.callee_ref)
+        )
+
+
 @router.delete("/{id}")
 async def cancel_challenge(
     *,
@@ -446,24 +468,20 @@ async def cancel_challenge(
     if db_challenge.caller_ref != client.reference:
         raise HTTPException(status_code=403, detail="Only the author of this challenge may cancel it")
 
-    if db_challenge.vk_announcement_message_id:
-        delete_vk_message(db_challenge.vk_announcement_message_id, secret_config.integrations.vk.community_chat_id, secret_config.integrations.vk.token)
-
-    db_challenge.active = False
+    await _cancel_specific_challenge(db_challenge, state, secret_config)
     session.add(db_challenge)
     session.commit()
 
-    if db_challenge.kind == ChallengeKind.PUBLIC:
+
+async def cancel_all_challenges(session: Session, state: MutableState, secret_config: SecretConfig):
+    for challenge in session.exec(select(Challenge).where(Challenge.active == True)):  # noqa
+        await _cancel_specific_challenge(challenge, state, secret_config)
+
+        assert challenge.id
         await state.ws_subscribers.broadcast(
-            WebsocketOutgoingEventRegistry.PUBLIC_CHALLENGE_CANCELLED,
-            Id(id=id),
-            PublicChallengeListEventChannel()
-        )
-    elif db_challenge.kind == ChallengeKind.DIRECT and db_challenge.callee_ref:
-        await state.ws_subscribers.broadcast(
-            WebsocketOutgoingEventRegistry.INCOMING_CHALLENGE_CANCELLED,
-            Id(id=id),
-            IncomingChallengesEventChannel(user_ref=db_challenge.callee_ref)
+            WebsocketOutgoingEventRegistry.OUTGOING_CHALLENGE_CANCELLED_BY_SERVER,
+            Id(id=challenge.id),
+            OutgoingChallengesEventChannel(user_ref=challenge.caller_ref)
         )
 
 

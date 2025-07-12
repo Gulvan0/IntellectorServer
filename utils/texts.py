@@ -1,9 +1,7 @@
 from typing import TYPE_CHECKING, assert_never
 
 from utils.datatypes import ChallengeAcceptorColor, FischerTimeControlEntity, UserReference
-
-if TYPE_CHECKING:
-    from models import ChallengePublic, GamePublic
+from models import ChallengePublic, GamePublic
 
 
 def format_time_control(time_control: FischerTimeControlEntity | None) -> str | None:

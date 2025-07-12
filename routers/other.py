@@ -1,7 +1,12 @@
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
+from sqlmodel import select
 
 from models import CompatibilityCheckPayload, CompatibilityResolution, CompatibilityResponse
-from routers.utils import MainConfigDependency
+from models.game import Game, GameOutcome
+from models.other import EmptyModel
+from net.outgoing import WebsocketOutgoingEventRegistry
+from routers.challenge import cancel_all_challenges
+from routers.utils import MainConfigDependency, MutableStateDependency, SecretConfigDependency, SessionDependency, verify_admin
 
 router = APIRouter(prefix="")
 
@@ -21,3 +26,21 @@ async def check_compatibility(*, payload: CompatibilityCheckPayload, response: R
         min_client_build=main_config.min_client_build,
         server_build=main_config.server_build
     )
+
+
+@router.get("/shutdown", dependencies=[Depends(verify_admin)])
+async def shutdown(
+    *,
+    session: SessionDependency,
+    state: MutableStateDependency,
+    secret_config: SecretConfigDependency
+):
+    state.shutdown_activated = True
+    await cancel_all_challenges(session, state, secret_config)
+    await state.ws_subscribers.broadcast(
+        WebsocketOutgoingEventRegistry.SERVER_SHUTDOWN,
+        EmptyModel()
+    )
+    # TODO: Do the same when the game ends (but add shutdown_activated as the condition)
+    if not session.exec(select(Game).join(GameOutcome).where(Game.outcome != None)).first():
+        raise KeyboardInterrupt

@@ -17,6 +17,8 @@ from models import (
     OutgoingChallengesEventChannel,
     EventChannel,
 )
+from models.channel import EveryoneEventChannel
+from models.other import EmptyModel
 
 
 @dataclass(frozen=True)
@@ -108,6 +110,22 @@ class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
         OutgoingChallengesEventChannel,
         "Outgoing Challenge Rejected",
         "Broadcasted to `outgoing_challenges` channel group whenever an outgoing direct challenge is rejected"
+    )
+
+    OUTGOING_CHALLENGE_CANCELLED_BY_SERVER = (
+        "outgoing_challenge_cancelled_by_server",
+        Id,
+        OutgoingChallengesEventChannel,
+        "Outgoing Challenge Cancelled by Server",
+        "Broadcasted to `outgoing_challenges` channel group whenever the server cancels an outgoing challenge due to shutdown"
+    )
+
+    SERVER_SHUTDOWN = (
+        "server_shutdown",
+        EmptyModel,
+        EveryoneEventChannel,
+        "Server Shutdown",
+        "Broadcasted to `everyone` channel group whenever the server starts preparing for the shutdown"
     )
 
     @classmethod

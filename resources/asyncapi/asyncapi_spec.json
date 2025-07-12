@@ -58,6 +58,17 @@
                 },
                 "outgoing_challenge_rejected": {
                     "$ref": "#/components/messages/outgoing_challenge_rejected"
+                },
+                "outgoing_challenge_cancelled_by_server": {
+                    "$ref": "#/components/messages/outgoing_challenge_cancelled_by_server"
+                }
+            }
+        },
+        "everyone": {
+            "address": "everyone",
+            "messages": {
+                "server_shutdown": {
+                    "$ref": "#/components/messages/server_shutdown"
                 }
             }
         },
@@ -1914,6 +1925,34 @@
                 "title": "Outgoing Challenge Rejected",
                 "summary": "Broadcasted to `outgoing_challenges` channel group whenever an outgoing direct challenge is rejected"
             },
+            "outgoing_challenge_cancelled_by_server": {
+                "name": "outgoing_challenge_cancelled_by_server",
+                "payload": {
+                    "properties": {
+                        "id": {
+                            "title": "Id",
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "id"
+                    ],
+                    "title": "Id",
+                    "type": "object"
+                },
+                "title": "Outgoing Challenge Cancelled by Server",
+                "summary": "Broadcasted to `outgoing_challenges` channel group whenever the server cancels an outgoing challenge due to shutdown"
+            },
+            "server_shutdown": {
+                "name": "server_shutdown",
+                "payload": {
+                    "properties": {},
+                    "title": "EmptyModel",
+                    "type": "object"
+                },
+                "title": "Server Shutdown",
+                "summary": "Broadcasted to `everyone` channel group whenever the server starts preparing for the shutdown"
+            },
             "move": {
                 "name": "move",
                 "payload": {
@@ -2139,10 +2178,24 @@
                 },
                 {
                     "$ref": "#/channels/outgoing_challenges/messages/outgoing_challenge_rejected"
+                },
+                {
+                    "$ref": "#/channels/outgoing_challenges/messages/outgoing_challenge_cancelled_by_server"
                 }
             ],
             "channel": {
                 "$ref": "#/channels/outgoing_challenges"
+            }
+        },
+        "everyone": {
+            "action": "send",
+            "messages": [
+                {
+                    "$ref": "#/channels/everyone/messages/server_shutdown"
+                }
+            ],
+            "channel": {
+                "$ref": "#/channels/everyone"
             }
         },
         "receive": {

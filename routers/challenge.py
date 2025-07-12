@@ -3,19 +3,21 @@ from typing import Sequence, assert_never
 from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import and_, col, or_, select, Session, func
 
+from integration import delete_vk_message, post_discord_webhook, post_vk_message
 from models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic, PlayerRestriction
 from models.challenge import ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengeFischerTimeControlCreate
 from models.channel import GameListEventChannel, IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
-from models.config import LimitParams
+from models.config import LimitParams, SecretConfig
 from models.game import Game, GamePublic, GameStartedBroadcastedData
 from models.other import Id
 from models.player import Player
 from net.fastapi_wrapper import MutableState
-from routers.utils import EarlyResponse, MandatoryUserDependency, SessionDependency, MutableStateDependency, MainConfigDependency, supports_early_responses
+from routers.utils import EarlyResponse, MandatoryUserDependency, SecretConfigDependency, SessionDependency, MutableStateDependency, MainConfigDependency, supports_early_responses
 from rules import DEFAULT_STARTING_SIP, Position
 from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, TimeControlKind, UserReference, UserRestrictionKind
 from net.outgoing import WebsocketOutgoingEventRegistry
 from utils.query import exists, not_expired
+from utils.texts import get_discord_new_challenge_message, get_vk_new_challenge_message, get_vk_new_game_message
 
 
 router = APIRouter(prefix="/challenge")
@@ -220,7 +222,7 @@ def _assign_player_colors(acceptor_color: ChallengeAcceptorColor, caller_ref: st
             assert_never(acceptor_color)
 
 
-async def __create_game(challenge: Challenge, acceptor: UserReference, session: Session, state: MutableState) -> GamePublic:
+async def __create_game(challenge: Challenge, acceptor: UserReference, session: Session, state: MutableState, secret_config: SecretConfig) -> GamePublic:
     white_player_ref, black_player_ref = _assign_player_colors(challenge.acceptor_color, challenge.caller_ref, acceptor.reference)
 
     db_game = Game(
@@ -236,6 +238,9 @@ async def __create_game(challenge: Challenge, acceptor: UserReference, session: 
     challenge.active = False
     challenge.resulting_game = db_game
     session.add(challenge)
+
+    if challenge.vk_announcement_message_id:
+        delete_vk_message(challenge.vk_announcement_message_id, secret_config.integrations.vk.community_chat_id, secret_config.integrations.vk.token)
 
     session.commit()
 
@@ -268,6 +273,30 @@ async def __create_game(challenge: Challenge, acceptor: UserReference, session: 
         GameListEventChannel()
     )
 
+    white_player = UserReference(white_player_ref)
+    black_player = UserReference(black_player_ref)
+    if not white_player.is_guest() or not black_player.is_guest():
+        pretty_white_ref = None
+        if not white_player.is_guest():
+            db_player = session.get(Player, white_player.login)
+            if db_player:
+                pretty_white_ref = db_player.nickname
+
+        pretty_black_ref = None
+        if not black_player.is_guest():
+            db_player = session.get(Player, black_player.login)
+            if db_player:
+                pretty_black_ref = db_player.nickname
+
+        # TODO: Delete message when game ends
+        vk_announcement_text = get_vk_new_game_message(public_game, pretty_white_ref, pretty_black_ref)
+        vk_message_id = post_vk_message(secret_config.integrations.vk.community_chat_id, vk_announcement_text, secret_config.integrations.vk.token)
+
+        if vk_message_id:
+            db_game.vk_announcement_message_id = vk_message_id
+            session.add(db_game)
+            session.commit()
+
     return public_game
 
 
@@ -276,11 +305,12 @@ async def _attempt_merging(
     caller: UserReference,
     session: Session,
     state: MutableState,
+    secret_config: SecretConfig,
     time_control_equality_conditions: list[bool]
 ) -> None:
     mergeable_challenge = _get_mergeable_challenge(challenge, caller, session, time_control_equality_conditions)
     if mergeable_challenge:
-        db_game = await __create_game(mergeable_challenge, caller, session, state)
+        db_game = await __create_game(mergeable_challenge, caller, session, state, secret_config)
         response = ChallengeCreateResponse(result="merged", game=db_game)
         raise EarlyResponse(status_code=200, body=response)
 
@@ -293,14 +323,15 @@ async def create_open_challenge(
     session: SessionDependency,
     caller: MandatoryUserDependency,
     state: MutableStateDependency,
-    main_config: MainConfigDependency
+    main_config: MainConfigDependency,
+    secret_config: SecretConfigDependency
 ):
     challenge_kind = ChallengeKind.LINK_ONLY if challenge.link_only else ChallengeKind.PUBLIC
     time_control_equality_conditions = _get_time_control_equality_conditions(challenge.fischer_time_control)
 
     _perform_common_validations(challenge, caller, state.shutdown_activated, main_config.limits, session)
     _validate_open_uniqueness(challenge, caller, session, time_control_equality_conditions)
-    await _attempt_merging(challenge, caller, session, state, time_control_equality_conditions,)
+    await _attempt_merging(challenge, caller, session, state, secret_config, time_control_equality_conditions)
 
     db_challenge = Challenge(
         acceptor_color=challenge.acceptor_color,
@@ -315,12 +346,30 @@ async def create_open_challenge(
     session.commit()
 
     public_challenge = ChallengePublic.model_construct(**db_challenge.model_dump())
+
     if challenge_kind == ChallengeKind.PUBLIC:
         await state.ws_subscribers.broadcast(
             WebsocketOutgoingEventRegistry.NEW_PUBLIC_CHALLENGE,
             public_challenge,
             PublicChallengeListEventChannel()
         )
+
+        pretty_caller_ref = None
+        if not caller.is_guest():
+            db_player = session.get(Player, caller.login)
+            if db_player:
+                pretty_caller_ref = db_player.nickname
+
+        vk_announcement_text = get_vk_new_challenge_message(public_challenge, pretty_caller_ref)
+        vk_message_id = post_vk_message(secret_config.integrations.vk.community_chat_id, vk_announcement_text, secret_config.integrations.vk.token)
+        if vk_message_id:
+            db_challenge.vk_announcement_message_id = vk_message_id
+            session.add(db_challenge)
+            session.commit()
+
+        discord_announcement_text = get_discord_new_challenge_message(public_challenge, pretty_caller_ref)
+        post_discord_webhook(secret_config.integrations.discord.webhook_url, discord_announcement_text)
+
     return ChallengeCreateResponse(result="created", challenge=public_challenge)
 
 
@@ -332,14 +381,15 @@ async def create_direct_challenge(
     session: SessionDependency,
     caller: MandatoryUserDependency,
     state: MutableStateDependency,
-    main_config: MainConfigDependency
+    main_config: MainConfigDependency,
+    secret_config: SecretConfigDependency
 ):
     time_control_equality_conditions = _get_time_control_equality_conditions(challenge.fischer_time_control)
 
     _perform_common_validations(challenge, caller, state.shutdown_activated, main_config.limits, session)
     _validate_direct_uniqueness(challenge, caller, session, time_control_equality_conditions)
     callee = _validate_and_return_direct_callee(challenge, caller, state.last_guest_id, session)
-    await _attempt_merging(challenge, caller, session, state, time_control_equality_conditions)
+    await _attempt_merging(challenge, caller, session, state, secret_config, time_control_equality_conditions)
 
     direct_challenges_observer_channel = IncomingChallengesEventChannel(user_ref=challenge.callee_ref)
     callee_online = state.has_user_subscriber(callee, direct_challenges_observer_channel)
@@ -377,7 +427,14 @@ async def get_challenge(*, session: SessionDependency, id: int):
 
 
 @router.delete("/{id}")
-async def cancel_challenge(*, id: int, session: SessionDependency, client: MandatoryUserDependency, state: MutableStateDependency):
+async def cancel_challenge(
+    *,
+    id: int,
+    session: SessionDependency,
+    client: MandatoryUserDependency,
+    state: MutableStateDependency,
+    secret_config: SecretConfigDependency
+):
     db_challenge = session.get(Challenge, id)
 
     if not db_challenge:
@@ -388,6 +445,9 @@ async def cancel_challenge(*, id: int, session: SessionDependency, client: Manda
 
     if db_challenge.caller_ref != client.reference:
         raise HTTPException(status_code=403, detail="Only the author of this challenge may cancel it")
+
+    if db_challenge.vk_announcement_message_id:
+        delete_vk_message(db_challenge.vk_announcement_message_id, secret_config.integrations.vk.community_chat_id, secret_config.integrations.vk.token)
 
     db_challenge.active = False
     session.add(db_challenge)
@@ -440,7 +500,14 @@ async def get_my_direct_challenges(*, session: SessionDependency, client: Mandat
 
 
 @router.post("/{id}/accept", response_model=GamePublic)
-async def accept_challenge(*, id: int, session: SessionDependency, client: MandatoryUserDependency, state: MutableStateDependency):
+async def accept_challenge(
+    *,
+    id: int,
+    session: SessionDependency,
+    client: MandatoryUserDependency,
+    state: MutableStateDependency,
+    secret_config: SecretConfigDependency
+):
     db_challenge = session.get(Challenge, id)
 
     if not db_challenge:
@@ -456,13 +523,20 @@ async def accept_challenge(*, id: int, session: SessionDependency, client: Manda
         if db_challenge.caller_ref == client.reference:
             raise HTTPException(status_code=400, detail="Cannot accept own challenge")
 
-    db_game = await __create_game(db_challenge, client, session, state)
+    db_game = await __create_game(db_challenge, client, session, state, secret_config)
 
     return db_game
 
 
 @router.post("/{id}/decline")
-async def decline_challenge(*, id: int, session: SessionDependency, client: MandatoryUserDependency, state: MutableStateDependency):
+async def decline_challenge(
+    *,
+    id: int,
+    session: SessionDependency,
+    client: MandatoryUserDependency,
+    state: MutableStateDependency,
+    secret_config: SecretConfigDependency
+):
     db_challenge = session.get(Challenge, id)
 
     if not db_challenge:
@@ -479,6 +553,10 @@ async def decline_challenge(*, id: int, session: SessionDependency, client: Mand
 
     db_challenge.active = False
     session.add(db_challenge)
+
+    if db_challenge.vk_announcement_message_id:
+        delete_vk_message(db_challenge.vk_announcement_message_id, secret_config.integrations.vk.community_chat_id, secret_config.integrations.vk.token)
+
     session.commit()
 
     await state.ws_subscribers.broadcast(

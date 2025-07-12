@@ -24,6 +24,7 @@ class GameBase(SQLModel):
 
 class Game(GameBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
+    vk_announcement_message_id: int | None = None
 
     fischer_time_control: Optional["GameFischerTimeControl"] = Relationship(back_populates="game", cascade_delete=True)
     outcome: Optional["GameOutcome"] = Relationship(back_populates="game", cascade_delete=True)

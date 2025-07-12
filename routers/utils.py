@@ -7,6 +7,7 @@ from sqlmodel import Session
 
 from models.config import MainConfig, SecretConfig
 from models.player import PlayerRole
+from utils.constants import USER_TOKEN_HEADER
 from utils.datatypes import UserReference, UserRole
 from net.fastapi_wrapper import App, MutableState
 
@@ -35,8 +36,8 @@ PlayerLogin = Annotated[str, StringConstraints(to_lower=True)]
 # Dependency Injectors
 
 
-UserTokenHeaderDependency = Annotated[str, Depends(APIKeyHeader(name="intellector-user-token"))]
-OptionalUserTokenHeaderDependency = Annotated[str | None, Depends(APIKeyHeader(name="intellector-user-token", auto_error=False))]
+UserTokenHeaderDependency = Annotated[str, Depends(APIKeyHeader(name=USER_TOKEN_HEADER))]
+OptionalUserTokenHeaderDependency = Annotated[str | None, Depends(APIKeyHeader(name=USER_TOKEN_HEADER, auto_error=False))]
 
 
 def get_app(request: Request) -> App:

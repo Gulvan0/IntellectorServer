@@ -8,6 +8,9 @@ import sqlalchemy.sql.functions as func
 from sqlmodel import Session, col, desc, or_, select
 
 from models import (
+    Game,
+    GameStats,
+    PlayerEloProgress,
     PlayerBase,
     PlayerFollowedPlayer,
     PlayerPublic,
@@ -26,8 +29,6 @@ from models import (
     Study,
 )
 from models.channel import IncomingChallengesEventChannel
-from models.game import Game
-from models.player import GameStats, PlayerEloProgress
 from utils.datatypes import StudyPublicity, TimeControlKind, UserReference, UserRole
 from utils.query import not_expired
 from .utils import MainConfigDependency, MutableStateDependency, OptionalPlayerLoginDependency, PlayerLogin, verify_admin, MandatoryPlayerLoginDependency, SessionDependency

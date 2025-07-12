@@ -23,7 +23,7 @@ class GameBase(SQLModel):
 
 
 class Game(GameBase, table=True):
-    id: int | None = Field(primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
 
     fischer_time_control: Optional["GameFischerTimeControl"] = Relationship(back_populates="game", cascade_delete=True)
     outcome: Optional["GameOutcome"] = Relationship(back_populates="game", cascade_delete=True)
@@ -59,7 +59,7 @@ if TYPE_CHECKING:
 
 
 class GameFischerTimeControl(GameFischerTimeControlBase, table=True):
-    game_id: int | None = Field(primary_key=True, foreign_key="game.id")
+    game_id: int | None = Field(default=None, primary_key=True, foreign_key="game.id")
 
     game: Game = Relationship(back_populates="fischer_time_control")
 
@@ -74,9 +74,9 @@ class GameFischerTimeControlPublic(GameFischerTimeControlBase):
 class GameOutcomeBase(SQLModel):
     game_ended_at: CurrentDatetime
     kind: OutcomeKind
-    winner: PieceColorField | None
-    final_white_seconds: int | None
-    final_black_seconds: int | None
+    winner: PieceColorField | None = None
+    final_white_seconds: int | None = None
+    final_black_seconds: int | None = None
 
 
 class GameOutcome(GameOutcomeBase, table=True):
@@ -95,8 +95,8 @@ class GameOutcomePublic(GameOutcomeBase):
 class GamePlyEventBase(SQLModel):
     occurred_at: CurrentDatetime
     ply_index: int
-    white_seconds_after_execution: int | None
-    black_seconds_after_execution: int | None
+    white_seconds_after_execution: int | None = None
+    black_seconds_after_execution: int | None = None
     from_i: int
     from_j: int
     to_i: int
@@ -105,13 +105,13 @@ class GamePlyEventBase(SQLModel):
 
 
 class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
-    id: int | None = Field(primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     game_id: int = Field(foreign_key="game.id")
     is_cancelled: bool = False
     kind: PlyKindField
     moving_color: PieceColorField
     moved_piece: PieceKindField
-    target_piece: PieceKindField | None
+    target_piece: PieceKindField | None = None
     sip_after: Sip
 
     game: Game = Relationship(back_populates="ply_events")
@@ -132,7 +132,7 @@ class GameChatMessageEventBase(SQLModel):
 
 
 class GameChatMessageEvent(GameChatMessageEventBase, table=True):
-    id: int | None = Field(primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     game_id: int = Field(foreign_key="game.id")
 
     game: Game = Relationship(back_populates="chat_message_events")
@@ -153,7 +153,7 @@ class GameOfferEventBase(SQLModel):
 
 
 class GameOfferEvent(GameOfferEventBase, table=True):
-    id: int | None = Field(primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     game_id: int = Field(foreign_key="game.id")
 
     game: Game = Relationship(back_populates="offer_events")
@@ -173,7 +173,7 @@ class GameTimeAddedEventBase(SQLModel):
 
 
 class GameTimeAddedEvent(GameTimeAddedEventBase, table=True):
-    id: int | None = Field(primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     game_id: int = Field(foreign_key="game.id")
 
     game: Game = Relationship(back_populates="time_added_events")
@@ -194,7 +194,7 @@ class GameRollbackEventBase(SQLModel):
 
 
 class GameRollbackEvent(GameRollbackEventBase, table=True):
-    id: int | None = Field(primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     game_id: int = Field(foreign_key="game.id")
 
     game: Game = Relationship(back_populates="rollback_events")
@@ -293,7 +293,7 @@ class GameEndedBroadcastedData(GameOutcomeBase):
 
 class RollbackBroadcastedData(BaseModel):
     game_id: int
-    updated_white_seconds: int | None
-    updated_black_seconds: int | None
+    updated_white_seconds: int | None = None
+    updated_black_seconds: int | None = None
     updated_sip: Sip
     updated_move_num: int

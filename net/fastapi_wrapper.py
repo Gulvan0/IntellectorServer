@@ -17,6 +17,7 @@ from sqlalchemy import Engine
 
 from models.channel import EventChannel
 from models.config import MainConfig, SecretConfig
+from models.log import ServerLaunch
 from net.incoming import WebSocketHandlerCollection
 from net.outgoing import WebsocketOutgoingEvent, WebsocketOutgoingEventRegistry
 from net.sub_storage import SubscriberStorage
@@ -98,7 +99,9 @@ class App(FastAPI):
     async def __lifespan(self: FastAPI):
         SQLModel.metadata.create_all(self.db_engine)  # All models were imported using wildcard at the top of this file
         with Session(self.db_engine) as session:
+            session.add(ServerLaunch())
             ...  # TODO: Assign correct last_guest_id
+            session.commit()
         yield
 
     def __init__(self, rest_routers: list[APIRouter], ws_collections: list[WebSocketHandlerCollection]) -> None:

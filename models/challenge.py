@@ -17,7 +17,7 @@ class ChallengeBase(SQLModel):
 
 
 class Challenge(ChallengeBase, table=True):
-    id: int | None = Field(primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     created_at: CurrentDatetime
     caller_ref: PlayerRef
     callee_ref: OptionalPlayerRef = None
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 
 class ChallengeFischerTimeControl(ChallengeFischerTimeControlBase, table=True):
-    challenge_id: int | None = Field(primary_key=True, foreign_key="challenge.id")
+    challenge_id: int | None = Field(default=None, primary_key=True, foreign_key="challenge.id")
 
     challenge: Challenge = Relationship(back_populates="fischer_time_control")
 
@@ -75,8 +75,8 @@ class ChallengePublic(ChallengeBase):
     kind: ChallengeKind
     time_control_kind: TimeControlKind
     active: bool
-    fischer_time_control: ChallengeFischerTimeControlPublic | None
-    resulting_game: GamePublic | None
+    fischer_time_control: ChallengeFischerTimeControlPublic | None = None
+    resulting_game: GamePublic | None = None
 
 
 class ChallengeCreateResponse(BaseModel):

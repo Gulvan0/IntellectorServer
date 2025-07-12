@@ -56,9 +56,9 @@ class PlayerRolePublic(PlayerRoleBase):
 
 
 class PlayerRestrictionBase(SQLModel):
-    id: int | None = Field(primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     casted_at: CurrentDatetime
-    expires: datetime | None
+    expires: datetime | None = None
     kind: UserRestrictionKind
 
 
@@ -79,7 +79,7 @@ class PlayerFollowedPlayer(SQLModel, table=True):
 
 
 class PlayerEloProgress(SQLModel, table=True):  # Used for: current elo retrieval, elo history plotting, antifraud checks
-    id: int | None = Field(primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     login: str = Field(foreign_key="player.login")
     ts: CurrentDatetime
     time_control_kind: TimeControlKind

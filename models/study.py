@@ -20,7 +20,7 @@ class StudyBase(SQLModel):
 
 
 class Study(StudyBase, table=True):
-    id: int | None = Field(primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     created_at: CurrentDatetime
     modified_at: CurrentDatetime
     author_login: str = Field(foreign_key="player.login")
@@ -36,7 +36,7 @@ class StudyTagBase(SQLModel):
 
 
 class StudyTag(StudyTagBase, table=True):
-    study_id: int | None = Field(primary_key=True, foreign_key="study.id")
+    study_id: int | None = Field(default=None, primary_key=True, foreign_key="study.id")
 
     study: Study = Relationship(back_populates="tags")
 
@@ -55,7 +55,7 @@ class StudyVariationNodeBase(SQLModel):
 
 
 class StudyVariationNode(StudyVariationNodeBase, table=True):
-    study_id: int | None = Field(primary_key=True, foreign_key="study.id")
+    study_id: int | None = Field(default=None, primary_key=True, foreign_key="study.id")
 
     study: Study = Relationship(back_populates="nodes")
 

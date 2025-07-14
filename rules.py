@@ -304,16 +304,16 @@ class Position:
             case 1:
                 position.color_to_move = PieceColor(parts[0][0])
                 parts[0] = parts[0][1:]
-                for color, part in zip(PieceColor, parts):
+                for color, part in zip([PieceColor.WHITE, PieceColor.BLACK], parts):
                     for i in range(0, len(part), 2):
                         scalar_coord = ord(part[i]) - 64
                         hex_coords = HexCoordinates.from_scalar(scalar_coord)
-                        piece_kind = PieceKind(part[i+1])
+                        piece_kind = PieceKind(part[i + 1])
                         position.piece_arrangement[hex_coords] = Piece(piece_kind, color)
             case 2:
                 position.color_to_move = PieceColor(parts[0][0])
                 parts[0] = parts[0][1:]
-                for color, part in zip(PieceColor, parts):
+                for color, part in zip([PieceColor.WHITE, PieceColor.BLACK], parts):
                     for i in range(0, len(part), 2):
                         coords_char_code = ord(part[i])
                         if coords_char_code >= 97:
@@ -323,7 +323,7 @@ class Position:
                         else:
                             scalar_coord = 52 + coords_char_code - 48
                         hex_coords = HexCoordinates.from_scalar(scalar_coord)
-                        piece_kind = PieceKind(part[i+1])
+                        piece_kind = PieceKind(part[i + 1])
                         position.piece_arrangement[hex_coords] = Piece(piece_kind, color)
             case _:
                 raise ValueError(f'Unknown version: {version}')
@@ -331,7 +331,7 @@ class Position:
         return position
 
     def to_sip(self) -> str:
-        pieces = {PieceColor.WHITE: [], PieceColor.BLACK: []}
+        pieces: dict[PieceColor, list[tuple[int, PieceKind]]] = {PieceColor.WHITE: [], PieceColor.BLACK: []}
         for hex_coords, piece in self.piece_arrangement.items():
             pieces[piece.color].append((hex_coords.scalar, piece.kind))
 
@@ -362,6 +362,8 @@ class Position:
     def is_hex_under_aura(self, coordinates: HexCoordinates, aura_side: PieceColor) -> bool:
         for intellector_search_direction in PieceMovementDirection.lateral_directions():
             nearby_hex_coordinates = coordinates.step(intellector_search_direction, distance=1)
+            if not nearby_hex_coordinates:
+                continue
             nearby_piece = self.piece_arrangement.get(nearby_hex_coordinates)
             if nearby_piece == Piece(PieceKind.INTELLECTOR, aura_side):
                 return True
@@ -461,6 +463,9 @@ class Position:
         for coordinates, piece in self.piece_arrangement.items():
             plys += self.available_plys_from_hex(coordinates, piece)
         return plys
+
+    def perform_ply(self, ply: Ply) -> Position:
+        return self  # TODO: Replace with actual implementation
 
 
 DEFAULT_STARTING_SIP = Position.default_starting().to_sip()

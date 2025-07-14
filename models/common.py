@@ -2,6 +2,8 @@ from enum import auto, StrEnum
 
 from pydantic import BaseModel, Field
 
+from rules import PieceKind
+
 
 class PieceKindField(StrEnum):
     PROGRESSOR = auto()
@@ -10,6 +12,21 @@ class PieceKindField(StrEnum):
     LIBERATOR = auto()
     DOMINATOR = auto()
     INTELLECTOR = auto()
+
+    def to_piece_kind(self) -> PieceKind:
+        match self:
+            case PieceKindField.PROGRESSOR:
+                return PieceKind.PROGRESSOR
+            case PieceKindField.AGGRESSOR:
+                return PieceKind.AGGRESSOR
+            case PieceKindField.DEFENSOR:
+                return PieceKind.DEFENSOR
+            case PieceKindField.LIBERATOR:
+                return PieceKind.LIBERATOR
+            case PieceKindField.DOMINATOR:
+                return PieceKind.DOMINATOR
+            case PieceKindField.INTELLECTOR:
+                return PieceKind.INTELLECTOR
 
 
 class HexCoordsModel(BaseModel):

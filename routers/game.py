@@ -6,7 +6,7 @@ from sqlmodel import Session, desc, select
 from models.game import Game, GameFilter, GameOutcome, GamePlyEvent, GamePublic
 from routers.shared_methods.game import end_game
 from routers.utils import MutableStateDependency, SessionDependency
-from rules import PieceColor
+from rules import PieceColor, Position
 from utils.datatypes import OutcomeKind
 
 
@@ -71,7 +71,9 @@ async def check_timeout(*, session: SessionDependency, state: MutableStateDepend
     if not last_ply_event or last_ply_event.ply_index < 1 or not last_ply_event.white_seconds_after_execution or not last_ply_event.black_seconds_after_execution:
         return
 
-    if last_ply_event.ply_index % 2 == 0:
+    last_position = Position.from_sip(last_ply_event.sip_after)
+
+    if last_position.color_to_move == PieceColor.BLACK:  # we don't use ply_index as the starting position might have been "black to move"
         time_remainder = last_ply_event.black_seconds_after_execution
         potential_winner = PieceColor.WHITE
     else:

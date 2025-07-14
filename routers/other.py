@@ -35,12 +35,15 @@ async def shutdown(
     state: MutableStateDependency,
     secret_config: SecretConfigDependency
 ):
+    if state.shutdown_activated:
+        return
+
     state.shutdown_activated = True
     await cancel_all_challenges(session, state, secret_config)
     await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.SERVER_SHUTDOWN,
         EmptyModel()
     )
-    # TODO: Do the same when the game ends (but add shutdown_activated as the condition)
+
     if not session.exec(select(Game).join(GameOutcome).where(Game.outcome != None)).first():
         raise KeyboardInterrupt

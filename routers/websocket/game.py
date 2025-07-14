@@ -10,3 +10,6 @@ collection = WebSocketHandlerCollection()
 @collection.register(GamePlyEvent)
 async def move(ws: WebSocketWrapper, client: UserReference | None, payload: GamePlyEvent):
     ...  # TODO: To be filled later
+
+
+# TODO: Bot game handlers

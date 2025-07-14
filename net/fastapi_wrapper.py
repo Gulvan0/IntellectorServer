@@ -95,9 +95,10 @@ class WebSocketWrapper:
 @dataclass
 class MutableState:
     shutdown_activated: bool = False
-    token_to_user: BijectiveMap[str, UserReference] = BijectiveMap()
-    ws_subscribers: SubscriberStorage = SubscriberStorage()
+    token_to_user: BijectiveMap[str, UserReference] = field(default_factory=BijectiveMap)
+    ws_subscribers: SubscriberStorage = field(default_factory=SubscriberStorage)
     last_guest_id: int = 0
+    game_timeout_not_earlier_than: dict[int, int] = field(default_factory=dict)
 
     def add_guest(self, token: str) -> int:
         self.last_guest_id += 1

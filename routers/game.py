@@ -1,13 +1,9 @@
-from datetime import UTC, timedelta, datetime
-import time
 from typing import Sequence
 from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import Session, desc, select
-from models.game import Game, GameFilter, GameOutcome, GamePlyEvent, GamePublic
-from routers.shared_methods.game import end_game
+from models.game import Game, GameFilter, GamePublic
+from routers.shared_methods.game import check_timeout
 from routers.utils import MutableStateDependency, SessionDependency
-from rules import PieceColor, Position
-from utils.datatypes import OutcomeKind
 
 
 router = APIRouter(prefix="/game")
@@ -52,34 +48,5 @@ async def get_recent_games_route(*, session: SessionDependency, offset: int = 0,
 
 
 @router.get("/{game_id}/check_timeout")
-async def check_timeout(*, session: SessionDependency, state: MutableStateDependency, game_id: int):
-    threshold = state.game_timeout_not_earlier_than.get(game_id)
-    if not threshold or threshold > time.time():
-        return
-
-    if session.get(GameOutcome, game_id):
-        return
-
-    last_ply_event = session.exec(select(
-        GamePlyEvent
-    ).where(
-        GamePlyEvent.game_id == game_id
-    ).order_by(
-        desc(GamePlyEvent.ply_index)
-    )).first()
-
-    if not last_ply_event or last_ply_event.ply_index < 1 or not last_ply_event.white_seconds_after_execution or not last_ply_event.black_seconds_after_execution:
-        return
-
-    last_position = Position.from_sip(last_ply_event.sip_after)
-
-    if last_position.color_to_move == PieceColor.BLACK:  # we don't use ply_index as the starting position might have been "black to move"
-        time_remainder = last_ply_event.black_seconds_after_execution
-        potential_winner = PieceColor.WHITE
-    else:
-        time_remainder = last_ply_event.white_seconds_after_execution
-        potential_winner = PieceColor.BLACK
-
-    timeout_dt = (last_ply_event.occurred_at + timedelta(seconds=time_remainder)).replace(tzinfo=UTC)
-    if datetime.now(UTC) >= timeout_dt:
-        await end_game(session, state, game_id, OutcomeKind.TIMEOUT, potential_winner, timeout_dt)
+async def check_timeout_route(*, session: SessionDependency, state: MutableStateDependency, game_id: int):
+    await check_timeout(session=session, state=state, game_id=game_id)

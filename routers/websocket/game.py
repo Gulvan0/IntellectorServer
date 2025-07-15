@@ -3,6 +3,7 @@ from models.game import Game, GamePlyEvent, PlyIntentData
 from net.fastapi_wrapper import WebSocketWrapper
 from net.incoming import WebSocketHandlerCollection
 from net.util import WebSocketException
+from routers.shared_methods.game import check_timeout
 from rules import HexCoordinates, PieceColor, Ply, Position
 from utils.datatypes import UserReference
 
@@ -33,7 +34,8 @@ async def move(ws: WebSocketWrapper, client: UserReference | None, payload: PlyI
         last_ply_event = session.exec(select(
             GamePlyEvent
         ).where(
-            GamePlyEvent.game_id == payload.game_id
+            GamePlyEvent.game_id == payload.game_id,
+            not GamePlyEvent.is_cancelled
         ).order_by(
             desc(GamePlyEvent.ply_index)
         )).first()
@@ -48,7 +50,16 @@ async def move(ws: WebSocketWrapper, client: UserReference | None, payload: PlyI
         if last_position.color_to_move != client_color:
             raise WebSocketException("It's not your turn!")
 
-        # TODO: Check timeout (has to be the separate function taking optional precalculated args)
+        game_ended_by_timeout = await check_timeout(
+            session=session,
+            state=ws.app.mutable_state,
+            game_id=payload.game_id,
+            last_ply_event=last_ply_event,
+            last_position=last_position,
+            outcome_abscence_checked=True
+        )
+        if game_ended_by_timeout:
+            return
 
         ply = Ply(
             HexCoordinates(payload.from_i, payload.from_j),

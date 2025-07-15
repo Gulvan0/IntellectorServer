@@ -464,8 +464,23 @@ class Position:
             plys += self.available_plys_from_hex(coordinates, piece)
         return plys
 
-    def perform_ply(self, ply: Ply) -> Position:
-        return self  # TODO: Replace with actual implementation
+    def perform_ply_without_validation(self, ply: Ply) -> Position:
+        arrangement = self.piece_arrangement.copy()
+        moving_piece = arrangement.get(ply.departure)
+        target_piece = arrangement.get(ply.destination)
+        assert moving_piece
+
+        if target_piece and moving_piece.color == target_piece.color:
+            arrangement[ply.departure] = target_piece
+            arrangement[ply.destination] = moving_piece
+        else:
+            arrangement.pop(ply.departure, None)
+            arrangement[ply.destination] = Piece(ply.morph_into or moving_piece.kind, moving_piece.color)
+
+        return Position(
+            arrangement,
+            self.color_to_move.opposite()
+        )
 
 
 DEFAULT_STARTING_SIP = Position.default_starting().to_sip()

@@ -5,6 +5,8 @@ from enum import auto, Enum, StrEnum
 
 import typing as tp
 
+from zmq import has
+
 
 class PieceMovementDirection(Enum):
     FORWARD = auto()
@@ -249,6 +251,13 @@ class SuccessfulPlyResult:
         return PlyKind.CAPTURE
 
 
+class PositionFinalityGroup(StrEnum):
+    VALID_NON_FINAL = auto()
+    FATUM = auto()
+    BREAKTHROUGH = auto()
+    INVALID = auto()
+
+
 @dataclass
 class Position:
     piece_arrangement: dict[HexCoordinates, Piece] = field(default_factory=dict)
@@ -350,14 +359,7 @@ class Position:
         return f"2!{self.color_to_move.value}{arrangement_strings[PieceColor.WHITE]}!{arrangement_strings[PieceColor.BLACK]}"
 
     def is_valid_starting(self) -> bool:
-        found_intellector_colors = set()
-        for coords, piece in self.piece_arrangement.items():
-            if piece.kind != PieceKind.INTELLECTOR:
-                continue
-            if piece.color in found_intellector_colors or coords.is_final_row_for(piece.color):
-                return False
-            found_intellector_colors.add(piece.color)
-        return len(found_intellector_colors) == 2
+        return self.get_finality_group() == PositionFinalityGroup.VALID_NON_FINAL
 
     def is_hex_under_aura(self, coordinates: HexCoordinates, aura_side: PieceColor) -> bool:
         for intellector_search_direction in PieceMovementDirection.lateral_directions():
@@ -481,6 +483,32 @@ class Position:
             arrangement,
             self.color_to_move.opposite()
         )
+
+    def get_finality_group(self) -> PositionFinalityGroup:
+        found_intellector_colors = set()
+        has_breakthrough = False
+
+        for coords, piece in self.piece_arrangement.items():
+            if piece.kind != PieceKind.INTELLECTOR:
+                continue
+
+            if piece.color in found_intellector_colors:
+                return PositionFinalityGroup.INVALID
+
+            if coords.is_final_row_for(piece.color):
+                if has_breakthrough:
+                    return PositionFinalityGroup.INVALID
+                has_breakthrough = True
+
+            found_intellector_colors.add(piece.color)
+
+        match len(found_intellector_colors):
+            case 1:
+                return PositionFinalityGroup.INVALID if has_breakthrough else PositionFinalityGroup.FATUM
+            case 2:
+                return PositionFinalityGroup.BREAKTHROUGH if has_breakthrough else PositionFinalityGroup.VALID_NON_FINAL
+            case _:
+                return PositionFinalityGroup.INVALID
 
 
 DEFAULT_STARTING_SIP = Position.default_starting().to_sip()

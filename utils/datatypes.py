@@ -85,7 +85,7 @@ class ChallengeAcceptorColor(StrEnum):
 
 
 class OutcomeKind(StrEnum):
-    MATE = auto()
+    FATUM = auto()
     BREAKTHROUGH = auto()
     TIMEOUT = auto()
     RESIGN = auto()

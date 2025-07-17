@@ -17,7 +17,8 @@ from models import (
     OutgoingChallengesEventChannel,
     EventChannel,
 )
-from models.channel import EveryoneEventChannel
+from models.channel import EveryoneEventChannel, GamePublicEventChannel, GameSpectatorOnlyEventChannel
+from models.game import ChatMessageBroadcastedData, InvalidPlyResponseData, PlyBroadcastedData
 from models.other import EmptyModel
 
 
@@ -126,6 +127,38 @@ class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
         EveryoneEventChannel,
         "Server Shutdown",
         "Broadcasted to `everyone` channel group whenever the server starts preparing for the shutdown"
+    )
+
+    NEW_MOVE = (
+        "new_move",
+        PlyBroadcastedData,
+        GamePublicEventChannel,
+        "TODO",
+        "TODO"
+    )
+
+    INVALID_MOVE = (
+        "invalid_move",
+        InvalidPlyResponseData,
+        GamePublicEventChannel,
+        "TODO",
+        "TODO"
+    )
+
+    NEW_PLAYER_CHAT_MESSAGE = (
+        "new_player_chat_message",
+        ChatMessageBroadcastedData,
+        GamePublicEventChannel,
+        "TODO",
+        "TODO"
+    )
+
+    NEW_SPECTATOR_CHAT_MESSAGE = (
+        "new_player_chat_message",
+        ChatMessageBroadcastedData,
+        GameSpectatorOnlyEventChannel,
+        "TODO",
+        "TODO"
     )
 
     @classmethod

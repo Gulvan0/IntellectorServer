@@ -53,8 +53,7 @@ class StartedPlayerGamesEventChannel(BaseModel, frozen=True):
     watched_ref: str
 
 
-EventChannel = Union[
-    EveryoneEventChannel,
+SubEligibleEventChannel = Union[
     PublicChallengeListEventChannel,
     GameListEventChannel,
     IncomingChallengesEventChannel,
@@ -62,6 +61,12 @@ EventChannel = Union[
     GamePublicEventChannel,
     GameSpectatorOnlyEventChannel,
     StartedPlayerGamesEventChannel,
+]
+
+
+EventChannel = Union[
+    SubEligibleEventChannel,
+    EveryoneEventChannel,
 ]
 
 

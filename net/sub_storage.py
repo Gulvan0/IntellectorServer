@@ -75,5 +75,5 @@ class SubscriberStorage:
         return most_active_status_over_connections
 
     async def broadcast[T: BaseModel, C: EventChannel](self, event: WebsocketOutgoingEvent[T, C], payload: T, channel: C = EveryoneEventChannel()) -> None:  # type: ignore
-        sending_coroutines = [websocket.send_event(event, payload, channel) for websocket in self.subscribers[channel].values()]
+        sending_coroutines = [websocket.send_event(event, payload, channel, False) for websocket in self.subscribers[channel].values()]
         await asyncio.gather(*sending_coroutines)

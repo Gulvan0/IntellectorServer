@@ -1,10 +1,13 @@
-from sqlmodel import Session, desc, select
-from models.game import Game, GamePlyEvent, PlyIntentData
+from sqlmodel import Session, col, select
+from models.channel import GamePublicEventChannel
+from models.game import Game, GamePlyEvent, GamePlyEventPublic, InvalidPlyResponseData, PlyIntentData
 from net.fastapi_wrapper import WebSocketWrapper
 from net.incoming import WebSocketHandlerCollection
+from net.outgoing import WebsocketOutgoingEventRegistry
 from net.util import WebSocketException
 from routers.shared_methods.game import check_timeout
-from rules import HexCoordinates, PieceColor, Ply, Position
+from routers.shared_queries.game import get_last_ply_event
+from rules import DEFAULT_STARTING_SIP, HexCoordinates, PieceColor, Ply, Position
 from utils.datatypes import UserReference
 
 
@@ -31,20 +34,19 @@ async def move(ws: WebSocketWrapper, client: UserReference | None, payload: PlyI
         else:
             raise WebSocketException(f"You are not the player in game {payload.game_id}")
 
-        last_ply_event = session.exec(select(
-            GamePlyEvent
-        ).where(
-            GamePlyEvent.game_id == payload.game_id,
-            not GamePlyEvent.is_cancelled
-        ).order_by(
-            desc(GamePlyEvent.ply_index)
-        )).first()
+        last_ply_event = get_last_ply_event(session, payload.game_id)
 
         if last_ply_event:
-            last_position = Position.from_sip(last_ply_event.sip_after)
+            last_sip = last_ply_event.sip_after
+            last_position = Position.from_sip(last_sip)
             future_ply_index = last_ply_event.ply_index + 1
         else:
-            last_position = Position.from_sip(game.custom_starting_sip) if game.custom_starting_sip else Position.default_starting()
+            if game.custom_starting_sip:
+                last_sip = game.custom_starting_sip
+                last_position = Position.from_sip(last_sip)
+            else:
+                last_sip = DEFAULT_STARTING_SIP
+                last_position = Position.default_starting()
             future_ply_index = 0
 
         if last_position.color_to_move != client_color:
@@ -61,19 +63,56 @@ async def move(ws: WebSocketWrapper, client: UserReference | None, payload: PlyI
         if game_ended_by_timeout:
             return
 
+        from_coords = HexCoordinates(payload.from_i, payload.from_j)
+        to_coords = HexCoordinates(payload.to_i, payload.to_j)
         ply = Ply(
-            HexCoordinates(payload.from_i, payload.from_j),
-            HexCoordinates(payload.to_i, payload.to_j),
+            from_coords,
+            to_coords,
             payload.morph_into.to_piece_kind() if payload.morph_into else None
         )
-        if not last_position.is_ply_possible(ply):
-            ...  # TODO: Send invalid move notification
+        is_valid = True
+        if last_position.is_ply_possible(ply):
+            new_position = last_position.perform_ply_without_validation(ply)
+            new_sip = new_position.to_sip()
+            if new_sip == payload.sip_after:
+                moving_piece = last_position.piece_arrangement.get(from_coords)
+                target_piece = last_position.piece_arrangement.get(to_coords)
+            else:
+                is_valid = False
+        else:
+            is_valid = False
 
-        # TODO: Perform ply, compare with the sip from the payload, raise on mismatch (or better, send current game state)
+        if not is_valid:
+            ply_history = session.exec(select(
+                GamePlyEvent
+            ).where(
+                GamePlyEvent.game_id == payload.game_id,
+                not GamePlyEvent.is_cancelled
+            ).order_by(
+                col(GamePlyEvent.ply_index)
+            )).fetchall()
 
-        ...  # TODO: To be filled later (compare with the original Haxe implementation to make sure it aligns)
-        # + remember to notify about cancelled challenges (and other then-implicit-now-explicit things)
-        # + when saving the time data don't forget to update the state.game_timeout_not_earlier_than entry (but not before the second move)
+            await ws.send_event(
+                WebsocketOutgoingEventRegistry.INVALID_MOVE,
+                InvalidPlyResponseData(
+                    game_id=payload.game_id,
+                    ply_history=[GamePlyEventPublic(**ply.model_dump()) for ply in ply_history],
+                    current_sip=last_sip
+                ),
+                GamePublicEventChannel(game_id=payload.game_id)
+            )
+            return
+
+        # TODO: Calculate occured_at and time remainders (except for corresp.; only after second move; don't forget to add increment)
+        # TODO: Add to ply history (use calculations above)
+        # TODO: Cancel all offers (in db) + notify followers
+        # TODO: Check for mate / breakthrough / 100-move rule / threefold repetition
+
+        # If game ended:
+        # TODO: Call the end_game() shared method
+
+        # If game not ended:
+        # TODO: Send move event
 
 
 # TODO: Bot game handlers

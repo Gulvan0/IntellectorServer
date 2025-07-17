@@ -64,10 +64,11 @@ class WebSocketWrapper:
 
         await self.ws.send_json(payload)
 
-    async def send_event[T: BaseModel, C: EventChannel](self, event: WebsocketOutgoingEvent[T, C], payload: T, channel: C | None = None) -> None:
+    async def send_event[T: BaseModel, C: EventChannel](self, event: WebsocketOutgoingEvent[T, C], payload: T, channel: C | None = None, is_direct: bool = True) -> None:
         await self._send_logged_json(dict(
             event=event.event_name,
-            channel=channel.model_dump(),
+            channel=channel.model_dump() if channel else None,
+            is_direct=is_direct,
             body=payload.model_dump()
         ))
 

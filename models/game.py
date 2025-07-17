@@ -129,18 +129,18 @@ class GameChatMessageEventBase(SQLModel):
     occurred_at: CurrentDatetime
     author_ref: PlayerRef
     text: str
-    spectator: bool
 
 
 class GameChatMessageEvent(GameChatMessageEventBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     game_id: int = Field(foreign_key="game.id")
+    spectator: bool
 
     game: Game = Relationship(back_populates="chat_message_events")
 
 
 class GameChatMessageEventPublic(GameChatMessageEventBase):
-    pass
+    spectator: bool
 
 
 # Offer
@@ -265,7 +265,7 @@ class PlyBroadcastedData(GamePlyEventBase):
     sip_after: Sip
 
 
-class InvalidPlyResponseData:
+class InvalidPlyResponseData(BaseModel):
     game_id: int
     ply_history: list[GamePlyEventPublic]
     current_sip: Sip

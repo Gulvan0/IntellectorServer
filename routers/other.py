@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, Response
-from sqlmodel import select
 
 from models import CompatibilityCheckPayload, CompatibilityResolution, CompatibilityResponse
-from models.game import Game, GameOutcome
 from models.other import EmptyModel
 from net.outgoing import WebsocketOutgoingEventRegistry
 from routers.challenge import cancel_all_challenges
+from routers.shared_queries.game import get_ongoing_finite_game
 from routers.utils import MainConfigDependency, MutableStateDependency, SecretConfigDependency, SessionDependency, verify_admin
 
 router = APIRouter(prefix="")
@@ -45,5 +44,5 @@ async def shutdown(
         EmptyModel()
     )
 
-    if not session.exec(select(Game).join(GameOutcome).where(Game.outcome != None)).first():
+    if not get_ongoing_finite_game(session):
         raise KeyboardInterrupt

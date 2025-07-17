@@ -1,9 +1,10 @@
 from datetime import UTC, datetime, timedelta
 import time
 from typing import Literal
-from sqlmodel import Session, desc, select
-from models.game import Game, GameOutcome, GamePlyEvent
+from sqlmodel import Session
+from models.game import GameOutcome, GamePlyEvent
 from net.fastapi_wrapper import MutableState
+from routers.shared_queries.game import get_last_ply_event, get_ongoing_finite_game
 from rules import PieceColor, Position
 from utils.datatypes import OutcomeKind
 
@@ -15,10 +16,12 @@ async def end_game(
     outcome: OutcomeKind,
     winner_color: PieceColor | None,
     ended_at: datetime | None = None
-) -> None:
-    ...  # TODO: Fill
+) -> None:  # TODO: Add precalculated args: time reserves, last ply, ...
+    # TODO: Add to outcome table, ensure time reserves equality compared to ply table
+    # TODO: Send game ended events (multiple channels)
+    # TODO: Delete VK chat message
 
-    if state.shutdown_activated and not session.exec(select(Game).join(GameOutcome).where(Game.outcome != None)).first():
+    if state.shutdown_activated and not get_ongoing_finite_game(session):
         raise KeyboardInterrupt
 
     state.game_timeout_not_earlier_than.pop(game_id, None)
@@ -41,14 +44,7 @@ async def check_timeout(
         return False
 
     if last_ply_event == 'NOT_YET_RETRIEVED':
-        last_ply_event = session.exec(select(
-            GamePlyEvent
-        ).where(
-            GamePlyEvent.game_id == game_id,
-            not GamePlyEvent.is_cancelled
-        ).order_by(
-            desc(GamePlyEvent.ply_index)
-        )).first()
+        last_ply_event = get_last_ply_event(session, game_id)
 
     if not last_ply_event or last_ply_event.ply_index < 1 or not last_ply_event.white_seconds_after_execution or not last_ply_event.black_seconds_after_execution:
         return False

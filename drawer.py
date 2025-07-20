@@ -21,7 +21,7 @@ Y_OFFSET = (DIMENSIONS[1] - HEIGHT * 7) / 2
 PIECES: dict[Piece, ImageFile] = {}
 for kind in PieceKind:
     for color in PieceColor:
-        PIECES[Piece(kind, color)] = Image.open(f'pieces/{kind}{color}.png')
+        PIECES[Piece(kind, color)] = Image.open(f'pieces/{kind.get_letter()}{color.get_letter()}.png')
 
 
 def get_hex_center(coords: HexCoordinates) -> tuple[float, float]:
@@ -53,6 +53,7 @@ for i in range(0, 9):
             continue
         vertices = get_hex_vertices(HexCoordinates(i, j))
         draw.polygon(xy=vertices, fill="#d18b47" if j % 3 == i % 2 else "#ffcf9f", outline="#664126", width=6)
+        draw.text(xy=vertices[1], text=f"i{i};j{j}", fill=(0, 0, 0), font=ImageFont.load_default(size=HEIGHT / 3))
 
 
 def mark_hex(coords: HexCoordinates):
@@ -229,9 +230,11 @@ ALL_COLORS = [
 for coords, piece in Position.default_starting().piece_arrangement.items():
     put_piece(piece, coords)
 
+"""
 for ply in Position.default_starting().available_plys():
     draw_arrow(ply.departure, ply.destination, ALL_COLORS[randint(0, len(ALL_COLORS) - 1)], 60)
     dest_center = get_hex_center(ply.destination)
     draw.text(dest_center, str(ply.destination.scalar), (0, 0, 0), font=ImageFont.load_default(30))
+"""
 
 im.show()

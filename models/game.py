@@ -1,11 +1,13 @@
-from typing import TYPE_CHECKING, Optional
+from datetime import datetime
+from typing import TYPE_CHECKING, Literal, Optional
 
 from pydantic import BaseModel
 from sqlalchemy import ColumnElement
 from sqlmodel import Field, Relationship, SQLModel, or_
 
+from rules import PieceColor, PieceKind, PlyKind
+
 from .column_types import CurrentDatetime, OptionalSip, PlayerRef, Sip, OptionalPlayerRef
-from .common import PieceColorField, PieceKindField, PlyKindField
 from utils.datatypes import FischerTimeControlEntity, OfferAction, OfferKind, OutcomeKind, TimeControlKind
 
 
@@ -75,9 +77,9 @@ class GameFischerTimeControlPublic(GameFischerTimeControlBase):
 class GameOutcomeBase(SQLModel):
     game_ended_at: CurrentDatetime
     kind: OutcomeKind
-    winner: PieceColorField | None = None
-    final_white_seconds: int | None = None
-    final_black_seconds: int | None = None
+    winner: PieceColor | None = None
+    final_white_ms: int | None = None
+    final_black_ms: int | None = None
 
 
 class GameOutcome(GameOutcomeBase, table=True):
@@ -96,23 +98,31 @@ class GameOutcomePublic(GameOutcomeBase):
 class GamePlyEventBase(SQLModel):
     occurred_at: CurrentDatetime
     ply_index: int
-    white_seconds_after_execution: int | None = None
-    black_seconds_after_execution: int | None = None
+    white_ms_after_execution: int | None = None
+    black_ms_after_execution: int | None = None
     from_i: int
     from_j: int
     to_i: int
     to_j: int
-    morph_into: PieceKindField | None = None
+    morph_into: PieceKind | None = None
+
+    def get_time_remainders_dict(self) -> dict[PieceColor, int] | None:
+        if self.white_ms_after_execution and self.black_ms_after_execution:
+            return {
+                PieceColor.WHITE: self.white_ms_after_execution,
+                PieceColor.BLACK: self.black_ms_after_execution
+            }
+        return None
 
 
 class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
     id: int | None = Field(default=None, primary_key=True)
     game_id: int = Field(foreign_key="game.id")
     is_cancelled: bool = False
-    kind: PlyKindField
-    moving_color: PieceColorField
-    moved_piece: PieceKindField
-    target_piece: PieceKindField | None = None
+    kind: PlyKind
+    moving_color: PieceColor
+    moved_piece: PieceKind
+    target_piece: PieceKind | None = None
     sip_after: Sip
 
     game: Game = Relationship(back_populates="ply_events")
@@ -129,18 +139,18 @@ class GameChatMessageEventBase(SQLModel):
     occurred_at: CurrentDatetime
     author_ref: PlayerRef
     text: str
+    spectator: bool
 
 
 class GameChatMessageEvent(GameChatMessageEventBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     game_id: int = Field(foreign_key="game.id")
-    spectator: bool
 
     game: Game = Relationship(back_populates="chat_message_events")
 
 
 class GameChatMessageEventPublic(GameChatMessageEventBase):
-    spectator: bool
+    pass
 
 
 # Offer
@@ -150,7 +160,7 @@ class GameOfferEventBase(SQLModel):
     occurred_at: CurrentDatetime
     action: OfferAction
     offer_kind: OfferKind
-    offer_author: PieceColorField
+    offer_author: PieceColor
 
 
 class GameOfferEvent(GameOfferEventBase, table=True):
@@ -170,7 +180,7 @@ class GameOfferEventPublic(GameOfferEventBase):
 class GameTimeAddedEventBase(SQLModel):
     occurred_at: CurrentDatetime
     amount_seconds: int
-    receiver: PieceColorField
+    receiver: PieceColor
 
 
 class GameTimeAddedEvent(GameTimeAddedEventBase, table=True):
@@ -191,7 +201,7 @@ class GameRollbackEventBase(SQLModel):
     occurred_at: CurrentDatetime
     position_index_before: int
     position_index_after: int
-    requested_by: PieceColorField
+    requested_by: PieceColor
 
 
 class GameRollbackEvent(GameRollbackEventBase, table=True):
@@ -233,8 +243,8 @@ class PlyIntentData(BaseModel):
     from_j: int
     to_i: int
     to_j: int
-    morph_into: PieceKindField | None = None
-    sip_after: Sip
+    morph_into: PieceKind | None = None
+    sip_after: Sip | None = None
 
 
 class ChatMessageIntentData(BaseModel):
@@ -265,12 +275,6 @@ class PlyBroadcastedData(GamePlyEventBase):
     sip_after: Sip
 
 
-class InvalidPlyResponseData(BaseModel):
-    game_id: int
-    ply_history: list[GamePlyEventPublic]
-    current_sip: Sip
-
-
 class ChatMessageBroadcastedData(GameChatMessageEventBase):
     game_id: int
 
@@ -280,21 +284,37 @@ class OfferActionBroadcastedData(BaseModel):
     occurred_at: CurrentDatetime
     action: OfferAction
     offer_kind: OfferKind
-    offer_author: PieceColorField
+    offer_author: PieceColor
 
 
 class TimeAddedBroadcastedData(GameTimeAddedEventBase):
     game_id: int
-    updated_receiver_seconds: int
+    updated_receiver_ms_at_ply_start: int
+
+
+class RollbackBroadcastedData(BaseModel):
+    game_id: int
+    updated_white_ms_after_last_ply: int | None
+    updated_black_ms_after_last_ply: int | None
+    updated_last_ply_timestamp: datetime | None
+    updated_sip: Sip
+    updated_ply_cnt: int
 
 
 class GameEndedBroadcastedData(GameOutcomeBase):
     game_id: int
 
 
-class RollbackBroadcastedData(BaseModel):
+class GameStateRefresh(BaseModel):
     game_id: int
-    updated_white_seconds: int | None = None
-    updated_black_seconds: int | None = None
-    updated_sip: Sip
-    updated_move_num: int
+    refresh_reason: Literal['sub', 'invalid_move']
+    outcome: GameOutcomePublic | None
+    ply_events: list[GamePlyEventPublic]
+    chat_message_events: list[GameChatMessageEventPublic]
+    offer_events: list[GameOfferEventPublic]
+    time_added_events: list[GameTimeAddedEventPublic]
+    rollback_events: list[GameRollbackEventPublic]
+
+
+class GameListChannelsStateRefresh(BaseModel):
+    games: list[Game]

@@ -1,14 +1,32 @@
 from datetime import datetime
 from typing import Any, TYPE_CHECKING
 
+from pydantic import BaseModel
 from sqlmodel import Field, Relationship, SQLModel
 
-from .common import PieceKindField, VariationNode
+from rules import PieceKind
+
 from .column_types import CurrentDatetime, Sip
 from utils.datatypes import StudyPublicity
 
 if TYPE_CHECKING:
     from .player import Player
+
+
+class ApiHexCoords(BaseModel):
+    i: int = Field(ge=0, le=8)
+    j: int = Field(ge=0, le=6)
+
+
+class ApiPly(BaseModel):
+    departure: ApiHexCoords
+    destination: ApiHexCoords
+    morph_into: PieceKind | None = None
+
+
+class ApiVariationNode(BaseModel):
+    path: str
+    ply: ApiPly
 
 
 class StudyBase(SQLModel):
@@ -51,7 +69,7 @@ class StudyVariationNodeBase(SQLModel):
     ply_from_j: int
     ply_to_i: int
     ply_to_j: int
-    ply_morph_into: PieceKindField | None = None
+    ply_morph_into: PieceKind | None = None
 
 
 class StudyVariationNode(StudyVariationNodeBase, table=True):
@@ -60,7 +78,7 @@ class StudyVariationNode(StudyVariationNodeBase, table=True):
     study: Study = Relationship(back_populates="nodes")
 
     @classmethod
-    def from_api_model(cls, node: VariationNode) -> "StudyVariationNode":
+    def from_api_model(cls, node: ApiVariationNode) -> "StudyVariationNode":
         return StudyVariationNode(
             joined_path=node.path,
             ply_from_i=node.ply.departure.i,
@@ -77,7 +95,7 @@ class StudyVariationNodePublic(StudyVariationNodeBase):
 
 class StudyCreate(StudyBase):
     tags: list[str]
-    nodes: list[VariationNode]
+    nodes: list[ApiVariationNode]
 
     def build_table_model(self, author_login: str) -> Study:
         return Study(
@@ -101,7 +119,7 @@ class StudyUpdate(SQLModel):
     starting_sip: str | None = None
     key_sip: str | None = None
     tags: list[str] | None = None
-    nodes: list[VariationNode] | None = None
+    nodes: list[ApiVariationNode] | None = None
 
     def dump_for_table_model(self) -> dict[str, Any]:
         result = self.model_dump(exclude_unset=True)

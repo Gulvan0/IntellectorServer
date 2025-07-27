@@ -64,11 +64,10 @@ class WebSocketWrapper:
 
         await self.ws.send_json(payload)
 
-    async def send_event[T: BaseModel, C: EventChannel](self, event: WebsocketOutgoingEvent[T, C], payload: T, channel: C | None = None, is_direct: bool = True) -> None:
+    async def send_event[T: BaseModel, C: EventChannel](self, event: WebsocketOutgoingEvent[T, C], payload: T, channel: C) -> None:
         await self._send_logged_json(dict(
             event=event.event_name,
             channel=channel.model_dump() if channel else None,
-            is_direct=is_direct,
             body=payload.model_dump()
         ))
 
@@ -99,7 +98,7 @@ class MutableState:
     token_to_user: BijectiveMap[str, UserReference] = field(default_factory=BijectiveMap)
     ws_subscribers: SubscriberStorage = field(default_factory=SubscriberStorage)
     last_guest_id: int = 0
-    game_timeout_not_earlier_than: dict[int, int] = field(default_factory=dict)
+    game_timeout_not_earlier_than: dict[int, float] = field(default_factory=dict)
 
     def add_guest(self, token: str) -> int:
         self.last_guest_id += 1
@@ -107,7 +106,7 @@ class MutableState:
         return self.last_guest_id
 
     def add_logged(self, token: str, login: str) -> None:
-        self.token_to_user.add(token, UserReference.logged(login))
+        self.token_to_user.add(token, UserReference.logged(login))  # TODO: Update case
 
     def has_user_subscriber(self, user_ref: UserReference, channel: EventChannel = EveryoneEventChannel()) -> bool:
         return self.ws_subscribers.has_user_subscriber(self.token_to_user, user_ref, channel)

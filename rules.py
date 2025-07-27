@@ -364,6 +364,12 @@ class Position:
         )
 
     @classmethod
+    def color_to_move_from_sip(cls, sip: str) -> PieceColor:
+        parts = sip.split('!', 2)
+        letter = sip[0] if len(parts) == 2 else parts[1][0]
+        return PieceColor.from_letter(letter)
+
+    @classmethod
     def from_sip(cls, sip: str) -> Position:
         position = Position()
         parts = sip.split('!', 2)

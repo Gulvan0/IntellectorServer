@@ -7,6 +7,7 @@ from sqlalchemy import CHAR
 from sqlmodel import Field, Relationship, SQLModel, Column
 
 from models.column_types import CurrentDatetime
+from models.game import Game
 from utils.datatypes import TimeControlKind, UserRestrictionKind, UserRole, UserStatus
 
 if TYPE_CHECKING:
@@ -130,3 +131,8 @@ class RestrictionRemovalPayload(BaseModel):
 
 class RestrictionBatchRemovalPayload(BaseModel):
     restriction: UserRestrictionKind | None = None
+
+
+class StartedPlayerGamesStateRefresh(BaseModel):
+    player_ref: str
+    current_game: Game | None

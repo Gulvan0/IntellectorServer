@@ -84,3 +84,11 @@ class ChallengeCreateResponse(BaseModel):
     challenge: ChallengePublic | None = None
     callee_online: bool | None = None
     game: GamePublic | None = None
+
+
+class ChallengeListStateRefresh(BaseModel):
+    challenges: list[Challenge]
+
+
+class SpecificUserChallengeListStateRefresh(ChallengeListStateRefresh):
+    user_ref: str

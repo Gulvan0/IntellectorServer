@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from collections import defaultdict
+from dataclasses import dataclass
+from enum import Enum, auto
 from typing import TYPE_CHECKING, DefaultDict, Iterable
 from uuid import UUID
 
@@ -15,15 +17,25 @@ if TYPE_CHECKING:
     from net.outgoing import WebsocketOutgoingEvent
 
 
+class SubscriberTag(Enum):
+    PARTICIPATING_PLAYER = auto()
+
+
+@dataclass
+class Subscriber:
+    ws: WebSocketWrapper
+    tags: set[SubscriberTag]
+
+
 class SubscriberStorage:
-    subscribers: DefaultDict[EventChannel, dict[UUID, WebSocketWrapper]] = defaultdict(dict)
+    subscribers: DefaultDict[EventChannel, dict[UUID, Subscriber]] = defaultdict(dict)
 
     @staticmethod
     def _resolve_websocket_reference(websocket_ref: WebSocketWrapper | UUID) -> UUID:
         return websocket_ref.uuid if isinstance(websocket_ref, WebSocketWrapper) else websocket_ref
 
-    def subscribe(self, websocket: WebSocketWrapper, channel: EventChannel) -> None:
-        self.subscribers[channel][websocket.uuid] = websocket
+    def subscribe(self, websocket: WebSocketWrapper, channel: EventChannel, tags: set[SubscriberTag] | None = None) -> None:
+        self.subscribers[channel][websocket.uuid] = Subscriber(websocket, tags or set())
 
     def unsubscribe(self, websocket_ref: WebSocketWrapper | UUID, channel: EventChannel) -> None:
         uuid = self._resolve_websocket_reference(websocket_ref)
@@ -41,15 +53,15 @@ class SubscriberStorage:
     def count_subscribers(self, channel: EventChannel = EveryoneEventChannel()) -> int:
         return len(self.subscribers[channel])
 
-    def get_subscribers(self, channel: EventChannel = EveryoneEventChannel()) -> Iterable[WebSocketWrapper]:
+    def get_subscribers(self, channel: EventChannel = EveryoneEventChannel()) -> Iterable[Subscriber]:
         return self.subscribers[channel].values()
 
     def has_ws_subscriber(self, websocket_ref: WebSocketWrapper | UUID, channel: EventChannel = EveryoneEventChannel()) -> bool:
         return self._resolve_websocket_reference(websocket_ref) in self.subscribers[channel]
 
     def has_token_subscriber(self, token: str, channel: EventChannel = EveryoneEventChannel()) -> bool:
-        for ws in self.get_subscribers(channel):
-            if ws.saved_token and ws.saved_token == token:
+        for subscriber in self.get_subscribers(channel):
+            if subscriber.ws.saved_token and subscriber.ws.saved_token == token:
                 return True
         return False
 
@@ -64,16 +76,29 @@ class SubscriberStorage:
 
         most_active_status_over_connections = UserStatus.OFFLINE
 
-        for ws in self.get_subscribers(channel):
-            if ws.saved_token != token:
+        for subscriber in self.get_subscribers(channel):
+            if subscriber.ws.saved_token != token:
                 continue
 
-            iterated_status = ws.get_status()
+            iterated_status = subscriber.ws.get_status()
             if iterated_status.is_more_active_than(most_active_status_over_connections):
                 most_active_status_over_connections = iterated_status
 
         return most_active_status_over_connections
 
-    async def broadcast[T: BaseModel, C: EventChannel](self, event: WebsocketOutgoingEvent[T, C], payload: T, channel: C = EveryoneEventChannel()) -> None:  # type: ignore
-        sending_coroutines = [websocket.send_event(event, payload, channel, False) for websocket in self.subscribers[channel].values()]
+    async def broadcast[T: BaseModel, C: EventChannel](
+        self,
+        event: WebsocketOutgoingEvent[T, C],
+        payload: T,
+        channel: C = EveryoneEventChannel(),
+        tag_whitelist: set[SubscriberTag] | None = None,
+        tag_blacklist: set[SubscriberTag] | None = None
+    ) -> None:
+        sending_coroutines = []
+        for subscriber in self.get_subscribers(channel):
+            if tag_whitelist and tag_whitelist.difference(subscriber.tags):
+                continue
+            if tag_blacklist and subscriber.tags.intersection(tag_blacklist):
+                continue
+            sending_coroutines.append(subscriber.ws.send_event(event, payload, channel))
         await asyncio.gather(*sending_coroutines)

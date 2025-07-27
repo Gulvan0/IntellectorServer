@@ -46,3 +46,8 @@ async def shutdown(
 
     if not get_ongoing_finite_game(session):
         raise KeyboardInterrupt
+
+
+@router.get("/mutable_state", dependencies=[Depends(verify_admin)])
+async def get_mutable_state(state: MutableStateDependency):
+    raise NotImplementedError()  # TODO: Implement

@@ -16,10 +16,21 @@ from models import (
     IncomingChallengesEventChannel,
     OutgoingChallengesEventChannel,
     EventChannel,
+    EveryoneEventChannel,
+    GameEventChannel,
+    ChatMessageBroadcastedData,
+    PlyBroadcastedData,
+    RollbackBroadcastedData,
+    TimeAddedBroadcastedData,
+    OfferActionBroadcastedData,
+    NewSubscriberBroadcastedData,
+    SubscriberLeftBroadcastedData,
+    EmptyModel,
+    StartedPlayerGamesStateRefresh,
+    ChallengeListStateRefresh,
+    SpecificUserChallengeListStateRefresh,
 )
-from models.channel import EveryoneEventChannel, GamePublicEventChannel, GameSpectatorOnlyEventChannel
-from models.game import ChatMessageBroadcastedData, InvalidPlyResponseData, PlyBroadcastedData
-from models.other import EmptyModel
+from models.game import GameListChannelsStateRefresh, GameStateRefresh
 
 
 @dataclass(frozen=True)
@@ -33,12 +44,34 @@ class WebsocketOutgoingEvent[T: BaseModel, C: EventChannel]:
 
 
 class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
+    SERVER_SHUTDOWN = (
+        "server_shutdown",
+        EmptyModel,
+        EveryoneEventChannel,
+        "Server Shutdown",
+        "Broadcasted to `everyone` channel group whenever the server starts preparing for the shutdown"
+    )
+
+    REFRESH_STARTED_PLAYER_GAMES = (
+        "refresh.player.started_games",
+        StartedPlayerGamesStateRefresh,
+        None,
+        "Channel state refresh: `player.started_games`"
+    )
+
     GAME_STARTED = (
         "game_started",
         GamePublic,
         StartedPlayerGamesEventChannel,
         "Game Started (for player's followers)",
         "Broadcasted to `player.started_games` channel group whenever a new game involving a respective player starts"
+    )
+
+    REFRESH_PUBLIC_CHALLENGE_LIST = (
+        "refresh.public_challenge_list",
+        ChallengeListStateRefresh,
+        None,
+        "Channel state refresh: `public_challenge_list`"
     )
 
     NEW_PUBLIC_CHALLENGE = (
@@ -65,6 +98,13 @@ class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
         "Broadcasted to `public_challenge_list` channel group whenever a public challenge is fulfilled (i.e. accepted by someone)"
     )
 
+    REFRESH_GAME_LIST = (
+        "refresh.game_list",
+        GameListChannelsStateRefresh,
+        None,
+        "Channel state refresh: `game_list`"
+    )
+
     NEW_ACTIVE_GAME = (
         "new_active_game",
         GameStartedBroadcastedData,
@@ -81,6 +121,13 @@ class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
         "Broadcasted to `game_list` channel group whenever a game ends"
     )
 
+    REFRESH_INCOMING_CHALLENGES = (
+        "refresh.incoming_challenges",
+        SpecificUserChallengeListStateRefresh,
+        None,
+        "Channel state refresh: `incoming_challenges`"
+    )
+
     INCOMING_CHALLENGE_RECEIVED = (
         "incoming_challenge_received",
         ChallengePublic,
@@ -95,6 +142,13 @@ class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
         IncomingChallengesEventChannel,
         "Incoming Challenge Cancelled",
         "Broadcasted to `incoming_challenges` channel group whenever an incoming direct challenge is cancelled"
+    )
+
+    REFRESH_OUTGOING_CHALLENGES = (
+        "refresh.outgoing_challenges",
+        SpecificUserChallengeListStateRefresh,
+        None,
+        "Channel state refresh: `outgoing_challenges`"
     )
 
     OUTGOING_CHALLENGE_ACCEPTED = (
@@ -121,44 +175,59 @@ class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
         "Broadcasted to `outgoing_challenges` channel group whenever the server cancels an outgoing challenge due to shutdown"
     )
 
-    SERVER_SHUTDOWN = (
-        "server_shutdown",
-        EmptyModel,
-        EveryoneEventChannel,
-        "Server Shutdown",
-        "Broadcasted to `everyone` channel group whenever the server starts preparing for the shutdown"
+    REFRESH_GAME = (
+        "refresh.game",
+        GameStateRefresh,
+        None,
+        "Channel state refresh: `game`"
     )
 
-    NEW_MOVE = (
-        "new_move",
+    NEW_PLY = (
+        "new_ply",
         PlyBroadcastedData,
-        GamePublicEventChannel,
-        "TODO",
-        "TODO"
+        GameEventChannel,
+        "New Ply",
+        "Broadcasted to `game` channel group whenever a new move happens on the board"
     )
 
-    INVALID_MOVE = (
-        "invalid_move",
-        InvalidPlyResponseData,
-        GamePublicEventChannel,
-        "TODO",
-        "TODO"
-    )
-
-    NEW_PLAYER_CHAT_MESSAGE = (
-        "new_player_chat_message",
+    NEW_CHAT_MESSAGE = (
+        "new_chat_message",
         ChatMessageBroadcastedData,
-        GamePublicEventChannel,
-        "TODO",
-        "TODO"
+        GameEventChannel,
+        "New Chat Message",
+        "Broadcasted to `game` channel group whenever a new chat message arrives"
     )
 
-    NEW_SPECTATOR_CHAT_MESSAGE = (
-        "new_player_chat_message",
-        ChatMessageBroadcastedData,
-        GameSpectatorOnlyEventChannel,
-        "TODO",
-        "TODO"
+    OFFER_ACTION_PERFORMED = (
+        "offer_action_performed",
+        OfferActionBroadcastedData,
+        GameEventChannel,
+        "Offer Action Performed",
+        "Broadcasted to `game` channel group whenever a draw or takeback offer is created, cancelled, accepted or rejected"
+    )
+
+    TIME_ADDED = (
+        "time_added",
+        TimeAddedBroadcastedData,
+        GameEventChannel,
+        "Time Added",
+        "Broadcasted to `game` channel group whenever a player decides to add time to the opponent's reserves"
+    )
+
+    ROLLBACK = (
+        "rollback",
+        RollbackBroadcastedData,
+        GameEventChannel,
+        "Rollback",
+        "Broadcasted to `game` channel group whenever some of the last moves get cancelled"
+    )
+
+    GAME_ENDED = (
+        "game_ended",
+        GameEndedBroadcastedData,
+        GameEventChannel,
+        "Game Ended (for specific game watchers)",
+        "Broadcasted to `game` channel group when the game ends"
     )
 
     @classmethod

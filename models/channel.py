@@ -32,16 +32,9 @@ class OutgoingChallengesEventChannel(BaseModel, frozen=True):
     user_ref: str
 
 
-class GamePublicEventChannel(BaseModel, frozen=True):
-    group: ClassVar[str] = 'game.public'
-    channel_group: Literal['game.public'] = 'game.public'
-
-    game_id: int
-
-
-class GameSpectatorOnlyEventChannel(BaseModel, frozen=True):
-    group: ClassVar[str] = 'game.spectator_only'
-    channel_group: Literal['game.spectator_only'] = 'game.spectator_only'
+class GameEventChannel(BaseModel, frozen=True):
+    group: ClassVar[str] = 'game.main'
+    channel_group: Literal['game.main'] = 'game.main'
 
     game_id: int
 
@@ -53,14 +46,29 @@ class StartedPlayerGamesEventChannel(BaseModel, frozen=True):
     watched_ref: str
 
 
+class SubscriberListEventChannel(BaseModel, frozen=True):
+    group: ClassVar[str] = 'subscriber_list'
+    channel_group: Literal['subscriber_list'] = 'subscriber_list'
+
+    channel: Union[
+        EveryoneEventChannel,
+        PublicChallengeListEventChannel,
+        GameListEventChannel,
+        IncomingChallengesEventChannel,
+        OutgoingChallengesEventChannel,
+        GameEventChannel,
+        StartedPlayerGamesEventChannel,
+    ]
+
+
 SubEligibleEventChannel = Union[
     PublicChallengeListEventChannel,
     GameListEventChannel,
     IncomingChallengesEventChannel,
     OutgoingChallengesEventChannel,
-    GamePublicEventChannel,
-    GameSpectatorOnlyEventChannel,
+    GameEventChannel,
     StartedPlayerGamesEventChannel,
+    SubscriberListEventChannel,
 ]
 
 

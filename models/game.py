@@ -22,11 +22,11 @@ class GameBase(SQLModel):
     time_control_kind: TimeControlKind
     rated: bool
     custom_starting_sip: OptionalSip
+    external_uploader_ref: OptionalPlayerRef
 
 
 class Game(GameBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    vk_announcement_message_id: int | None = None
 
     fischer_time_control: Optional["GameFischerTimeControl"] = Relationship(back_populates="game", cascade_delete=True)
     outcome: Optional["GameOutcome"] = Relationship(back_populates="game", cascade_delete=True)
@@ -68,6 +68,10 @@ class GameFischerTimeControl(GameFischerTimeControlBase, table=True):
 
 
 class GameFischerTimeControlPublic(GameFischerTimeControlBase):
+    pass
+
+
+class GameFischerTimeControlCreate(GameFischerTimeControlBase):
     pass
 
 
@@ -234,6 +238,39 @@ class GameFilter(BaseModel):
         return conditions
 
 
+class ExternalGameCreatePayload(BaseModel):
+    white_player_ref: PlayerRef
+    black_player_ref: PlayerRef
+    custom_starting_sip: OptionalSip
+    time_control: GameFischerTimeControlCreate | None
+
+
+class ExternalGameAppendPlyPayload(BaseModel):
+    game_id: int
+    from_i: int
+    from_j: int
+    to_i: int
+    to_j: int
+    morph_into: PieceKind | None = None
+    white_ms_after_execution: int | None = None
+    black_ms_after_execution: int | None = None
+
+
+class SimpleOutcome(BaseModel):
+    kind: OutcomeKind
+    winner: PieceColor | None = None
+
+
+class ExternalGameAppendPlyResponse(BaseModel):
+    outcome: SimpleOutcome | None
+
+
+class ExternalGameEndPayload(BaseModel):
+    game_id: int
+    outcome_kind: Literal[OutcomeKind.ABORT, OutcomeKind.ABANDON, OutcomeKind.DRAW_AGREEMENT, OutcomeKind.RESIGN]
+    winner: PieceColor | None = None
+
+
 # WS payloads / payload fields - incoming
 
 
@@ -318,3 +355,9 @@ class GameStateRefresh(BaseModel):
 
 class GameListChannelsStateRefresh(BaseModel):
     games: list[Game]
+
+
+# OTHER
+
+class GameId(BaseModel):
+    game_id: int

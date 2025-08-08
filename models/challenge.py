@@ -23,7 +23,6 @@ class Challenge(ChallengeBase, table=True):
     kind: ChallengeKind
     time_control_kind: TimeControlKind
     active: bool = True
-    vk_announcement_message_id: int | None = None
     resulting_game_id: int | None = Field(default=None, foreign_key="game.id")
 
     resulting_game: Game | None = Relationship()

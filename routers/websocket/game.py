@@ -1,18 +1,32 @@
-from datetime import UTC, datetime, timedelta
-from sqlalchemy import update
-from sqlmodel import Session, and_, col, or_, select, func, case
-from models.channel import GamePublicEventChannel
-from models.game import AddTimeIntentData, ChatMessageBroadcastedData, ChatMessageIntentData, Game, GameChatMessageEvent, GameChatMessageEventPublic, GameOfferEvent, GameOfferEventPublic, GameOutcomePublic, GamePlyEvent, GamePlyEventPublic, GameRollbackEvent, GameRollbackEventPublic, GameStateRefresh, GameTimeAddedEvent, GameTimeAddedEventPublic, InvalidPlyResponseData, OfferActionBroadcastedData, OfferActionIntentData, PlyBroadcastedData, PlyIntentData, RollbackBroadcastedData, TimeAddedBroadcastedData
+from datetime import UTC, datetime
+from sqlmodel import Session
+from models.channel import GameEventChannel
+from models.game import (
+    AddTimeIntentData,
+    ChatMessageBroadcastedData,
+    ChatMessageIntentData,
+    Game,
+    GameChatMessageEvent,
+    GameId,
+    GameOfferEvent,
+    GamePlyEvent,
+    GameTimeAddedEvent,
+    OfferActionBroadcastedData,
+    OfferActionIntentData,
+    PlyBroadcastedData,
+    PlyIntentData,
+    RollbackBroadcastedData,
+    TimeAddedBroadcastedData,
+)
 from net.fastapi_wrapper import WebSocketWrapper
 from net.incoming import WebSocketHandlerCollection
 from net.outgoing import WebsocketOutgoingEventRegistry
 from net.sub_storage import SubscriberTag
 from net.util import WebSocketException
-from routers.shared_methods.game import compose_state_refresh, end_game, get_active_offers, get_ply_cnt, get_ply_history, is_offer_active
-from routers.shared_queries.game import get_last_ply_event
-from rules import DEFAULT_STARTING_SIP, HexCoordinates, PieceColor, PieceKind, Ply, PlyKind, Position, PositionFinalityGroup
+from routers.shared_methods.game import compose_state_refresh, end_game, get_active_offers, get_ply_history, is_offer_active
+from routers.shared_queries.game import get_last_ply_event, has_occured_thrice, is_stale
+from rules import DEFAULT_STARTING_SIP, HexCoordinates, PieceColor, Ply, Position, PositionFinalityGroup
 from utils.datatypes import OfferAction, OfferKind, OutcomeKind, UserReference
-from utils.query import count_if
 
 
 collection = WebSocketHandlerCollection()
@@ -34,7 +48,7 @@ async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIn
     if not client:
         raise WebSocketException("Authorization required. Please provide an auth token")
 
-    public_broadcast_channel = GamePublicEventChannel(game_id=payload.game_id)
+    public_broadcast_channel = GameEventChannel(game_id=payload.game_id)
 
     with Session(ws.app.db_engine) as session:
         game = session.get(Game, payload.game_id)
@@ -84,16 +98,6 @@ async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIn
             )
             return
 
-        # Doing that before adding a new move to ensure correct count
-        same_position_occurences_cnt = session.exec(select(
-            func.count(col(GamePlyEvent.id))
-        ).where(
-            GamePlyEvent.game_id == payload.game_id,
-            not GamePlyEvent.is_cancelled,
-            GamePlyEvent.sip_after == new_sip
-        )).one()
-        is_threefold = same_position_occurences_cnt >= 2
-
         ply_dt = datetime.now(UTC)
         ply_ts = int(ply_dt.timestamp() * 1000)
 
@@ -112,7 +116,7 @@ async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIn
                 if ms_passed >= ms_after_prev_ply[color_to_move]:
                     ended_at_ts = prev_ply_ts + ms_after_prev_ply[color_to_move]
                     ended_at_dt = datetime.fromtimestamp(ended_at_ts)
-                    await end_game(session, ws.app.mutable_state, payload.game_id, OutcomeKind.TIMEOUT, color_to_wait, ended_at_dt)
+                    await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.TIMEOUT, color_to_wait, ended_at_dt)
                     return
 
                 ms_after_new_ply[color_to_move] = ms_after_prev_ply[color_to_move] - ms_passed + game.fischer_time_control.increment_seconds * 1000
@@ -160,33 +164,18 @@ async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIn
 
         match perform_ply_result.new_position.get_finality_group():
             case PositionFinalityGroup.FATUM:
-                await end_game(session, ws.app.mutable_state, payload.game_id, OutcomeKind.FATUM, client_color, ply_dt)
+                await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.FATUM, client_color, ply_dt)
                 return
             case PositionFinalityGroup.BREAKTHROUGH:
-                await end_game(session, ws.app.mutable_state, payload.game_id, OutcomeKind.BREAKTHROUGH, client_color, ply_dt)
+                await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.BREAKTHROUGH, client_color, ply_dt)
                 return
 
-        if is_threefold:
-            await end_game(session, ws.app.mutable_state, payload.game_id, OutcomeKind.REPETITION, None, ply_dt)
+        if has_occured_thrice(session, payload.game_id, new_sip):
+            await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.REPETITION, None, ply_dt)
             return
 
-        last_progressive_ply_index = session.exec(select(
-            GamePlyEvent.ply_index
-        ).where(
-            GamePlyEvent.game_id == payload.game_id,
-            not GamePlyEvent.is_cancelled,
-            or_(
-                and_(
-                    GamePlyEvent.target_piece != None,
-                    GamePlyEvent.kind != PlyKind.SWAP
-                ),
-                GamePlyEvent.moved_piece == PieceKind.PROGRESSOR
-            )
-        )).first()
-        is_no_progress = new_ply_index - (last_progressive_ply_index or -1) >= 60
-
-        if is_no_progress:
-            await end_game(session, ws.app.mutable_state, payload.game_id, OutcomeKind.NO_PROGRESS, None, ply_dt)
+        if is_stale(session, payload.game_id, new_ply_index):
+            await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.NO_PROGRESS, None, ply_dt)
             return
 
         await ws.app.mutable_state.ws_subscribers.broadcast(
@@ -231,7 +220,7 @@ async def send_chat_message(ws: WebSocketWrapper, client: UserReference | None, 
         await ws.app.mutable_state.ws_subscribers.broadcast(
             event=WebsocketOutgoingEventRegistry.NEW_CHAT_MESSAGE,
             payload=ChatMessageBroadcastedData.model_construct(**event_db.model_dump()),
-            channel=GamePublicEventChannel(game_id=payload.game_id),
+            channel=GameEventChannel(game_id=payload.game_id),
             tag_blacklist={SubscriberTag.PARTICIPATING_PLAYER} if not game.outcome and is_spectator else set()
         )
 
@@ -262,7 +251,7 @@ async def submit_offer_action(
             game_id=game_id,
             occurred_at=event.occurred_at
         ),
-        GamePublicEventChannel(game_id=game_id)
+        GameEventChannel(game_id=game_id)
     )
 
 
@@ -298,7 +287,7 @@ async def accept_draw(session: Session, ws: WebSocketWrapper, game_id: int, offe
 
     await submit_offer_action(session, ws, OfferAction.ACCEPT, OfferKind.DRAW, offer_author, game_id)
 
-    await end_game(session, ws.app.mutable_state, game_id, OutcomeKind.DRAW_AGREEMENT, None)
+    await end_game(session, ws.app.mutable_state, ws.app.secret_config, game_id, OutcomeKind.DRAW_AGREEMENT, None)
 
 
 async def accept_takeback(session: Session, ws: WebSocketWrapper, game_id: int, offer_author: PieceColor, game: Game) -> None:
@@ -361,7 +350,7 @@ async def accept_takeback(session: Session, ws: WebSocketWrapper, game_id: int, 
             updated_sip=current_sip,
             updated_ply_cnt=new_ply_cnt
         ),
-        GamePublicEventChannel(game_id=game_id)
+        GameEventChannel(game_id=game_id)
     )
 
 
@@ -480,8 +469,35 @@ async def add_time(ws: WebSocketWrapper, client: UserReference | None, payload: 
                 game_id=payload.game_id,
                 updated_receiver_ms_at_ply_start=updated_receiver_ms_at_ply_start
             ),
-            GamePublicEventChannel(game_id=payload.game_id)
+            GameEventChannel(game_id=payload.game_id)
         )
 
 
-# TODO: Bot game handlers (moves, offers, smth else?)
+@collection.register(GameId)
+async def resign(ws: WebSocketWrapper, client: UserReference | None, payload: GameId):
+    if not client:
+        raise WebSocketException("Authorization required. Please provide an auth token")
+
+    with Session(ws.app.db_engine) as session:
+        game = session.get(Game, payload.game_id)
+        if not game:
+            raise WebSocketException(f"Game {payload.game_id} does not exist")
+
+        if game.outcome:
+            raise WebSocketException(f"Game {payload.game_id} has already ended")
+
+        if client.reference == game.white_player_ref:
+            winner = PieceColor.BLACK
+        elif client.reference == game.black_player_ref:
+            winner = PieceColor.WHITE
+        else:
+            raise WebSocketException(f"You are not the player in game {payload.game_id}")
+
+        last_ply_event = get_last_ply_event(session, payload.game_id)
+        if not last_ply_event or last_ply_event.ply_index < 1:
+            await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.ABORT, None)
+        else:
+            await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.RESIGN, winner)
+
+
+# TODO: Add "is not external" checks

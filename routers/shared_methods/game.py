@@ -1,26 +1,161 @@
 from datetime import UTC, datetime, timedelta
+import random
 import time
 from typing import Literal
 from sqlalchemy import ScalarResult
 from sqlmodel import Session, col, desc, select, func
+from models.challenge import Challenge
+from models.channel import GameListEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
+from models.config import SecretConfig
 from models.game import (
     Game,
     GameChatMessageEventPublic,
+    GameFischerTimeControl,
     GameOfferEvent,
     GameOfferEventPublic,
     GameOutcome,
     GameOutcomePublic,
     GamePlyEvent,
     GamePlyEventPublic,
+    GamePublic,
     GameRollbackEventPublic,
+    GameStartedBroadcastedData,
     GameStateRefresh,
     GameTimeAddedEventPublic,
 )
+from models.other import Id
 from net.fastapi_wrapper import MutableState
+from net.outgoing import WebsocketOutgoingEventRegistry
+from routers.shared_methods.notification import delete_new_public_challenge_notifications, delete_game_started_notifications, send_game_started_notifications
 from routers.shared_queries.game import get_last_ply_event, get_ongoing_finite_game
 from rules import PieceColor, Position
-from utils.datatypes import OfferAction, OfferKind, OutcomeKind
+from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, FischerTimeControlEntity, OfferAction, OfferKind, OutcomeKind, TimeControlKind, UserReference
 from utils.query import count_if
+
+
+def _assign_player_colors(acceptor_color: ChallengeAcceptorColor, caller_ref: str, acceptor_ref: str) -> tuple[str, str]:
+    match acceptor_color:
+        case ChallengeAcceptorColor.RANDOM:
+            return random.choice([
+                (caller_ref, acceptor_ref),
+                (acceptor_ref, caller_ref)
+            ])
+        case ChallengeAcceptorColor.WHITE:
+            return acceptor_ref, caller_ref
+        case ChallengeAcceptorColor.BLACK:
+            return caller_ref, acceptor_ref
+
+
+async def _create_game(
+    white_player_ref: str,
+    black_player_ref: str,
+    time_control: FischerTimeControlEntity | None,
+    rated: bool,
+    custom_starting_sip: str | None,
+    external_uploader_ref: str | None,
+    session: Session,
+    state: MutableState
+) -> tuple[Game, GamePublic]:
+    db_game = Game(
+        white_player_ref=white_player_ref,
+        black_player_ref=black_player_ref,
+        time_control_kind=TimeControlKind.of(time_control),
+        rated=rated,
+        custom_starting_sip=custom_starting_sip,
+        external_uploader_ref=external_uploader_ref,
+        fischer_time_control=GameFischerTimeControl(
+            start_seconds=time_control.start_seconds,
+            increment_seconds=time_control.increment_seconds
+        ) if time_control else None
+    )
+    session.add(db_game)
+    session.commit()
+
+    public_game = GamePublic.model_construct(**db_game.model_dump())
+
+    for player_ref in [white_player_ref, black_player_ref]:
+        await state.ws_subscribers.broadcast(
+            WebsocketOutgoingEventRegistry.GAME_STARTED,
+            public_game,
+            StartedPlayerGamesEventChannel(watched_ref=player_ref)
+        )
+    await state.ws_subscribers.broadcast(
+        WebsocketOutgoingEventRegistry.NEW_ACTIVE_GAME,
+        GameStartedBroadcastedData.model_construct(**public_game.model_dump()),
+        GameListEventChannel()
+    )
+
+    return db_game, public_game
+
+
+async def create_internal_game(challenge: Challenge, acceptor: UserReference, session: Session, state: MutableState, secret_config: SecretConfig) -> GamePublic:
+    white_player_ref, black_player_ref = _assign_player_colors(challenge.acceptor_color, challenge.caller_ref, acceptor.reference)
+
+    db_game, public_game = await _create_game(
+        white_player_ref=white_player_ref,
+        black_player_ref=black_player_ref,
+        time_control=challenge.fischer_time_control,
+        rated=challenge.rated,
+        custom_starting_sip=challenge.custom_starting_sip,
+        external_uploader_ref=None,
+        session=session,
+        state=state
+    )
+
+    challenge.active = False
+    challenge.resulting_game = db_game
+    session.add(challenge)
+    session.commit()
+
+    assert challenge.id
+
+    delete_new_public_challenge_notifications(
+        challenge_id=challenge.id,
+        session=session,
+        vk_token=secret_config.integrations.vk.token
+    )
+
+    challenge_id = Id(id=challenge.id)
+
+    if challenge.kind == ChallengeKind.PUBLIC:
+        await state.ws_subscribers.broadcast(
+            WebsocketOutgoingEventRegistry.PUBLIC_CHALLENGE_FULFILLED,
+            challenge_id,
+            PublicChallengeListEventChannel()
+        )
+
+    await state.ws_subscribers.broadcast(
+        WebsocketOutgoingEventRegistry.OUTGOING_CHALLENGE_ACCEPTED,
+        challenge_id,
+        OutgoingChallengesEventChannel(user_ref=challenge.caller_ref)
+    )
+
+    send_game_started_notifications(white_player_ref, black_player_ref, public_game, secret_config.integrations, session)
+
+    return public_game
+
+
+async def create_external_game(
+    uploader: UserReference,
+    white_player_ref: str,
+    black_player_ref: str,
+    time_control: FischerTimeControlEntity | None,
+    custom_starting_sip: str | None,
+    session: Session,
+    state: MutableState
+) -> GamePublic:
+    _, public_game = await _create_game(
+        white_player_ref=white_player_ref,
+        black_player_ref=black_player_ref,
+        time_control=time_control,
+        rated=False,
+        custom_starting_sip=custom_starting_sip,
+        external_uploader_ref=uploader.reference,
+        session=session,
+        state=state
+    )
+
+    return public_game
 
 
 def get_ply_history(session: Session, game_id: int, reverse_order: bool = False) -> ScalarResult[GamePlyEvent]:
@@ -99,6 +234,7 @@ def is_offer_active(session: Session, game_id: int, offer_kind: OfferKind, offer
 async def end_game(
     session: Session,
     state: MutableState,
+    secret_config: SecretConfig,
     game_id: int,
     outcome: OutcomeKind,
     winner_color: PieceColor | None,
@@ -106,7 +242,12 @@ async def end_game(
 ) -> None:  # TODO: Add precalculated args: time reserves, last ply, ...
     # TODO: Add to outcome table, ensure time reserves equality compared to ply table
     # TODO: Send game ended events (multiple channels)
-    # TODO: Delete VK chat message
+
+    delete_game_started_notifications(
+        game_id=game_id,
+        vk_token=secret_config.integrations.vk.token,
+        session=session
+    )
 
     if state.shutdown_activated and not get_ongoing_finite_game(session):
         raise KeyboardInterrupt
@@ -118,6 +259,7 @@ async def check_timeout(
     *,
     session: Session,
     state: MutableState,
+    secret_config: SecretConfig,
     game_id: int,
     last_ply_event: GamePlyEvent | None | Literal['NOT_YET_RETRIEVED'] = 'NOT_YET_RETRIEVED',
     last_position: Position | Literal['NOT_YET_RETRIEVED'] = 'NOT_YET_RETRIEVED',
@@ -148,7 +290,7 @@ async def check_timeout(
 
     timeout_dt = (last_ply_event.occurred_at + timedelta(milliseconds=time_remainder)).replace(tzinfo=UTC)
     if datetime.now(UTC) >= timeout_dt:
-        await end_game(session, state, game_id, OutcomeKind.TIMEOUT, potential_winner, timeout_dt)
+        await end_game(session, state, secret_config, game_id, OutcomeKind.TIMEOUT, potential_winner, timeout_dt)
         return True
 
     return False

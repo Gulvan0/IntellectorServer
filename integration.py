@@ -4,7 +4,7 @@ import requests  # type: ignore
 def post_vk_message(chat_id: int, text: str, token: str) -> int | None:
     try:
         return requests.post(
-            'https://api.vk.com/method/messages.send',
+            'https://api.vk.ru/method/messages.send',
             params=dict(
                 random_id=0,
                 peer_ids=chat_id,
@@ -20,7 +20,7 @@ def post_vk_message(chat_id: int, text: str, token: str) -> int | None:
 def delete_vk_message(message_id: int, chat_id: int, token: str) -> None:
     try:
         requests.post(
-            'https://api.vk.com/method/messages.delete',
+            'https://api.vk.ru/method/messages.delete',
             params=dict(
                 cmids=message_id,
                 delete_for_all=1,

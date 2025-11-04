@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from pydantic import BaseModel
 from sqlalchemy import ColumnElement
 from sqlmodel import Session, and_, col, or_, func, case
 from sqlmodel.sql.expression import SelectOfScalar
@@ -25,3 +26,11 @@ def exists(session: Session, query: SelectOfScalar) -> bool:
 
 def count_if(condition):
     return func.sum(case((condition, 1), else_=0))
+
+
+def model_cast_optional[TargetModelType: BaseModel](source: BaseModel | None, target: type[TargetModelType]) -> TargetModelType | None:
+    return target.model_construct(**source.model_dump()) if source else None
+
+
+def model_cast[TargetModelType: BaseModel](source: BaseModel, target: type[TargetModelType]) -> TargetModelType:
+    return target.model_construct(**source.model_dump())

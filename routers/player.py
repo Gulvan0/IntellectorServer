@@ -30,7 +30,7 @@ from models import (
 )
 from models.channel import IncomingChallengesEventChannel
 from utils.datatypes import StudyPublicity, TimeControlKind, UserReference, UserRole
-from utils.query import not_expired
+from utils.query import model_cast, not_expired
 from .utils import MainConfigDependency, MutableStateDependency, OptionalPlayerLoginDependency, PlayerLogin, verify_admin, MandatoryPlayerLoginDependency, SessionDependency
 
 
@@ -113,7 +113,7 @@ def get_restrictions(session: Session, restriction_owner_login: str) -> list[Pla
         not_expired(PlayerRestriction.expires)
     ))
     return [
-        PlayerRestrictionPublic(**PlayerRestrictionBase.model_validate(db_restriction).model_dump())
+        model_cast(db_restriction, PlayerRestrictionPublic)
         for db_restriction in db_restrictions
     ]
 

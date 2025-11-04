@@ -1,7 +1,9 @@
+from datetime import datetime
 from sqlalchemy import func
 from sqlmodel import Session, and_, col, desc, or_, select
 
 from models.game import Game, GameOutcome, GamePlyEvent
+from models.game.time_update import GameTimeUpdate
 from rules import PieceKind, PlyKind
 from utils.datatypes import TimeControlKind
 
@@ -26,6 +28,30 @@ def get_last_ply_event(session: Session, game_id: int) -> GamePlyEvent | None:
         )
         .order_by(
             desc(GamePlyEvent.ply_index)
+        )
+    ).first()
+
+
+def get_initial_time(session: Session, game_id: int) -> GameTimeUpdate | None:
+    return session.exec(
+        select(GameTimeUpdate)
+        .where(
+            GameTimeUpdate.game_id == game_id
+        )
+        .order_by(
+            col(GameTimeUpdate.id)
+        )
+    ).first()
+
+
+def get_latest_time_update(session: Session, game_id: int) -> GameTimeUpdate | None:
+    return session.exec(
+        select(GameTimeUpdate)
+        .where(
+            GameTimeUpdate.game_id == game_id
+        )
+        .order_by(
+            desc(GameTimeUpdate.id)
         )
     ).first()
 

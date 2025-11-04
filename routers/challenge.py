@@ -3,20 +3,21 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import and_, col, or_, select, Session, func
 
 from models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic, PlayerRestriction
-from models.challenge import ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengeFischerTimeControlCreate
+from models.challenge import ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengeFischerTimeControlCreate, ChallengeFischerTimeControlPublic
 from models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
 from models.config import LimitParams, SecretConfig
 from models.game import GamePublic
 from models.other import Id
 from models.player import Player
 from net.fastapi_wrapper import MutableState
-from routers.shared_methods.game import create_internal_game
+from routers.shared_methods.game.create import create_internal_game
+from routers.shared_methods.game.cast import compose_public_game
 from routers.shared_methods.notification import delete_new_public_challenge_notifications, send_new_public_challenge_notifications
 from routers.utils import EarlyResponse, MandatoryUserDependency, SecretConfigDependency, SessionDependency, MutableStateDependency, MainConfigDependency, supports_early_responses
 from rules import DEFAULT_STARTING_SIP, Position
 from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, TimeControlKind, UserReference, UserRestrictionKind
 from net.outgoing import WebsocketOutgoingEventRegistry
-from utils.query import exists, not_expired
+from utils.query import exists, model_cast, model_cast_optional, not_expired
 
 
 router = APIRouter(prefix="/challenge")
@@ -216,8 +217,8 @@ async def _attempt_merging(
 ) -> None:
     mergeable_challenge = _get_mergeable_challenge(challenge, caller, session, time_control_equality_conditions)
     if mergeable_challenge:
-        db_game = await create_internal_game(mergeable_challenge, caller, session, state, secret_config)
-        response = ChallengeCreateResponse(result="merged", game=db_game)
+        game = await create_internal_game(mergeable_challenge, caller, session, state, secret_config)
+        response = ChallengeCreateResponse(result="merged", game=game)
         raise EarlyResponse(status_code=200, body=response)
 
 
@@ -246,12 +247,12 @@ async def create_open_challenge(
         caller_ref=caller.reference,
         kind=challenge_kind,
         time_control_kind=TimeControlKind.of(challenge.fischer_time_control),
-        fischer_time_control=ChallengeFischerTimeControl.from_create_model(challenge.fischer_time_control)
+        fischer_time_control=model_cast_optional(challenge.fischer_time_control, ChallengeFischerTimeControl)
     )
     session.add(db_challenge)
     session.commit()
 
-    public_challenge = ChallengePublic.model_construct(**db_challenge.model_dump())
+    public_challenge = model_cast(db_challenge, ChallengePublic)
 
     if challenge_kind == ChallengeKind.PUBLIC:
         await state.ws_subscribers.broadcast(
@@ -299,12 +300,12 @@ async def create_direct_challenge(
         callee_ref=challenge.callee_ref,
         kind=ChallengeKind.DIRECT,
         time_control_kind=TimeControlKind.of(challenge.fischer_time_control),
-        fischer_time_control=ChallengeFischerTimeControl.from_create_model(challenge.fischer_time_control)
+        fischer_time_control=model_cast_optional(challenge.fischer_time_control, ChallengeFischerTimeControl)
     )
     session.add(db_challenge)
     session.commit()
 
-    public_challenge = ChallengePublic.model_construct(**db_challenge.model_dump())
+    public_challenge = model_cast(db_challenge, ChallengePublic)
     await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.INCOMING_CHALLENGE_RECEIVED,
         public_challenge,
@@ -320,7 +321,20 @@ async def get_challenge(*, session: SessionDependency, id: int):
     if not db_challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
 
-    return db_challenge
+    return ChallengePublic(
+        acceptor_color=db_challenge.acceptor_color,
+        custom_starting_sip=db_challenge.custom_starting_sip,
+        rated=db_challenge.rated,
+        id=db_challenge.id,
+        created_at=db_challenge.created_at,
+        caller_ref=db_challenge.caller_ref,
+        callee_ref=db_challenge.callee_ref,
+        kind=db_challenge.kind,
+        time_control_kind=db_challenge.time_control_kind,
+        active=db_challenge.active,
+        fischer_time_control=model_cast_optional(db_challenge.fischer_time_control, ChallengeFischerTimeControlPublic),
+        resulting_game=compose_public_game(session, db_challenge.resulting_game) if db_challenge.resulting_game else None
+    )
 
 
 async def _cancel_specific_challenge(challenge: Challenge, session: Session, state: MutableState, secret_config: SecretConfig) -> None:
@@ -383,12 +397,17 @@ async def cancel_all_challenges(session: Session, state: MutableState, secret_co
 
 @router.get("/public", response_model=list[ChallengePublic])
 async def get_public_challenges(*, session: SessionDependency, offset: int = 0, limit: int = Query(default=50, le=50)):
-    return session.exec(select(
+    challenges = session.exec(select(
         Challenge
     ).where(
         Challenge.active == True,  # noqa
         Challenge.kind == ChallengeKind.PUBLIC
     ).offset(offset).limit(limit)).all()
+
+    return [
+        model_cast(challenge, ChallengePublic)
+        for challenge in challenges
+    ]
 
 
 async def get_direct_challenges(session: Session, user: UserReference, include_incoming: bool = True, include_outgoing: bool = True) -> Sequence[Challenge]:
@@ -410,7 +429,10 @@ async def get_direct_challenges(session: Session, user: UserReference, include_i
 
 @router.get("/my_direct", response_model=list[ChallengePublic])
 async def get_my_direct_challenges(*, session: SessionDependency, client: MandatoryUserDependency):
-    return get_direct_challenges(session, client)
+    return [
+        model_cast(challenge, ChallengePublic)
+        for challenge in await get_direct_challenges(session, client)
+    ]
 
 
 @router.post("/{id}/accept", response_model=GamePublic)

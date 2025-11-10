@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from sqlmodel import Session
 from models.channel import GameEventChannel
 from models.game import (
@@ -14,12 +14,11 @@ from models.game import (
     GameTimeAddedEvent,
     OfferActionBroadcastedData,
     OfferActionIntentData,
-    PlyBroadcastedData,
     PlyIntentData,
     RollbackBroadcastedData,
     TimeAddedBroadcastedData,
 )
-from models.game.time_update import GameTimeUpdatePublic, GameTimeUpdateReason
+from models.game.time_update import GameTimeUpdateReason
 from net.fastapi_wrapper import WebSocketWrapper
 from net.incoming import WebSocketHandlerCollection
 from net.outgoing import WebsocketOutgoingEventRegistry
@@ -27,11 +26,11 @@ from net.sub_storage import SubscriberTag
 from net.util import WebSocketException
 from routers.shared_methods.game.cast import compose_state_refresh
 from routers.shared_methods.game.update import cancel_all_active_offers, end_game
-from routers.shared_methods.game.get import TimeoutReachedException, construct_new_ply_time_update, get_active_offers, get_ply_history, is_offer_active
+from routers.shared_methods.game.get import TimeoutReachedException, construct_new_ply_time_update, get_ply_history, is_offer_active
 from routers.shared_queries.game import get_initial_time, get_last_ply_event, get_latest_time_update, has_occured_thrice, is_stale
 from rules import DEFAULT_STARTING_SIP, HexCoordinates, PieceColor, Ply, Position, PositionFinalityGroup
 from utils.datatypes import OfferAction, OfferKind, OutcomeKind, UserReference
-from utils.query import model_cast, model_cast_optional
+from utils.query import model_cast
 
 
 collection = WebSocketHandlerCollection()
@@ -153,18 +152,7 @@ async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIn
 
         await ws.app.mutable_state.ws_subscribers.broadcast(
             WebsocketOutgoingEventRegistry.NEW_PLY,
-            PlyBroadcastedData(
-                occurred_at=ply_dt,
-                ply_index=new_ply_index,
-                from_i=ply.departure.i,
-                from_j=ply.departure.j,
-                to_i=ply.destination.i,
-                to_j=ply.destination.j,
-                morph_into=ply.morph_into,
-                game_id=payload.game_id,
-                sip_after=new_sip,
-                time_update=model_cast_optional(new_time_update, GameTimeUpdatePublic)
-            ),
+            ply_event.to_broadcasted_data(),
             GameEventChannel(game_id=payload.game_id)
         )
 
@@ -347,15 +335,7 @@ async def accept_takeback(session: Session, ws: WebSocketWrapper, game_id: int, 
 
     await ws.app.mutable_state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.ROLLBACK,
-        RollbackBroadcastedData(
-            occurred_at=rollback_dt,
-            ply_cnt_before=ply_cnt,
-            ply_cnt_after=new_ply_cnt,
-            requested_by=offer_author,
-            game_id=game_id,
-            time_update=time_update,
-            updated_sip=current_sip
-        ),
+        rollback_event.to_broadcasted_data(current_sip),
         GameEventChannel(game_id=game_id)
     )
 
@@ -478,13 +458,7 @@ async def add_time(ws: WebSocketWrapper, client: UserReference | None, payload: 
 
         await ws.app.mutable_state.ws_subscribers.broadcast(
             WebsocketOutgoingEventRegistry.TIME_ADDED,
-            TimeAddedBroadcastedData(
-                occurred_at=addition_dt,
-                amount_seconds=secs_added,
-                receiver=receiver,
-                game_id=payload.game_id,
-                time_update=appended_time_update
-            ),
+            time_added_event.to_broadcasted_data(),
             GameEventChannel(game_id=payload.game_id)
         )
 

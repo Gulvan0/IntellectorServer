@@ -10,6 +10,7 @@ from models.game import (
     GamePublic,
     GameStartedBroadcastedData,
 )
+from models.game.time_control import GameFischerTimeControlPublic
 from models.game.time_update import GameTimeUpdate, GameTimeUpdateReason
 from models.other import Id
 from net.fastapi_wrapper import MutableState
@@ -17,7 +18,7 @@ from net.outgoing import WebsocketOutgoingEventRegistry
 from routers.shared_methods.game.cast import compose_public_game
 from routers.shared_methods.notification import delete_new_public_challenge_notifications, send_game_started_notifications
 from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, FischerTimeControlEntity, TimeControlKind, UserReference
-from utils.query import model_cast
+from utils.query import model_cast_optional
 
 
 def _assign_player_colors(acceptor_color: ChallengeAcceptorColor, caller_ref: str, acceptor_ref: str) -> tuple[str, str]:
@@ -88,7 +89,17 @@ async def _create_game(
         )
     await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.NEW_ACTIVE_GAME,
-        model_cast(public_game, GameStartedBroadcastedData),
+        GameStartedBroadcastedData(
+            started_at=public_game.started_at,
+            white_player_ref=public_game.white_player_ref,
+            black_player_ref=public_game.black_player_ref,
+            time_control_kind=public_game.time_control_kind,
+            rated=public_game.rated,
+            custom_starting_sip=public_game.custom_starting_sip,
+            external_uploader_ref=public_game.external_uploader_ref,
+            id=public_game.id,
+            fischer_time_control=model_cast_optional(public_game.fischer_time_control, GameFischerTimeControlPublic)
+        ),
         GameListEventChannel()
     )
 

@@ -6,6 +6,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 from models.game import Game, GamePublic
 from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, FischerTimeControlEntity, TimeControlKind
+from utils.query import model_cast_optional
 from .column_types import CurrentDatetime, PlayerRef, OptionalSip, OptionalPlayerRef
 
 
@@ -27,6 +28,22 @@ class Challenge(ChallengeBase, table=True):
 
     resulting_game: Game | None = Relationship()
     fischer_time_control: Optional["ChallengeFischerTimeControl"] = Relationship(back_populates="challenge", cascade_delete=True)
+
+    def to_public(self, resulting_game: GamePublic | None) -> "ChallengePublic":
+        return ChallengePublic(
+            acceptor_color=self.acceptor_color,
+            custom_starting_sip=self.custom_starting_sip,
+            rated=self.rated,
+            id=self.id,
+            created_at=self.created_at,
+            caller_ref=self.caller_ref,
+            callee_ref=self.callee_ref,
+            kind=self.kind,
+            time_control_kind=self.time_control_kind,
+            active=self.active,
+            fischer_time_control=model_cast_optional(self.fischer_time_control, ChallengeFischerTimeControlPublic),
+            resulting_game=resulting_game
+        )
 
 
 class ChallengeFischerTimeControlBase(SQLModel):
@@ -56,10 +73,35 @@ class ChallengeCreateOpen(ChallengeBase):
     fischer_time_control: ChallengeFischerTimeControlCreate | None = None
     link_only: bool
 
+    def to_db_challenge(self, caller_ref: str) -> Challenge:
+        challenge_kind = ChallengeKind.LINK_ONLY if self.link_only else ChallengeKind.PUBLIC
+
+        return Challenge(
+            acceptor_color=self.acceptor_color,
+            custom_starting_sip=self.custom_starting_sip,
+            rated=self.rated,
+            caller_ref=caller_ref,
+            kind=challenge_kind,
+            time_control_kind=TimeControlKind.of(self.fischer_time_control),
+            fischer_time_control=model_cast_optional(self.fischer_time_control, ChallengeFischerTimeControl)
+        )
+
 
 class ChallengeCreateDirect(ChallengeBase):
     fischer_time_control: ChallengeFischerTimeControlCreate | None = None
     callee_ref: PlayerRef
+
+    def to_db_challenge(self, caller_ref: str) -> Challenge:
+        return Challenge(
+            acceptor_color=self.acceptor_color,
+            custom_starting_sip=self.custom_starting_sip,
+            rated=self.rated,
+            caller_ref=caller_ref,
+            callee_ref=self.callee_ref,
+            kind=ChallengeKind.DIRECT,
+            time_control_kind=TimeControlKind.of(self.fischer_time_control),
+            fischer_time_control=model_cast_optional(self.fischer_time_control, ChallengeFischerTimeControl)
+        )
 
 
 class ChallengePublic(ChallengeBase):

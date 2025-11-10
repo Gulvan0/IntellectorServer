@@ -28,16 +28,16 @@ def collect_game_events(
     events: GenericEventList = []
 
     for ply_event in get_ply_history(session, game_id):
-        events.append(model_cast(ply_event, GamePlyEventPublic))
+        events.append(ply_event.to_public())
     for chat_event in game.chat_message_events:
         if include_spectator_messages or not chat_event.spectator:
             events.append(model_cast(chat_event, GameChatMessageEventPublic))
     for offer_event in game.offer_events:
         events.append(model_cast(offer_event, GameOfferEventPublic))
     for time_added_event in game.time_added_events:
-        events.append(model_cast(time_added_event, GameTimeAddedEventPublic))
+        events.append(time_added_event.to_public())
     for rollback_event in game.rollback_events:
-        events.append(model_cast(rollback_event, GameRollbackEventPublic))
+        events.append(rollback_event.to_public())
 
     return sorted(events, key=lambda x: x.occurred_at)
 
@@ -57,7 +57,7 @@ def compose_public_game(
         external_uploader_ref=game.external_uploader_ref,
         id=game.id,
         fischer_time_control=model_cast_optional(game.fischer_time_control, GameFischerTimeControlPublic),
-        outcome=model_cast_optional(game.outcome, GameOutcomePublic),
+        outcome=game.outcome.to_public() if game.outcome else None,
         events=collect_game_events(session, game.id, game, include_spectator_messages=True),
         latest_time_update=model_cast_optional(get_latest_time_update(session, game.id), GameTimeUpdatePublic)
     )
@@ -73,7 +73,7 @@ def compose_state_refresh(
     return GameStateRefresh(
         game_id=game_id,
         refresh_reason=reason,
-        outcome=model_cast_optional(game.outcome, GameOutcomePublic),
+        outcome=game.outcome.to_public() if game.outcome else None,
         events=collect_game_events(session, game_id, game, include_spectator_messages),
         latest_time_update=model_cast_optional(get_latest_time_update(session, game_id), GameTimeUpdatePublic)
     )

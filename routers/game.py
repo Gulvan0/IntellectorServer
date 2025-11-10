@@ -318,15 +318,7 @@ async def rollback_external_game_route(
 
     await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.ROLLBACK,
-        RollbackBroadcastedData(
-            occurred_at=rollback_dt,
-            ply_cnt_before=old_ply_cnt,
-            ply_cnt_after=payload.new_ply_cnt,
-            requested_by=requested_by,
-            game_id=payload.game_id,
-            time_update=time_update,
-            updated_sip=current_sip
-        ),
+        rollback_event.to_broadcasted_data(current_sip),
         GameEventChannel(game_id=payload.game_id)
     )
 
@@ -387,12 +379,6 @@ async def add_time_external_game_route(
 
     await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.TIME_ADDED,
-        TimeAddedBroadcastedData(
-            occurred_at=addition_dt,
-            amount_seconds=secs_added,
-            receiver=payload.receiver,
-            game_id=payload.game_id,
-            time_update=appended_time_update
-        ),
+        time_added_event.to_broadcasted_data(),
         GameEventChannel(game_id=payload.game_id)
     )

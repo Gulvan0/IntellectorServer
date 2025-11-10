@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from sqlmodel import Field, Relationship, SQLModel
 
 from rules import PieceColor, PieceKind, PlyKind
+from utils.query import model_cast_optional
 
 from ..column_types import CurrentDatetime, Sip
 
@@ -35,6 +36,33 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
 
     game: Game = Relationship(back_populates="ply_events")
     time_update: GameTimeUpdate | None = Relationship()
+
+    def to_public(self) -> "GamePlyEventPublic":
+        return GamePlyEventPublic(
+            occurred_at=self.occurred_at,
+            ply_index=self.ply_index,
+            from_i=self.from_i,
+            from_j=self.from_j,
+            to_i=self.to_i,
+            to_j=self.to_j,
+            morph_into=self.morph_into,
+            is_cancelled=self.is_cancelled,
+            time_update=model_cast_optional(self.time_update, GameTimeUpdatePublic)
+        )
+
+    def to_broadcasted_data(self) -> "PlyBroadcastedData":
+        return PlyBroadcastedData(
+            occurred_at=self.occurred_at,
+            ply_index=self.ply_index,
+            from_i=self.from_i,
+            from_j=self.from_j,
+            to_i=self.to_i,
+            to_j=self.to_j,
+            morph_into=self.morph_into,
+            game_id=self.game_id,
+            sip_after=self.sip_after,
+            time_update=model_cast_optional(self.time_update, GameTimeUpdatePublic)
+        )
 
 
 class GamePlyEventPublic(GamePlyEventBase):

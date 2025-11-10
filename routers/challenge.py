@@ -17,10 +17,18 @@ from routers.utils import EarlyResponse, MandatoryUserDependency, SecretConfigDe
 from rules import DEFAULT_STARTING_SIP, Position
 from utils.datatypes import ChallengeAcceptorColor, ChallengeKind, TimeControlKind, UserReference, UserRestrictionKind
 from net.outgoing import WebsocketOutgoingEventRegistry
-from utils.query import exists, model_cast, model_cast_optional, not_expired
+from utils.query import exists, not_expired
 
 
 router = APIRouter(prefix="/challenge")
+
+
+def to_challenge_public(session: Session, db_challenge: Challenge) -> ChallengePublic:
+    resulting_game = None
+    if db_challenge.resulting_game:
+        resulting_game = compose_public_game(session, db_challenge.resulting_game)
+
+    return db_challenge.to_public(resulting_game)
 
 
 def _is_player_banned_in_ranked(session: Session, caller: UserReference) -> bool:
@@ -233,28 +241,19 @@ async def create_open_challenge(
     main_config: MainConfigDependency,
     secret_config: SecretConfigDependency
 ):
-    challenge_kind = ChallengeKind.LINK_ONLY if challenge.link_only else ChallengeKind.PUBLIC
     time_control_equality_conditions = _get_time_control_equality_conditions(challenge.fischer_time_control)
 
     _perform_common_validations(challenge, caller, state.shutdown_activated, main_config.limits, session)
     _validate_open_uniqueness(challenge, caller, session, time_control_equality_conditions)
     await _attempt_merging(challenge, caller, session, state, secret_config, time_control_equality_conditions)
 
-    db_challenge = Challenge(
-        acceptor_color=challenge.acceptor_color,
-        custom_starting_sip=challenge.custom_starting_sip,
-        rated=challenge.rated,
-        caller_ref=caller.reference,
-        kind=challenge_kind,
-        time_control_kind=TimeControlKind.of(challenge.fischer_time_control),
-        fischer_time_control=model_cast_optional(challenge.fischer_time_control, ChallengeFischerTimeControl)
-    )
+    db_challenge = challenge.to_db_challenge(caller.reference)
     session.add(db_challenge)
     session.commit()
 
-    public_challenge = model_cast(db_challenge, ChallengePublic)
+    public_challenge = db_challenge.to_public(None)
 
-    if challenge_kind == ChallengeKind.PUBLIC:
+    if not challenge.link_only:
         await state.ws_subscribers.broadcast(
             WebsocketOutgoingEventRegistry.NEW_PUBLIC_CHALLENGE,
             public_challenge,
@@ -292,20 +291,11 @@ async def create_direct_challenge(
     direct_challenges_observer_channel = IncomingChallengesEventChannel(user_ref=challenge.callee_ref)
     callee_online = state.has_user_subscriber(callee, direct_challenges_observer_channel)
 
-    db_challenge = Challenge(
-        acceptor_color=challenge.acceptor_color,
-        custom_starting_sip=challenge.custom_starting_sip,
-        rated=challenge.rated,
-        caller_ref=caller.reference,
-        callee_ref=challenge.callee_ref,
-        kind=ChallengeKind.DIRECT,
-        time_control_kind=TimeControlKind.of(challenge.fischer_time_control),
-        fischer_time_control=model_cast_optional(challenge.fischer_time_control, ChallengeFischerTimeControl)
-    )
+    db_challenge = challenge.to_db_challenge(caller.reference)
     session.add(db_challenge)
     session.commit()
 
-    public_challenge = model_cast(db_challenge, ChallengePublic)
+    public_challenge = db_challenge.to_public(None)
     await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.INCOMING_CHALLENGE_RECEIVED,
         public_challenge,
@@ -321,20 +311,11 @@ async def get_challenge(*, session: SessionDependency, id: int):
     if not db_challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
 
-    return ChallengePublic(
-        acceptor_color=db_challenge.acceptor_color,
-        custom_starting_sip=db_challenge.custom_starting_sip,
-        rated=db_challenge.rated,
-        id=db_challenge.id,
-        created_at=db_challenge.created_at,
-        caller_ref=db_challenge.caller_ref,
-        callee_ref=db_challenge.callee_ref,
-        kind=db_challenge.kind,
-        time_control_kind=db_challenge.time_control_kind,
-        active=db_challenge.active,
-        fischer_time_control=model_cast_optional(db_challenge.fischer_time_control, ChallengeFischerTimeControlPublic),
-        resulting_game=compose_public_game(session, db_challenge.resulting_game) if db_challenge.resulting_game else None
-    )
+    resulting_game = None
+    if db_challenge.resulting_game:
+        resulting_game = compose_public_game(session, db_challenge.resulting_game)
+
+    return db_challenge.to_public(resulting_game)
 
 
 async def _cancel_specific_challenge(challenge: Challenge, session: Session, state: MutableState, secret_config: SecretConfig) -> None:
@@ -405,7 +386,7 @@ async def get_public_challenges(*, session: SessionDependency, offset: int = 0, 
     ).offset(offset).limit(limit)).all()
 
     return [
-        model_cast(challenge, ChallengePublic)
+        to_challenge_public(session, challenge)
         for challenge in challenges
     ]
 
@@ -430,7 +411,7 @@ async def get_direct_challenges(session: Session, user: UserReference, include_i
 @router.get("/my_direct", response_model=list[ChallengePublic])
 async def get_my_direct_challenges(*, session: SessionDependency, client: MandatoryUserDependency):
     return [
-        model_cast(challenge, ChallengePublic)
+        to_challenge_public(session, challenge)
         for challenge in await get_direct_challenges(session, client)
     ]
 

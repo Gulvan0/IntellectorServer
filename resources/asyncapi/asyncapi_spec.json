@@ -6,6 +6,33 @@
         "description": "This API is in charge of any event-driven interaction with the Intellector server (that is, anything that cannot be achieved via REST endpoints).\\n\\nPrimary uses: online status check, notifications, in-game events.\\n\\nAny message sent by a client must be a valid JSON having the following structure:\\n```\\n{\\n  \\\"event\\\": \\\"name_of_the_event\\\",\\n  \\\"token\\\": \\\"authorization_token\\\",\\n  \\\"body\\\": {...event payload conforming to the respective schema...}\\n}\\n```\\n\\nStructure of the server-sent events is analogous:\\n```\\n{\\n  \\\"event\\\": \\\"name_of_the_event\\\",\\n  \\\"body\\\": {...event payload conforming to the respective schema...}\\n}\\n```\\n\\nValid client- and server-sent event names and their corresponding payload schemas are presented later in this specification.\\n\\nAuthorization token is obtained using the REST API /auth endpoints (there are one for guest authorization and one for logging in).\\n"
     },
     "channels": {
+        "everyone": {
+            "address": "everyone",
+            "messages": {
+                "server_shutdown": {
+                    "$ref": "#/components/messages/server_shutdown"
+                }
+            }
+        },
+        "NO_CHANNEL": {
+            "messages": {
+                "ply": {
+                    "$ref": "#/components/messages/ply"
+                },
+                "send_chat_message": {
+                    "$ref": "#/components/messages/send_chat_message"
+                },
+                "perform_offer_action": {
+                    "$ref": "#/components/messages/perform_offer_action"
+                },
+                "add_time": {
+                    "$ref": "#/components/messages/add_time"
+                },
+                "resign": {
+                    "$ref": "#/components/messages/resign"
+                }
+            }
+        },
         "player.started_games": {
             "address": "player.started_games",
             "messages": {
@@ -64,24 +91,156 @@
                 }
             }
         },
-        "everyone": {
-            "address": "everyone",
+        "game.main": {
+            "address": "game.main",
             "messages": {
-                "server_shutdown": {
-                    "$ref": "#/components/messages/server_shutdown"
-                }
-            }
-        },
-        "NO_CHANNEL": {
-            "messages": {
-                "move": {
-                    "$ref": "#/components/messages/move"
+                "new_ply": {
+                    "$ref": "#/components/messages/new_ply"
+                },
+                "new_chat_message": {
+                    "$ref": "#/components/messages/new_chat_message"
+                },
+                "offer_action_performed": {
+                    "$ref": "#/components/messages/offer_action_performed"
+                },
+                "time_added": {
+                    "$ref": "#/components/messages/time_added"
+                },
+                "rollback": {
+                    "$ref": "#/components/messages/rollback"
+                },
+                "game_ended": {
+                    "$ref": "#/components/messages/game_ended"
                 }
             }
         }
     },
     "components": {
         "messages": {
+            "server_shutdown": {
+                "name": "server_shutdown",
+                "payload": {
+                    "properties": {},
+                    "title": "EmptyModel",
+                    "type": "object"
+                },
+                "title": "Server Shutdown",
+                "summary": "Broadcasted to `everyone` channel group whenever the server starts preparing for the shutdown"
+            },
+            "refresh.player.started_games": {
+                "name": "refresh.player.started_games",
+                "payload": {
+                    "$defs": {
+                        "Game": {
+                            "properties": {
+                                "started_at": {
+                                    "format": "date-time",
+                                    "title": "Started At",
+                                    "type": "string"
+                                },
+                                "white_player_ref": {
+                                    "maxLength": 32,
+                                    "title": "White Player Ref",
+                                    "type": "string"
+                                },
+                                "black_player_ref": {
+                                    "maxLength": 32,
+                                    "title": "Black Player Ref",
+                                    "type": "string"
+                                },
+                                "time_control_kind": {
+                                    "$ref": "#/components/messages/refresh.player.started_games/payload/$defs/TimeControlKind"
+                                },
+                                "rated": {
+                                    "title": "Rated",
+                                    "type": "boolean"
+                                },
+                                "custom_starting_sip": {
+                                    "anyOf": [
+                                        {
+                                            "maxLength": 127,
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Custom Starting Sip"
+                                },
+                                "external_uploader_ref": {
+                                    "anyOf": [
+                                        {
+                                            "maxLength": 32,
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "External Uploader Ref"
+                                },
+                                "id": {
+                                    "anyOf": [
+                                        {
+                                            "type": "integer"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Id"
+                                }
+                            },
+                            "required": [
+                                "white_player_ref",
+                                "black_player_ref",
+                                "time_control_kind",
+                                "rated"
+                            ],
+                            "title": "Game",
+                            "type": "object"
+                        },
+                        "TimeControlKind": {
+                            "enum": [
+                                "hyperbullet",
+                                "bullet",
+                                "blitz",
+                                "rapid",
+                                "classic",
+                                "correspondence"
+                            ],
+                            "title": "TimeControlKind",
+                            "type": "string"
+                        }
+                    },
+                    "properties": {
+                        "player_ref": {
+                            "title": "Player Ref",
+                            "type": "string"
+                        },
+                        "current_game": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/messages/refresh.player.started_games/payload/$defs/Game"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        }
+                    },
+                    "required": [
+                        "player_ref",
+                        "current_game"
+                    ],
+                    "title": "StartedPlayerGamesStateRefresh",
+                    "type": "object"
+                },
+                "title": "Channel state refresh: `player.started_games`"
+            },
             "game_started": {
                 "name": "game_started",
                 "payload": {
@@ -147,7 +306,7 @@
                                     "$ref": "#/components/messages/game_started/payload/$defs/OfferKind"
                                 },
                                 "offer_author": {
-                                    "$ref": "#/components/messages/game_started/payload/$defs/PieceColorField"
+                                    "$ref": "#/components/messages/game_started/payload/$defs/PieceColor"
                                 }
                             },
                             "required": [
@@ -171,7 +330,7 @@
                                 "winner": {
                                     "anyOf": [
                                         {
-                                            "$ref": "#/components/messages/game_started/payload/$defs/PieceColorField"
+                                            "$ref": "#/components/messages/game_started/payload/$defs/PieceColor"
                                         },
                                         {
                                             "type": "null"
@@ -179,33 +338,20 @@
                                     ],
                                     "default": null
                                 },
-                                "final_white_seconds": {
+                                "time_update": {
                                     "anyOf": [
                                         {
-                                            "type": "integer"
+                                            "$ref": "#/components/messages/game_started/payload/$defs/GameTimeUpdatePublic"
                                         },
                                         {
                                             "type": "null"
                                         }
-                                    ],
-                                    "default": null,
-                                    "title": "Final White Seconds"
-                                },
-                                "final_black_seconds": {
-                                    "anyOf": [
-                                        {
-                                            "type": "integer"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ],
-                                    "default": null,
-                                    "title": "Final Black Seconds"
+                                    ]
                                 }
                             },
                             "required": [
-                                "kind"
+                                "kind",
+                                "time_update"
                             ],
                             "title": "GameOutcomePublic",
                             "type": "object"
@@ -220,30 +366,6 @@
                                 "ply_index": {
                                     "title": "Ply Index",
                                     "type": "integer"
-                                },
-                                "white_seconds_after_execution": {
-                                    "anyOf": [
-                                        {
-                                            "type": "integer"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ],
-                                    "default": null,
-                                    "title": "White Seconds After Execution"
-                                },
-                                "black_seconds_after_execution": {
-                                    "anyOf": [
-                                        {
-                                            "type": "integer"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ],
-                                    "default": null,
-                                    "title": "Black Seconds After Execution"
                                 },
                                 "from_i": {
                                     "title": "From I",
@@ -264,13 +386,28 @@
                                 "morph_into": {
                                     "anyOf": [
                                         {
-                                            "$ref": "#/components/messages/game_started/payload/$defs/PieceKindField"
+                                            "$ref": "#/components/messages/game_started/payload/$defs/PieceKind"
                                         },
                                         {
                                             "type": "null"
                                         }
                                     ],
                                     "default": null
+                                },
+                                "time_update": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/game_started/payload/$defs/GameTimeUpdatePublic"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "is_cancelled": {
+                                    "default": false,
+                                    "title": "Is Cancelled",
+                                    "type": "boolean"
                                 }
                             },
                             "required": [
@@ -278,7 +415,8 @@
                                 "from_i",
                                 "from_j",
                                 "to_i",
-                                "to_j"
+                                "to_j",
+                                "time_update"
                             ],
                             "title": "GamePlyEventPublic",
                             "type": "object"
@@ -290,22 +428,33 @@
                                     "title": "Occurred At",
                                     "type": "string"
                                 },
-                                "position_index_before": {
-                                    "title": "Position Index Before",
+                                "ply_cnt_before": {
+                                    "title": "Ply Cnt Before",
                                     "type": "integer"
                                 },
-                                "position_index_after": {
-                                    "title": "Position Index After",
+                                "ply_cnt_after": {
+                                    "title": "Ply Cnt After",
                                     "type": "integer"
                                 },
                                 "requested_by": {
-                                    "$ref": "#/components/messages/game_started/payload/$defs/PieceColorField"
+                                    "$ref": "#/components/messages/game_started/payload/$defs/PieceColor"
+                                },
+                                "time_update": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/game_started/payload/$defs/GameTimeUpdatePublic"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
                                 }
                             },
                             "required": [
-                                "position_index_before",
-                                "position_index_after",
-                                "requested_by"
+                                "ply_cnt_before",
+                                "ply_cnt_after",
+                                "requested_by",
+                                "time_update"
                             ],
                             "title": "GameRollbackEventPublic",
                             "type": "object"
@@ -322,15 +471,69 @@
                                     "type": "integer"
                                 },
                                 "receiver": {
-                                    "$ref": "#/components/messages/game_started/payload/$defs/PieceColorField"
+                                    "$ref": "#/components/messages/game_started/payload/$defs/PieceColor"
+                                },
+                                "time_update": {
+                                    "$ref": "#/components/messages/game_started/payload/$defs/GameTimeUpdatePublic"
                                 }
                             },
                             "required": [
                                 "amount_seconds",
-                                "receiver"
+                                "receiver",
+                                "time_update"
                             ],
                             "title": "GameTimeAddedEventPublic",
                             "type": "object"
+                        },
+                        "GameTimeUpdatePublic": {
+                            "properties": {
+                                "updated_at": {
+                                    "format": "date-time",
+                                    "title": "Updated At",
+                                    "type": "string"
+                                },
+                                "white_ms": {
+                                    "title": "White Ms",
+                                    "type": "integer"
+                                },
+                                "black_ms": {
+                                    "title": "Black Ms",
+                                    "type": "integer"
+                                },
+                                "ticking_side": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/game_started/payload/$defs/PieceColor"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "reason": {
+                                    "$ref": "#/components/messages/game_started/payload/$defs/GameTimeUpdateReason"
+                                }
+                            },
+                            "required": [
+                                "updated_at",
+                                "white_ms",
+                                "black_ms",
+                                "ticking_side",
+                                "reason"
+                            ],
+                            "title": "GameTimeUpdatePublic",
+                            "type": "object"
+                        },
+                        "GameTimeUpdateReason": {
+                            "enum": [
+                                "init",
+                                "ply",
+                                "rollback",
+                                "time_added",
+                                "game_ended"
+                            ],
+                            "title": "GameTimeUpdateReason",
+                            "type": "string"
                         },
                         "OfferAction": {
                             "enum": [
@@ -352,7 +555,7 @@
                         },
                         "OutcomeKind": {
                             "enum": [
-                                "mate",
+                                "fatum",
                                 "breakthrough",
                                 "timeout",
                                 "resign",
@@ -365,15 +568,15 @@
                             "title": "OutcomeKind",
                             "type": "string"
                         },
-                        "PieceColorField": {
+                        "PieceColor": {
                             "enum": [
                                 "white",
                                 "black"
                             ],
-                            "title": "PieceColorField",
+                            "title": "PieceColor",
                             "type": "string"
                         },
-                        "PieceKindField": {
+                        "PieceKind": {
                             "enum": [
                                 "progressor",
                                 "aggressor",
@@ -382,7 +585,7 @@
                                 "dominator",
                                 "intellector"
                             ],
-                            "title": "PieceKindField",
+                            "title": "PieceKind",
                             "type": "string"
                         },
                         "TimeControlKind": {
@@ -434,6 +637,19 @@
                             "default": null,
                             "title": "Custom Starting Sip"
                         },
+                        "external_uploader_ref": {
+                            "anyOf": [
+                                {
+                                    "maxLength": 32,
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "default": null,
+                            "title": "External Uploader Ref"
+                        },
                         "id": {
                             "title": "Id",
                             "type": "integer"
@@ -458,40 +674,38 @@
                                 }
                             ]
                         },
-                        "ply_events": {
+                        "events": {
                             "items": {
-                                "$ref": "#/components/messages/game_started/payload/$defs/GamePlyEventPublic"
+                                "anyOf": [
+                                    {
+                                        "$ref": "#/components/messages/game_started/payload/$defs/GamePlyEventPublic"
+                                    },
+                                    {
+                                        "$ref": "#/components/messages/game_started/payload/$defs/GameChatMessageEventPublic"
+                                    },
+                                    {
+                                        "$ref": "#/components/messages/game_started/payload/$defs/GameOfferEventPublic"
+                                    },
+                                    {
+                                        "$ref": "#/components/messages/game_started/payload/$defs/GameTimeAddedEventPublic"
+                                    },
+                                    {
+                                        "$ref": "#/components/messages/game_started/payload/$defs/GameRollbackEventPublic"
+                                    }
+                                ]
                             },
-                            "title": "Ply Events",
+                            "title": "Events",
                             "type": "array"
                         },
-                        "chat_message_events": {
-                            "items": {
-                                "$ref": "#/components/messages/game_started/payload/$defs/GameChatMessageEventPublic"
-                            },
-                            "title": "Chat Message Events",
-                            "type": "array"
-                        },
-                        "offer_events": {
-                            "items": {
-                                "$ref": "#/components/messages/game_started/payload/$defs/GameOfferEventPublic"
-                            },
-                            "title": "Offer Events",
-                            "type": "array"
-                        },
-                        "time_added_events": {
-                            "items": {
-                                "$ref": "#/components/messages/game_started/payload/$defs/GameTimeAddedEventPublic"
-                            },
-                            "title": "Time Added Events",
-                            "type": "array"
-                        },
-                        "rollback_events": {
-                            "items": {
-                                "$ref": "#/components/messages/game_started/payload/$defs/GameRollbackEventPublic"
-                            },
-                            "title": "Rollback Events",
-                            "type": "array"
+                        "latest_time_update": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/messages/game_started/payload/$defs/GameTimeUpdatePublic"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
                         }
                     },
                     "required": [
@@ -502,17 +716,157 @@
                         "id",
                         "fischer_time_control",
                         "outcome",
-                        "ply_events",
-                        "chat_message_events",
-                        "offer_events",
-                        "time_added_events",
-                        "rollback_events"
+                        "events",
+                        "latest_time_update"
                     ],
                     "title": "GamePublic",
                     "type": "object"
                 },
                 "title": "Game Started (for player's followers)",
                 "summary": "Broadcasted to `player.started_games` channel group whenever a new game involving a respective player starts"
+            },
+            "refresh.public_challenge_list": {
+                "name": "refresh.public_challenge_list",
+                "payload": {
+                    "$defs": {
+                        "Challenge": {
+                            "properties": {
+                                "acceptor_color": {
+                                    "$ref": "#/components/messages/refresh.public_challenge_list/payload/$defs/ChallengeAcceptorColor",
+                                    "default": "random"
+                                },
+                                "custom_starting_sip": {
+                                    "anyOf": [
+                                        {
+                                            "maxLength": 127,
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Custom Starting Sip"
+                                },
+                                "rated": {
+                                    "title": "Rated",
+                                    "type": "boolean"
+                                },
+                                "id": {
+                                    "anyOf": [
+                                        {
+                                            "type": "integer"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Id"
+                                },
+                                "created_at": {
+                                    "format": "date-time",
+                                    "title": "Created At",
+                                    "type": "string"
+                                },
+                                "caller_ref": {
+                                    "maxLength": 32,
+                                    "title": "Caller Ref",
+                                    "type": "string"
+                                },
+                                "callee_ref": {
+                                    "anyOf": [
+                                        {
+                                            "maxLength": 32,
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Callee Ref"
+                                },
+                                "kind": {
+                                    "$ref": "#/components/messages/refresh.public_challenge_list/payload/$defs/ChallengeKind"
+                                },
+                                "time_control_kind": {
+                                    "$ref": "#/components/messages/refresh.public_challenge_list/payload/$defs/TimeControlKind"
+                                },
+                                "active": {
+                                    "default": true,
+                                    "title": "Active",
+                                    "type": "boolean"
+                                },
+                                "resulting_game_id": {
+                                    "anyOf": [
+                                        {
+                                            "type": "integer"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Resulting Game Id"
+                                }
+                            },
+                            "required": [
+                                "rated",
+                                "caller_ref",
+                                "kind",
+                                "time_control_kind"
+                            ],
+                            "title": "Challenge",
+                            "type": "object"
+                        },
+                        "ChallengeAcceptorColor": {
+                            "enum": [
+                                "white",
+                                "black",
+                                "random"
+                            ],
+                            "title": "ChallengeAcceptorColor",
+                            "type": "string"
+                        },
+                        "ChallengeKind": {
+                            "enum": [
+                                "public",
+                                "link_only",
+                                "direct"
+                            ],
+                            "title": "ChallengeKind",
+                            "type": "string"
+                        },
+                        "TimeControlKind": {
+                            "enum": [
+                                "hyperbullet",
+                                "bullet",
+                                "blitz",
+                                "rapid",
+                                "classic",
+                                "correspondence"
+                            ],
+                            "title": "TimeControlKind",
+                            "type": "string"
+                        }
+                    },
+                    "properties": {
+                        "challenges": {
+                            "items": {
+                                "$ref": "#/components/messages/refresh.public_challenge_list/payload/$defs/Challenge"
+                            },
+                            "title": "Challenges",
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "challenges"
+                    ],
+                    "title": "ChallengeListStateRefresh",
+                    "type": "object"
+                },
+                "title": "Channel state refresh: `public_challenge_list`"
             },
             "new_public_challenge": {
                 "name": "new_public_challenge",
@@ -619,7 +973,7 @@
                                     "$ref": "#/components/messages/new_public_challenge/payload/$defs/OfferKind"
                                 },
                                 "offer_author": {
-                                    "$ref": "#/components/messages/new_public_challenge/payload/$defs/PieceColorField"
+                                    "$ref": "#/components/messages/new_public_challenge/payload/$defs/PieceColor"
                                 }
                             },
                             "required": [
@@ -643,7 +997,7 @@
                                 "winner": {
                                     "anyOf": [
                                         {
-                                            "$ref": "#/components/messages/new_public_challenge/payload/$defs/PieceColorField"
+                                            "$ref": "#/components/messages/new_public_challenge/payload/$defs/PieceColor"
                                         },
                                         {
                                             "type": "null"
@@ -651,33 +1005,20 @@
                                     ],
                                     "default": null
                                 },
-                                "final_white_seconds": {
+                                "time_update": {
                                     "anyOf": [
                                         {
-                                            "type": "integer"
+                                            "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameTimeUpdatePublic"
                                         },
                                         {
                                             "type": "null"
                                         }
-                                    ],
-                                    "default": null,
-                                    "title": "Final White Seconds"
-                                },
-                                "final_black_seconds": {
-                                    "anyOf": [
-                                        {
-                                            "type": "integer"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ],
-                                    "default": null,
-                                    "title": "Final Black Seconds"
+                                    ]
                                 }
                             },
                             "required": [
-                                "kind"
+                                "kind",
+                                "time_update"
                             ],
                             "title": "GameOutcomePublic",
                             "type": "object"
@@ -692,30 +1033,6 @@
                                 "ply_index": {
                                     "title": "Ply Index",
                                     "type": "integer"
-                                },
-                                "white_seconds_after_execution": {
-                                    "anyOf": [
-                                        {
-                                            "type": "integer"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ],
-                                    "default": null,
-                                    "title": "White Seconds After Execution"
-                                },
-                                "black_seconds_after_execution": {
-                                    "anyOf": [
-                                        {
-                                            "type": "integer"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ],
-                                    "default": null,
-                                    "title": "Black Seconds After Execution"
                                 },
                                 "from_i": {
                                     "title": "From I",
@@ -736,13 +1053,28 @@
                                 "morph_into": {
                                     "anyOf": [
                                         {
-                                            "$ref": "#/components/messages/new_public_challenge/payload/$defs/PieceKindField"
+                                            "$ref": "#/components/messages/new_public_challenge/payload/$defs/PieceKind"
                                         },
                                         {
                                             "type": "null"
                                         }
                                     ],
                                     "default": null
+                                },
+                                "time_update": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameTimeUpdatePublic"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "is_cancelled": {
+                                    "default": false,
+                                    "title": "Is Cancelled",
+                                    "type": "boolean"
                                 }
                             },
                             "required": [
@@ -750,7 +1082,8 @@
                                 "from_i",
                                 "from_j",
                                 "to_i",
-                                "to_j"
+                                "to_j",
+                                "time_update"
                             ],
                             "title": "GamePlyEventPublic",
                             "type": "object"
@@ -792,6 +1125,19 @@
                                     "default": null,
                                     "title": "Custom Starting Sip"
                                 },
+                                "external_uploader_ref": {
+                                    "anyOf": [
+                                        {
+                                            "maxLength": 32,
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "External Uploader Ref"
+                                },
                                 "id": {
                                     "title": "Id",
                                     "type": "integer"
@@ -816,40 +1162,38 @@
                                         }
                                     ]
                                 },
-                                "ply_events": {
+                                "events": {
                                     "items": {
-                                        "$ref": "#/components/messages/new_public_challenge/payload/$defs/GamePlyEventPublic"
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/messages/new_public_challenge/payload/$defs/GamePlyEventPublic"
+                                            },
+                                            {
+                                                "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameChatMessageEventPublic"
+                                            },
+                                            {
+                                                "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameOfferEventPublic"
+                                            },
+                                            {
+                                                "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameTimeAddedEventPublic"
+                                            },
+                                            {
+                                                "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameRollbackEventPublic"
+                                            }
+                                        ]
                                     },
-                                    "title": "Ply Events",
+                                    "title": "Events",
                                     "type": "array"
                                 },
-                                "chat_message_events": {
-                                    "items": {
-                                        "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameChatMessageEventPublic"
-                                    },
-                                    "title": "Chat Message Events",
-                                    "type": "array"
-                                },
-                                "offer_events": {
-                                    "items": {
-                                        "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameOfferEventPublic"
-                                    },
-                                    "title": "Offer Events",
-                                    "type": "array"
-                                },
-                                "time_added_events": {
-                                    "items": {
-                                        "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameTimeAddedEventPublic"
-                                    },
-                                    "title": "Time Added Events",
-                                    "type": "array"
-                                },
-                                "rollback_events": {
-                                    "items": {
-                                        "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameRollbackEventPublic"
-                                    },
-                                    "title": "Rollback Events",
-                                    "type": "array"
+                                "latest_time_update": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameTimeUpdatePublic"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
                                 }
                             },
                             "required": [
@@ -860,11 +1204,8 @@
                                 "id",
                                 "fischer_time_control",
                                 "outcome",
-                                "ply_events",
-                                "chat_message_events",
-                                "offer_events",
-                                "time_added_events",
-                                "rollback_events"
+                                "events",
+                                "latest_time_update"
                             ],
                             "title": "GamePublic",
                             "type": "object"
@@ -876,22 +1217,33 @@
                                     "title": "Occurred At",
                                     "type": "string"
                                 },
-                                "position_index_before": {
-                                    "title": "Position Index Before",
+                                "ply_cnt_before": {
+                                    "title": "Ply Cnt Before",
                                     "type": "integer"
                                 },
-                                "position_index_after": {
-                                    "title": "Position Index After",
+                                "ply_cnt_after": {
+                                    "title": "Ply Cnt After",
                                     "type": "integer"
                                 },
                                 "requested_by": {
-                                    "$ref": "#/components/messages/new_public_challenge/payload/$defs/PieceColorField"
+                                    "$ref": "#/components/messages/new_public_challenge/payload/$defs/PieceColor"
+                                },
+                                "time_update": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameTimeUpdatePublic"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
                                 }
                             },
                             "required": [
-                                "position_index_before",
-                                "position_index_after",
-                                "requested_by"
+                                "ply_cnt_before",
+                                "ply_cnt_after",
+                                "requested_by",
+                                "time_update"
                             ],
                             "title": "GameRollbackEventPublic",
                             "type": "object"
@@ -908,15 +1260,69 @@
                                     "type": "integer"
                                 },
                                 "receiver": {
-                                    "$ref": "#/components/messages/new_public_challenge/payload/$defs/PieceColorField"
+                                    "$ref": "#/components/messages/new_public_challenge/payload/$defs/PieceColor"
+                                },
+                                "time_update": {
+                                    "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameTimeUpdatePublic"
                                 }
                             },
                             "required": [
                                 "amount_seconds",
-                                "receiver"
+                                "receiver",
+                                "time_update"
                             ],
                             "title": "GameTimeAddedEventPublic",
                             "type": "object"
+                        },
+                        "GameTimeUpdatePublic": {
+                            "properties": {
+                                "updated_at": {
+                                    "format": "date-time",
+                                    "title": "Updated At",
+                                    "type": "string"
+                                },
+                                "white_ms": {
+                                    "title": "White Ms",
+                                    "type": "integer"
+                                },
+                                "black_ms": {
+                                    "title": "Black Ms",
+                                    "type": "integer"
+                                },
+                                "ticking_side": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/new_public_challenge/payload/$defs/PieceColor"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "reason": {
+                                    "$ref": "#/components/messages/new_public_challenge/payload/$defs/GameTimeUpdateReason"
+                                }
+                            },
+                            "required": [
+                                "updated_at",
+                                "white_ms",
+                                "black_ms",
+                                "ticking_side",
+                                "reason"
+                            ],
+                            "title": "GameTimeUpdatePublic",
+                            "type": "object"
+                        },
+                        "GameTimeUpdateReason": {
+                            "enum": [
+                                "init",
+                                "ply",
+                                "rollback",
+                                "time_added",
+                                "game_ended"
+                            ],
+                            "title": "GameTimeUpdateReason",
+                            "type": "string"
                         },
                         "OfferAction": {
                             "enum": [
@@ -938,7 +1344,7 @@
                         },
                         "OutcomeKind": {
                             "enum": [
-                                "mate",
+                                "fatum",
                                 "breakthrough",
                                 "timeout",
                                 "resign",
@@ -951,15 +1357,15 @@
                             "title": "OutcomeKind",
                             "type": "string"
                         },
-                        "PieceColorField": {
+                        "PieceColor": {
                             "enum": [
                                 "white",
                                 "black"
                             ],
-                            "title": "PieceColorField",
+                            "title": "PieceColor",
                             "type": "string"
                         },
-                        "PieceKindField": {
+                        "PieceKind": {
                             "enum": [
                                 "progressor",
                                 "aggressor",
@@ -968,7 +1374,7 @@
                                 "dominator",
                                 "intellector"
                             ],
-                            "title": "PieceKindField",
+                            "title": "PieceKind",
                             "type": "string"
                         },
                         "TimeControlKind": {
@@ -1117,6 +1523,112 @@
                 "title": "Public Challenge Fulfilled",
                 "summary": "Broadcasted to `public_challenge_list` channel group whenever a public challenge is fulfilled (i.e. accepted by someone)"
             },
+            "refresh.game_list": {
+                "name": "refresh.game_list",
+                "payload": {
+                    "$defs": {
+                        "Game": {
+                            "properties": {
+                                "started_at": {
+                                    "format": "date-time",
+                                    "title": "Started At",
+                                    "type": "string"
+                                },
+                                "white_player_ref": {
+                                    "maxLength": 32,
+                                    "title": "White Player Ref",
+                                    "type": "string"
+                                },
+                                "black_player_ref": {
+                                    "maxLength": 32,
+                                    "title": "Black Player Ref",
+                                    "type": "string"
+                                },
+                                "time_control_kind": {
+                                    "$ref": "#/components/messages/refresh.game_list/payload/$defs/TimeControlKind"
+                                },
+                                "rated": {
+                                    "title": "Rated",
+                                    "type": "boolean"
+                                },
+                                "custom_starting_sip": {
+                                    "anyOf": [
+                                        {
+                                            "maxLength": 127,
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Custom Starting Sip"
+                                },
+                                "external_uploader_ref": {
+                                    "anyOf": [
+                                        {
+                                            "maxLength": 32,
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "External Uploader Ref"
+                                },
+                                "id": {
+                                    "anyOf": [
+                                        {
+                                            "type": "integer"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Id"
+                                }
+                            },
+                            "required": [
+                                "white_player_ref",
+                                "black_player_ref",
+                                "time_control_kind",
+                                "rated"
+                            ],
+                            "title": "Game",
+                            "type": "object"
+                        },
+                        "TimeControlKind": {
+                            "enum": [
+                                "hyperbullet",
+                                "bullet",
+                                "blitz",
+                                "rapid",
+                                "classic",
+                                "correspondence"
+                            ],
+                            "title": "TimeControlKind",
+                            "type": "string"
+                        }
+                    },
+                    "properties": {
+                        "games": {
+                            "items": {
+                                "$ref": "#/components/messages/refresh.game_list/payload/$defs/Game"
+                            },
+                            "title": "Games",
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "games"
+                    ],
+                    "title": "GameListChannelsStateRefresh",
+                    "type": "object"
+                },
+                "title": "Channel state refresh: `game_list`"
+            },
             "new_active_game": {
                 "name": "new_active_game",
                 "payload": {
@@ -1188,6 +1700,19 @@
                             "default": null,
                             "title": "Custom Starting Sip"
                         },
+                        "external_uploader_ref": {
+                            "anyOf": [
+                                {
+                                    "maxLength": 32,
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "default": null,
+                            "title": "External Uploader Ref"
+                        },
                         "id": {
                             "title": "Id",
                             "type": "integer"
@@ -1221,9 +1746,59 @@
                 "name": "new_recent_game",
                 "payload": {
                     "$defs": {
+                        "GameTimeUpdatePublic": {
+                            "properties": {
+                                "updated_at": {
+                                    "format": "date-time",
+                                    "title": "Updated At",
+                                    "type": "string"
+                                },
+                                "white_ms": {
+                                    "title": "White Ms",
+                                    "type": "integer"
+                                },
+                                "black_ms": {
+                                    "title": "Black Ms",
+                                    "type": "integer"
+                                },
+                                "ticking_side": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/new_recent_game/payload/$defs/PieceColor"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "reason": {
+                                    "$ref": "#/components/messages/new_recent_game/payload/$defs/GameTimeUpdateReason"
+                                }
+                            },
+                            "required": [
+                                "updated_at",
+                                "white_ms",
+                                "black_ms",
+                                "ticking_side",
+                                "reason"
+                            ],
+                            "title": "GameTimeUpdatePublic",
+                            "type": "object"
+                        },
+                        "GameTimeUpdateReason": {
+                            "enum": [
+                                "init",
+                                "ply",
+                                "rollback",
+                                "time_added",
+                                "game_ended"
+                            ],
+                            "title": "GameTimeUpdateReason",
+                            "type": "string"
+                        },
                         "OutcomeKind": {
                             "enum": [
-                                "mate",
+                                "fatum",
                                 "breakthrough",
                                 "timeout",
                                 "resign",
@@ -1236,12 +1811,12 @@
                             "title": "OutcomeKind",
                             "type": "string"
                         },
-                        "PieceColorField": {
+                        "PieceColor": {
                             "enum": [
                                 "white",
                                 "black"
                             ],
-                            "title": "PieceColorField",
+                            "title": "PieceColor",
                             "type": "string"
                         }
                     },
@@ -1257,7 +1832,7 @@
                         "winner": {
                             "anyOf": [
                                 {
-                                    "$ref": "#/components/messages/new_recent_game/payload/$defs/PieceColorField"
+                                    "$ref": "#/components/messages/new_recent_game/payload/$defs/PieceColor"
                                 },
                                 {
                                     "type": "null"
@@ -1265,44 +1840,179 @@
                             ],
                             "default": null
                         },
-                        "final_white_seconds": {
-                            "anyOf": [
-                                {
-                                    "type": "integer"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "default": null,
-                            "title": "Final White Seconds"
-                        },
-                        "final_black_seconds": {
-                            "anyOf": [
-                                {
-                                    "type": "integer"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "default": null,
-                            "title": "Final Black Seconds"
-                        },
                         "game_id": {
                             "title": "Game Id",
                             "type": "integer"
+                        },
+                        "time_update": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/messages/new_recent_game/payload/$defs/GameTimeUpdatePublic"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
                         }
                     },
                     "required": [
                         "kind",
-                        "game_id"
+                        "game_id",
+                        "time_update"
                     ],
                     "title": "GameEndedBroadcastedData",
                     "type": "object"
                 },
                 "title": "Game Ended (for game lists watchers)",
                 "summary": "Broadcasted to `game_list` channel group whenever a game ends"
+            },
+            "refresh.incoming_challenges": {
+                "name": "refresh.incoming_challenges",
+                "payload": {
+                    "$defs": {
+                        "Challenge": {
+                            "properties": {
+                                "acceptor_color": {
+                                    "$ref": "#/components/messages/refresh.incoming_challenges/payload/$defs/ChallengeAcceptorColor",
+                                    "default": "random"
+                                },
+                                "custom_starting_sip": {
+                                    "anyOf": [
+                                        {
+                                            "maxLength": 127,
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Custom Starting Sip"
+                                },
+                                "rated": {
+                                    "title": "Rated",
+                                    "type": "boolean"
+                                },
+                                "id": {
+                                    "anyOf": [
+                                        {
+                                            "type": "integer"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Id"
+                                },
+                                "created_at": {
+                                    "format": "date-time",
+                                    "title": "Created At",
+                                    "type": "string"
+                                },
+                                "caller_ref": {
+                                    "maxLength": 32,
+                                    "title": "Caller Ref",
+                                    "type": "string"
+                                },
+                                "callee_ref": {
+                                    "anyOf": [
+                                        {
+                                            "maxLength": 32,
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Callee Ref"
+                                },
+                                "kind": {
+                                    "$ref": "#/components/messages/refresh.incoming_challenges/payload/$defs/ChallengeKind"
+                                },
+                                "time_control_kind": {
+                                    "$ref": "#/components/messages/refresh.incoming_challenges/payload/$defs/TimeControlKind"
+                                },
+                                "active": {
+                                    "default": true,
+                                    "title": "Active",
+                                    "type": "boolean"
+                                },
+                                "resulting_game_id": {
+                                    "anyOf": [
+                                        {
+                                            "type": "integer"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Resulting Game Id"
+                                }
+                            },
+                            "required": [
+                                "rated",
+                                "caller_ref",
+                                "kind",
+                                "time_control_kind"
+                            ],
+                            "title": "Challenge",
+                            "type": "object"
+                        },
+                        "ChallengeAcceptorColor": {
+                            "enum": [
+                                "white",
+                                "black",
+                                "random"
+                            ],
+                            "title": "ChallengeAcceptorColor",
+                            "type": "string"
+                        },
+                        "ChallengeKind": {
+                            "enum": [
+                                "public",
+                                "link_only",
+                                "direct"
+                            ],
+                            "title": "ChallengeKind",
+                            "type": "string"
+                        },
+                        "TimeControlKind": {
+                            "enum": [
+                                "hyperbullet",
+                                "bullet",
+                                "blitz",
+                                "rapid",
+                                "classic",
+                                "correspondence"
+                            ],
+                            "title": "TimeControlKind",
+                            "type": "string"
+                        }
+                    },
+                    "properties": {
+                        "challenges": {
+                            "items": {
+                                "$ref": "#/components/messages/refresh.incoming_challenges/payload/$defs/Challenge"
+                            },
+                            "title": "Challenges",
+                            "type": "array"
+                        },
+                        "user_ref": {
+                            "title": "User Ref",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "challenges",
+                        "user_ref"
+                    ],
+                    "title": "SpecificUserChallengeListStateRefresh",
+                    "type": "object"
+                },
+                "title": "Channel state refresh: `incoming_challenges`"
             },
             "incoming_challenge_received": {
                 "name": "incoming_challenge_received",
@@ -1409,7 +2119,7 @@
                                     "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/OfferKind"
                                 },
                                 "offer_author": {
-                                    "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/PieceColorField"
+                                    "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/PieceColor"
                                 }
                             },
                             "required": [
@@ -1433,7 +2143,7 @@
                                 "winner": {
                                     "anyOf": [
                                         {
-                                            "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/PieceColorField"
+                                            "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/PieceColor"
                                         },
                                         {
                                             "type": "null"
@@ -1441,33 +2151,20 @@
                                     ],
                                     "default": null
                                 },
-                                "final_white_seconds": {
+                                "time_update": {
                                     "anyOf": [
                                         {
-                                            "type": "integer"
+                                            "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameTimeUpdatePublic"
                                         },
                                         {
                                             "type": "null"
                                         }
-                                    ],
-                                    "default": null,
-                                    "title": "Final White Seconds"
-                                },
-                                "final_black_seconds": {
-                                    "anyOf": [
-                                        {
-                                            "type": "integer"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ],
-                                    "default": null,
-                                    "title": "Final Black Seconds"
+                                    ]
                                 }
                             },
                             "required": [
-                                "kind"
+                                "kind",
+                                "time_update"
                             ],
                             "title": "GameOutcomePublic",
                             "type": "object"
@@ -1482,30 +2179,6 @@
                                 "ply_index": {
                                     "title": "Ply Index",
                                     "type": "integer"
-                                },
-                                "white_seconds_after_execution": {
-                                    "anyOf": [
-                                        {
-                                            "type": "integer"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ],
-                                    "default": null,
-                                    "title": "White Seconds After Execution"
-                                },
-                                "black_seconds_after_execution": {
-                                    "anyOf": [
-                                        {
-                                            "type": "integer"
-                                        },
-                                        {
-                                            "type": "null"
-                                        }
-                                    ],
-                                    "default": null,
-                                    "title": "Black Seconds After Execution"
                                 },
                                 "from_i": {
                                     "title": "From I",
@@ -1526,13 +2199,28 @@
                                 "morph_into": {
                                     "anyOf": [
                                         {
-                                            "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/PieceKindField"
+                                            "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/PieceKind"
                                         },
                                         {
                                             "type": "null"
                                         }
                                     ],
                                     "default": null
+                                },
+                                "time_update": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameTimeUpdatePublic"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "is_cancelled": {
+                                    "default": false,
+                                    "title": "Is Cancelled",
+                                    "type": "boolean"
                                 }
                             },
                             "required": [
@@ -1540,7 +2228,8 @@
                                 "from_i",
                                 "from_j",
                                 "to_i",
-                                "to_j"
+                                "to_j",
+                                "time_update"
                             ],
                             "title": "GamePlyEventPublic",
                             "type": "object"
@@ -1582,6 +2271,19 @@
                                     "default": null,
                                     "title": "Custom Starting Sip"
                                 },
+                                "external_uploader_ref": {
+                                    "anyOf": [
+                                        {
+                                            "maxLength": 32,
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "External Uploader Ref"
+                                },
                                 "id": {
                                     "title": "Id",
                                     "type": "integer"
@@ -1606,40 +2308,38 @@
                                         }
                                     ]
                                 },
-                                "ply_events": {
+                                "events": {
                                     "items": {
-                                        "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GamePlyEventPublic"
+                                        "anyOf": [
+                                            {
+                                                "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GamePlyEventPublic"
+                                            },
+                                            {
+                                                "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameChatMessageEventPublic"
+                                            },
+                                            {
+                                                "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameOfferEventPublic"
+                                            },
+                                            {
+                                                "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameTimeAddedEventPublic"
+                                            },
+                                            {
+                                                "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameRollbackEventPublic"
+                                            }
+                                        ]
                                     },
-                                    "title": "Ply Events",
+                                    "title": "Events",
                                     "type": "array"
                                 },
-                                "chat_message_events": {
-                                    "items": {
-                                        "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameChatMessageEventPublic"
-                                    },
-                                    "title": "Chat Message Events",
-                                    "type": "array"
-                                },
-                                "offer_events": {
-                                    "items": {
-                                        "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameOfferEventPublic"
-                                    },
-                                    "title": "Offer Events",
-                                    "type": "array"
-                                },
-                                "time_added_events": {
-                                    "items": {
-                                        "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameTimeAddedEventPublic"
-                                    },
-                                    "title": "Time Added Events",
-                                    "type": "array"
-                                },
-                                "rollback_events": {
-                                    "items": {
-                                        "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameRollbackEventPublic"
-                                    },
-                                    "title": "Rollback Events",
-                                    "type": "array"
+                                "latest_time_update": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameTimeUpdatePublic"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
                                 }
                             },
                             "required": [
@@ -1650,11 +2350,8 @@
                                 "id",
                                 "fischer_time_control",
                                 "outcome",
-                                "ply_events",
-                                "chat_message_events",
-                                "offer_events",
-                                "time_added_events",
-                                "rollback_events"
+                                "events",
+                                "latest_time_update"
                             ],
                             "title": "GamePublic",
                             "type": "object"
@@ -1666,22 +2363,33 @@
                                     "title": "Occurred At",
                                     "type": "string"
                                 },
-                                "position_index_before": {
-                                    "title": "Position Index Before",
+                                "ply_cnt_before": {
+                                    "title": "Ply Cnt Before",
                                     "type": "integer"
                                 },
-                                "position_index_after": {
-                                    "title": "Position Index After",
+                                "ply_cnt_after": {
+                                    "title": "Ply Cnt After",
                                     "type": "integer"
                                 },
                                 "requested_by": {
-                                    "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/PieceColorField"
+                                    "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/PieceColor"
+                                },
+                                "time_update": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameTimeUpdatePublic"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
                                 }
                             },
                             "required": [
-                                "position_index_before",
-                                "position_index_after",
-                                "requested_by"
+                                "ply_cnt_before",
+                                "ply_cnt_after",
+                                "requested_by",
+                                "time_update"
                             ],
                             "title": "GameRollbackEventPublic",
                             "type": "object"
@@ -1698,15 +2406,69 @@
                                     "type": "integer"
                                 },
                                 "receiver": {
-                                    "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/PieceColorField"
+                                    "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/PieceColor"
+                                },
+                                "time_update": {
+                                    "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameTimeUpdatePublic"
                                 }
                             },
                             "required": [
                                 "amount_seconds",
-                                "receiver"
+                                "receiver",
+                                "time_update"
                             ],
                             "title": "GameTimeAddedEventPublic",
                             "type": "object"
+                        },
+                        "GameTimeUpdatePublic": {
+                            "properties": {
+                                "updated_at": {
+                                    "format": "date-time",
+                                    "title": "Updated At",
+                                    "type": "string"
+                                },
+                                "white_ms": {
+                                    "title": "White Ms",
+                                    "type": "integer"
+                                },
+                                "black_ms": {
+                                    "title": "Black Ms",
+                                    "type": "integer"
+                                },
+                                "ticking_side": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/PieceColor"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "reason": {
+                                    "$ref": "#/components/messages/incoming_challenge_received/payload/$defs/GameTimeUpdateReason"
+                                }
+                            },
+                            "required": [
+                                "updated_at",
+                                "white_ms",
+                                "black_ms",
+                                "ticking_side",
+                                "reason"
+                            ],
+                            "title": "GameTimeUpdatePublic",
+                            "type": "object"
+                        },
+                        "GameTimeUpdateReason": {
+                            "enum": [
+                                "init",
+                                "ply",
+                                "rollback",
+                                "time_added",
+                                "game_ended"
+                            ],
+                            "title": "GameTimeUpdateReason",
+                            "type": "string"
                         },
                         "OfferAction": {
                             "enum": [
@@ -1728,7 +2490,7 @@
                         },
                         "OutcomeKind": {
                             "enum": [
-                                "mate",
+                                "fatum",
                                 "breakthrough",
                                 "timeout",
                                 "resign",
@@ -1741,15 +2503,15 @@
                             "title": "OutcomeKind",
                             "type": "string"
                         },
-                        "PieceColorField": {
+                        "PieceColor": {
                             "enum": [
                                 "white",
                                 "black"
                             ],
-                            "title": "PieceColorField",
+                            "title": "PieceColor",
                             "type": "string"
                         },
-                        "PieceKindField": {
+                        "PieceKind": {
                             "enum": [
                                 "progressor",
                                 "aggressor",
@@ -1758,7 +2520,7 @@
                                 "dominator",
                                 "intellector"
                             ],
-                            "title": "PieceKindField",
+                            "title": "PieceKind",
                             "type": "string"
                         },
                         "TimeControlKind": {
@@ -1889,6 +2651,154 @@
                 "title": "Incoming Challenge Cancelled",
                 "summary": "Broadcasted to `incoming_challenges` channel group whenever an incoming direct challenge is cancelled"
             },
+            "refresh.outgoing_challenges": {
+                "name": "refresh.outgoing_challenges",
+                "payload": {
+                    "$defs": {
+                        "Challenge": {
+                            "properties": {
+                                "acceptor_color": {
+                                    "$ref": "#/components/messages/refresh.outgoing_challenges/payload/$defs/ChallengeAcceptorColor",
+                                    "default": "random"
+                                },
+                                "custom_starting_sip": {
+                                    "anyOf": [
+                                        {
+                                            "maxLength": 127,
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Custom Starting Sip"
+                                },
+                                "rated": {
+                                    "title": "Rated",
+                                    "type": "boolean"
+                                },
+                                "id": {
+                                    "anyOf": [
+                                        {
+                                            "type": "integer"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Id"
+                                },
+                                "created_at": {
+                                    "format": "date-time",
+                                    "title": "Created At",
+                                    "type": "string"
+                                },
+                                "caller_ref": {
+                                    "maxLength": 32,
+                                    "title": "Caller Ref",
+                                    "type": "string"
+                                },
+                                "callee_ref": {
+                                    "anyOf": [
+                                        {
+                                            "maxLength": 32,
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Callee Ref"
+                                },
+                                "kind": {
+                                    "$ref": "#/components/messages/refresh.outgoing_challenges/payload/$defs/ChallengeKind"
+                                },
+                                "time_control_kind": {
+                                    "$ref": "#/components/messages/refresh.outgoing_challenges/payload/$defs/TimeControlKind"
+                                },
+                                "active": {
+                                    "default": true,
+                                    "title": "Active",
+                                    "type": "boolean"
+                                },
+                                "resulting_game_id": {
+                                    "anyOf": [
+                                        {
+                                            "type": "integer"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Resulting Game Id"
+                                }
+                            },
+                            "required": [
+                                "rated",
+                                "caller_ref",
+                                "kind",
+                                "time_control_kind"
+                            ],
+                            "title": "Challenge",
+                            "type": "object"
+                        },
+                        "ChallengeAcceptorColor": {
+                            "enum": [
+                                "white",
+                                "black",
+                                "random"
+                            ],
+                            "title": "ChallengeAcceptorColor",
+                            "type": "string"
+                        },
+                        "ChallengeKind": {
+                            "enum": [
+                                "public",
+                                "link_only",
+                                "direct"
+                            ],
+                            "title": "ChallengeKind",
+                            "type": "string"
+                        },
+                        "TimeControlKind": {
+                            "enum": [
+                                "hyperbullet",
+                                "bullet",
+                                "blitz",
+                                "rapid",
+                                "classic",
+                                "correspondence"
+                            ],
+                            "title": "TimeControlKind",
+                            "type": "string"
+                        }
+                    },
+                    "properties": {
+                        "challenges": {
+                            "items": {
+                                "$ref": "#/components/messages/refresh.outgoing_challenges/payload/$defs/Challenge"
+                            },
+                            "title": "Challenges",
+                            "type": "array"
+                        },
+                        "user_ref": {
+                            "title": "User Ref",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "challenges",
+                        "user_ref"
+                    ],
+                    "title": "SpecificUserChallengeListStateRefresh",
+                    "type": "object"
+                },
+                "title": "Channel state refresh: `outgoing_challenges`"
+            },
             "outgoing_challenge_accepted": {
                 "name": "outgoing_challenge_accepted",
                 "payload": {
@@ -1943,29 +2853,324 @@
                 "title": "Outgoing Challenge Cancelled by Server",
                 "summary": "Broadcasted to `outgoing_challenges` channel group whenever the server cancels an outgoing challenge due to shutdown"
             },
-            "server_shutdown": {
-                "name": "server_shutdown",
-                "payload": {
-                    "properties": {},
-                    "title": "EmptyModel",
-                    "type": "object"
-                },
-                "title": "Server Shutdown",
-                "summary": "Broadcasted to `everyone` channel group whenever the server starts preparing for the shutdown"
-            },
-            "move": {
-                "name": "move",
+            "refresh.game": {
+                "name": "refresh.game",
                 "payload": {
                     "$defs": {
-                        "PieceColorField": {
+                        "GameChatMessageEventPublic": {
+                            "properties": {
+                                "occurred_at": {
+                                    "format": "date-time",
+                                    "title": "Occurred At",
+                                    "type": "string"
+                                },
+                                "author_ref": {
+                                    "maxLength": 32,
+                                    "title": "Author Ref",
+                                    "type": "string"
+                                },
+                                "text": {
+                                    "title": "Text",
+                                    "type": "string"
+                                },
+                                "spectator": {
+                                    "title": "Spectator",
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": [
+                                "author_ref",
+                                "text",
+                                "spectator"
+                            ],
+                            "title": "GameChatMessageEventPublic",
+                            "type": "object"
+                        },
+                        "GameOfferEventPublic": {
+                            "properties": {
+                                "occurred_at": {
+                                    "format": "date-time",
+                                    "title": "Occurred At",
+                                    "type": "string"
+                                },
+                                "action": {
+                                    "$ref": "#/components/messages/refresh.game/payload/$defs/OfferAction"
+                                },
+                                "offer_kind": {
+                                    "$ref": "#/components/messages/refresh.game/payload/$defs/OfferKind"
+                                },
+                                "offer_author": {
+                                    "$ref": "#/components/messages/refresh.game/payload/$defs/PieceColor"
+                                }
+                            },
+                            "required": [
+                                "action",
+                                "offer_kind",
+                                "offer_author"
+                            ],
+                            "title": "GameOfferEventPublic",
+                            "type": "object"
+                        },
+                        "GameOutcomePublic": {
+                            "properties": {
+                                "game_ended_at": {
+                                    "format": "date-time",
+                                    "title": "Game Ended At",
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "$ref": "#/components/messages/refresh.game/payload/$defs/OutcomeKind"
+                                },
+                                "winner": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/refresh.game/payload/$defs/PieceColor"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null
+                                },
+                                "time_update": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/refresh.game/payload/$defs/GameTimeUpdatePublic"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "time_update"
+                            ],
+                            "title": "GameOutcomePublic",
+                            "type": "object"
+                        },
+                        "GamePlyEventPublic": {
+                            "properties": {
+                                "occurred_at": {
+                                    "format": "date-time",
+                                    "title": "Occurred At",
+                                    "type": "string"
+                                },
+                                "ply_index": {
+                                    "title": "Ply Index",
+                                    "type": "integer"
+                                },
+                                "from_i": {
+                                    "title": "From I",
+                                    "type": "integer"
+                                },
+                                "from_j": {
+                                    "title": "From J",
+                                    "type": "integer"
+                                },
+                                "to_i": {
+                                    "title": "To I",
+                                    "type": "integer"
+                                },
+                                "to_j": {
+                                    "title": "To J",
+                                    "type": "integer"
+                                },
+                                "morph_into": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/refresh.game/payload/$defs/PieceKind"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null
+                                },
+                                "time_update": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/refresh.game/payload/$defs/GameTimeUpdatePublic"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "is_cancelled": {
+                                    "default": false,
+                                    "title": "Is Cancelled",
+                                    "type": "boolean"
+                                }
+                            },
+                            "required": [
+                                "ply_index",
+                                "from_i",
+                                "from_j",
+                                "to_i",
+                                "to_j",
+                                "time_update"
+                            ],
+                            "title": "GamePlyEventPublic",
+                            "type": "object"
+                        },
+                        "GameRollbackEventPublic": {
+                            "properties": {
+                                "occurred_at": {
+                                    "format": "date-time",
+                                    "title": "Occurred At",
+                                    "type": "string"
+                                },
+                                "ply_cnt_before": {
+                                    "title": "Ply Cnt Before",
+                                    "type": "integer"
+                                },
+                                "ply_cnt_after": {
+                                    "title": "Ply Cnt After",
+                                    "type": "integer"
+                                },
+                                "requested_by": {
+                                    "$ref": "#/components/messages/refresh.game/payload/$defs/PieceColor"
+                                },
+                                "time_update": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/refresh.game/payload/$defs/GameTimeUpdatePublic"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "ply_cnt_before",
+                                "ply_cnt_after",
+                                "requested_by",
+                                "time_update"
+                            ],
+                            "title": "GameRollbackEventPublic",
+                            "type": "object"
+                        },
+                        "GameTimeAddedEventPublic": {
+                            "properties": {
+                                "occurred_at": {
+                                    "format": "date-time",
+                                    "title": "Occurred At",
+                                    "type": "string"
+                                },
+                                "amount_seconds": {
+                                    "title": "Amount Seconds",
+                                    "type": "integer"
+                                },
+                                "receiver": {
+                                    "$ref": "#/components/messages/refresh.game/payload/$defs/PieceColor"
+                                },
+                                "time_update": {
+                                    "$ref": "#/components/messages/refresh.game/payload/$defs/GameTimeUpdatePublic"
+                                }
+                            },
+                            "required": [
+                                "amount_seconds",
+                                "receiver",
+                                "time_update"
+                            ],
+                            "title": "GameTimeAddedEventPublic",
+                            "type": "object"
+                        },
+                        "GameTimeUpdatePublic": {
+                            "properties": {
+                                "updated_at": {
+                                    "format": "date-time",
+                                    "title": "Updated At",
+                                    "type": "string"
+                                },
+                                "white_ms": {
+                                    "title": "White Ms",
+                                    "type": "integer"
+                                },
+                                "black_ms": {
+                                    "title": "Black Ms",
+                                    "type": "integer"
+                                },
+                                "ticking_side": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/refresh.game/payload/$defs/PieceColor"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "reason": {
+                                    "$ref": "#/components/messages/refresh.game/payload/$defs/GameTimeUpdateReason"
+                                }
+                            },
+                            "required": [
+                                "updated_at",
+                                "white_ms",
+                                "black_ms",
+                                "ticking_side",
+                                "reason"
+                            ],
+                            "title": "GameTimeUpdatePublic",
+                            "type": "object"
+                        },
+                        "GameTimeUpdateReason": {
+                            "enum": [
+                                "init",
+                                "ply",
+                                "rollback",
+                                "time_added",
+                                "game_ended"
+                            ],
+                            "title": "GameTimeUpdateReason",
+                            "type": "string"
+                        },
+                        "OfferAction": {
+                            "enum": [
+                                "create",
+                                "cancel",
+                                "accept",
+                                "decline"
+                            ],
+                            "title": "OfferAction",
+                            "type": "string"
+                        },
+                        "OfferKind": {
+                            "enum": [
+                                "draw",
+                                "takeback"
+                            ],
+                            "title": "OfferKind",
+                            "type": "string"
+                        },
+                        "OutcomeKind": {
+                            "enum": [
+                                "fatum",
+                                "breakthrough",
+                                "timeout",
+                                "resign",
+                                "abandon",
+                                "draw_agreement",
+                                "repetition",
+                                "no_progress",
+                                "abort"
+                            ],
+                            "title": "OutcomeKind",
+                            "type": "string"
+                        },
+                        "PieceColor": {
                             "enum": [
                                 "white",
                                 "black"
                             ],
-                            "title": "PieceColorField",
+                            "title": "PieceColor",
                             "type": "string"
                         },
-                        "PieceKindField": {
+                        "PieceKind": {
                             "enum": [
                                 "progressor",
                                 "aggressor",
@@ -1974,16 +3179,151 @@
                                 "dominator",
                                 "intellector"
                             ],
-                            "title": "PieceKindField",
+                            "title": "PieceKind",
+                            "type": "string"
+                        }
+                    },
+                    "properties": {
+                        "game_id": {
+                            "title": "Game Id",
+                            "type": "integer"
+                        },
+                        "refresh_reason": {
+                            "enum": [
+                                "sub",
+                                "invalid_move"
+                            ],
+                            "title": "Refresh Reason",
                             "type": "string"
                         },
-                        "PlyKindField": {
-                            "enum": [
-                                "normal",
-                                "capture",
-                                "swap"
+                        "outcome": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/messages/refresh.game/payload/$defs/GameOutcomePublic"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "events": {
+                            "items": {
+                                "anyOf": [
+                                    {
+                                        "$ref": "#/components/messages/refresh.game/payload/$defs/GamePlyEventPublic"
+                                    },
+                                    {
+                                        "$ref": "#/components/messages/refresh.game/payload/$defs/GameChatMessageEventPublic"
+                                    },
+                                    {
+                                        "$ref": "#/components/messages/refresh.game/payload/$defs/GameOfferEventPublic"
+                                    },
+                                    {
+                                        "$ref": "#/components/messages/refresh.game/payload/$defs/GameTimeAddedEventPublic"
+                                    },
+                                    {
+                                        "$ref": "#/components/messages/refresh.game/payload/$defs/GameRollbackEventPublic"
+                                    }
+                                ]
+                            },
+                            "title": "Events",
+                            "type": "array"
+                        },
+                        "latest_time_update": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/messages/refresh.game/payload/$defs/GameTimeUpdatePublic"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        }
+                    },
+                    "required": [
+                        "game_id",
+                        "refresh_reason",
+                        "outcome",
+                        "events",
+                        "latest_time_update"
+                    ],
+                    "title": "GameStateRefresh",
+                    "type": "object"
+                },
+                "title": "Channel state refresh: `game`"
+            },
+            "new_ply": {
+                "name": "new_ply",
+                "payload": {
+                    "$defs": {
+                        "GameTimeUpdatePublic": {
+                            "properties": {
+                                "updated_at": {
+                                    "format": "date-time",
+                                    "title": "Updated At",
+                                    "type": "string"
+                                },
+                                "white_ms": {
+                                    "title": "White Ms",
+                                    "type": "integer"
+                                },
+                                "black_ms": {
+                                    "title": "Black Ms",
+                                    "type": "integer"
+                                },
+                                "ticking_side": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/new_ply/payload/$defs/PieceColor"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "reason": {
+                                    "$ref": "#/components/messages/new_ply/payload/$defs/GameTimeUpdateReason"
+                                }
+                            },
+                            "required": [
+                                "updated_at",
+                                "white_ms",
+                                "black_ms",
+                                "ticking_side",
+                                "reason"
                             ],
-                            "title": "PlyKindField",
+                            "title": "GameTimeUpdatePublic",
+                            "type": "object"
+                        },
+                        "GameTimeUpdateReason": {
+                            "enum": [
+                                "init",
+                                "ply",
+                                "rollback",
+                                "time_added",
+                                "game_ended"
+                            ],
+                            "title": "GameTimeUpdateReason",
+                            "type": "string"
+                        },
+                        "PieceColor": {
+                            "enum": [
+                                "white",
+                                "black"
+                            ],
+                            "title": "PieceColor",
+                            "type": "string"
+                        },
+                        "PieceKind": {
+                            "enum": [
+                                "progressor",
+                                "aggressor",
+                                "defensor",
+                                "liberator",
+                                "dominator",
+                                "intellector"
+                            ],
+                            "title": "PieceKind",
                             "type": "string"
                         }
                     },
@@ -1996,30 +3336,6 @@
                         "ply_index": {
                             "title": "Ply Index",
                             "type": "integer"
-                        },
-                        "white_seconds_after_execution": {
-                            "anyOf": [
-                                {
-                                    "type": "integer"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "default": null,
-                            "title": "White Seconds After Execution"
-                        },
-                        "black_seconds_after_execution": {
-                            "anyOf": [
-                                {
-                                    "type": "integer"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "default": null,
-                            "title": "Black Seconds After Execution"
                         },
                         "from_i": {
                             "title": "From I",
@@ -2040,59 +3356,32 @@
                         "morph_into": {
                             "anyOf": [
                                 {
-                                    "$ref": "#/components/messages/move/payload/$defs/PieceKindField"
+                                    "$ref": "#/components/messages/new_ply/payload/$defs/PieceKind"
                                 },
                                 {
                                     "type": "null"
                                 }
                             ],
                             "default": null
-                        },
-                        "id": {
-                            "anyOf": [
-                                {
-                                    "type": "integer"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "default": null,
-                            "title": "Id"
                         },
                         "game_id": {
                             "title": "Game Id",
                             "type": "integer"
                         },
-                        "is_cancelled": {
-                            "default": false,
-                            "title": "Is Cancelled",
-                            "type": "boolean"
-                        },
-                        "kind": {
-                            "$ref": "#/components/messages/move/payload/$defs/PlyKindField"
-                        },
-                        "moving_color": {
-                            "$ref": "#/components/messages/move/payload/$defs/PieceColorField"
-                        },
-                        "moved_piece": {
-                            "$ref": "#/components/messages/move/payload/$defs/PieceKindField"
-                        },
-                        "target_piece": {
-                            "anyOf": [
-                                {
-                                    "$ref": "#/components/messages/move/payload/$defs/PieceKindField"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "default": null
-                        },
                         "sip_after": {
                             "maxLength": 127,
                             "title": "Sip After",
                             "type": "string"
+                        },
+                        "time_update": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/messages/new_ply/payload/$defs/GameTimeUpdatePublic"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
                         }
                     },
                     "required": [
@@ -2102,18 +3391,662 @@
                         "to_i",
                         "to_j",
                         "game_id",
-                        "kind",
-                        "moving_color",
-                        "moved_piece",
-                        "sip_after"
+                        "sip_after",
+                        "time_update"
                     ],
-                    "title": "GamePlyEvent",
+                    "title": "PlyBroadcastedData",
+                    "type": "object"
+                },
+                "title": "New Ply",
+                "summary": "Broadcasted to `game` channel group whenever a new move happens on the board"
+            },
+            "new_chat_message": {
+                "name": "new_chat_message",
+                "payload": {
+                    "properties": {
+                        "occurred_at": {
+                            "format": "date-time",
+                            "title": "Occurred At",
+                            "type": "string"
+                        },
+                        "author_ref": {
+                            "maxLength": 32,
+                            "title": "Author Ref",
+                            "type": "string"
+                        },
+                        "text": {
+                            "title": "Text",
+                            "type": "string"
+                        },
+                        "spectator": {
+                            "title": "Spectator",
+                            "type": "boolean"
+                        },
+                        "game_id": {
+                            "title": "Game Id",
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "author_ref",
+                        "text",
+                        "spectator",
+                        "game_id"
+                    ],
+                    "title": "ChatMessageBroadcastedData",
+                    "type": "object"
+                },
+                "title": "New Chat Message",
+                "summary": "Broadcasted to `game` channel group whenever a new chat message arrives"
+            },
+            "offer_action_performed": {
+                "name": "offer_action_performed",
+                "payload": {
+                    "$defs": {
+                        "OfferAction": {
+                            "enum": [
+                                "create",
+                                "cancel",
+                                "accept",
+                                "decline"
+                            ],
+                            "title": "OfferAction",
+                            "type": "string"
+                        },
+                        "OfferKind": {
+                            "enum": [
+                                "draw",
+                                "takeback"
+                            ],
+                            "title": "OfferKind",
+                            "type": "string"
+                        },
+                        "PieceColor": {
+                            "enum": [
+                                "white",
+                                "black"
+                            ],
+                            "title": "PieceColor",
+                            "type": "string"
+                        }
+                    },
+                    "properties": {
+                        "occurred_at": {
+                            "format": "date-time",
+                            "title": "Occurred At",
+                            "type": "string"
+                        },
+                        "action": {
+                            "$ref": "#/components/messages/offer_action_performed/payload/$defs/OfferAction"
+                        },
+                        "offer_kind": {
+                            "$ref": "#/components/messages/offer_action_performed/payload/$defs/OfferKind"
+                        },
+                        "offer_author": {
+                            "$ref": "#/components/messages/offer_action_performed/payload/$defs/PieceColor"
+                        },
+                        "game_id": {
+                            "title": "Game Id",
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "action",
+                        "offer_kind",
+                        "offer_author",
+                        "game_id"
+                    ],
+                    "title": "OfferActionBroadcastedData",
+                    "type": "object"
+                },
+                "title": "Offer Action Performed",
+                "summary": "Broadcasted to `game` channel group whenever a draw or takeback offer is created, cancelled, accepted or rejected"
+            },
+            "time_added": {
+                "name": "time_added",
+                "payload": {
+                    "$defs": {
+                        "GameTimeUpdatePublic": {
+                            "properties": {
+                                "updated_at": {
+                                    "format": "date-time",
+                                    "title": "Updated At",
+                                    "type": "string"
+                                },
+                                "white_ms": {
+                                    "title": "White Ms",
+                                    "type": "integer"
+                                },
+                                "black_ms": {
+                                    "title": "Black Ms",
+                                    "type": "integer"
+                                },
+                                "ticking_side": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/time_added/payload/$defs/PieceColor"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "reason": {
+                                    "$ref": "#/components/messages/time_added/payload/$defs/GameTimeUpdateReason"
+                                }
+                            },
+                            "required": [
+                                "updated_at",
+                                "white_ms",
+                                "black_ms",
+                                "ticking_side",
+                                "reason"
+                            ],
+                            "title": "GameTimeUpdatePublic",
+                            "type": "object"
+                        },
+                        "GameTimeUpdateReason": {
+                            "enum": [
+                                "init",
+                                "ply",
+                                "rollback",
+                                "time_added",
+                                "game_ended"
+                            ],
+                            "title": "GameTimeUpdateReason",
+                            "type": "string"
+                        },
+                        "PieceColor": {
+                            "enum": [
+                                "white",
+                                "black"
+                            ],
+                            "title": "PieceColor",
+                            "type": "string"
+                        }
+                    },
+                    "properties": {
+                        "occurred_at": {
+                            "format": "date-time",
+                            "title": "Occurred At",
+                            "type": "string"
+                        },
+                        "amount_seconds": {
+                            "title": "Amount Seconds",
+                            "type": "integer"
+                        },
+                        "receiver": {
+                            "$ref": "#/components/messages/time_added/payload/$defs/PieceColor"
+                        },
+                        "game_id": {
+                            "title": "Game Id",
+                            "type": "integer"
+                        },
+                        "time_update": {
+                            "$ref": "#/components/messages/time_added/payload/$defs/GameTimeUpdatePublic"
+                        }
+                    },
+                    "required": [
+                        "amount_seconds",
+                        "receiver",
+                        "game_id",
+                        "time_update"
+                    ],
+                    "title": "TimeAddedBroadcastedData",
+                    "type": "object"
+                },
+                "title": "Time Added",
+                "summary": "Broadcasted to `game` channel group whenever a player decides to add time to the opponent's reserves"
+            },
+            "rollback": {
+                "name": "rollback",
+                "payload": {
+                    "$defs": {
+                        "GameTimeUpdatePublic": {
+                            "properties": {
+                                "updated_at": {
+                                    "format": "date-time",
+                                    "title": "Updated At",
+                                    "type": "string"
+                                },
+                                "white_ms": {
+                                    "title": "White Ms",
+                                    "type": "integer"
+                                },
+                                "black_ms": {
+                                    "title": "Black Ms",
+                                    "type": "integer"
+                                },
+                                "ticking_side": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/rollback/payload/$defs/PieceColor"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "reason": {
+                                    "$ref": "#/components/messages/rollback/payload/$defs/GameTimeUpdateReason"
+                                }
+                            },
+                            "required": [
+                                "updated_at",
+                                "white_ms",
+                                "black_ms",
+                                "ticking_side",
+                                "reason"
+                            ],
+                            "title": "GameTimeUpdatePublic",
+                            "type": "object"
+                        },
+                        "GameTimeUpdateReason": {
+                            "enum": [
+                                "init",
+                                "ply",
+                                "rollback",
+                                "time_added",
+                                "game_ended"
+                            ],
+                            "title": "GameTimeUpdateReason",
+                            "type": "string"
+                        },
+                        "PieceColor": {
+                            "enum": [
+                                "white",
+                                "black"
+                            ],
+                            "title": "PieceColor",
+                            "type": "string"
+                        }
+                    },
+                    "properties": {
+                        "occurred_at": {
+                            "format": "date-time",
+                            "title": "Occurred At",
+                            "type": "string"
+                        },
+                        "ply_cnt_before": {
+                            "title": "Ply Cnt Before",
+                            "type": "integer"
+                        },
+                        "ply_cnt_after": {
+                            "title": "Ply Cnt After",
+                            "type": "integer"
+                        },
+                        "requested_by": {
+                            "$ref": "#/components/messages/rollback/payload/$defs/PieceColor"
+                        },
+                        "game_id": {
+                            "title": "Game Id",
+                            "type": "integer"
+                        },
+                        "time_update": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/messages/rollback/payload/$defs/GameTimeUpdatePublic"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "updated_sip": {
+                            "maxLength": 127,
+                            "title": "Updated Sip",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "ply_cnt_before",
+                        "ply_cnt_after",
+                        "requested_by",
+                        "game_id",
+                        "time_update",
+                        "updated_sip"
+                    ],
+                    "title": "RollbackBroadcastedData",
+                    "type": "object"
+                },
+                "title": "Rollback",
+                "summary": "Broadcasted to `game` channel group whenever some of the last moves get cancelled"
+            },
+            "game_ended": {
+                "name": "game_ended",
+                "payload": {
+                    "$defs": {
+                        "GameTimeUpdatePublic": {
+                            "properties": {
+                                "updated_at": {
+                                    "format": "date-time",
+                                    "title": "Updated At",
+                                    "type": "string"
+                                },
+                                "white_ms": {
+                                    "title": "White Ms",
+                                    "type": "integer"
+                                },
+                                "black_ms": {
+                                    "title": "Black Ms",
+                                    "type": "integer"
+                                },
+                                "ticking_side": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/messages/game_ended/payload/$defs/PieceColor"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ]
+                                },
+                                "reason": {
+                                    "$ref": "#/components/messages/game_ended/payload/$defs/GameTimeUpdateReason"
+                                }
+                            },
+                            "required": [
+                                "updated_at",
+                                "white_ms",
+                                "black_ms",
+                                "ticking_side",
+                                "reason"
+                            ],
+                            "title": "GameTimeUpdatePublic",
+                            "type": "object"
+                        },
+                        "GameTimeUpdateReason": {
+                            "enum": [
+                                "init",
+                                "ply",
+                                "rollback",
+                                "time_added",
+                                "game_ended"
+                            ],
+                            "title": "GameTimeUpdateReason",
+                            "type": "string"
+                        },
+                        "OutcomeKind": {
+                            "enum": [
+                                "fatum",
+                                "breakthrough",
+                                "timeout",
+                                "resign",
+                                "abandon",
+                                "draw_agreement",
+                                "repetition",
+                                "no_progress",
+                                "abort"
+                            ],
+                            "title": "OutcomeKind",
+                            "type": "string"
+                        },
+                        "PieceColor": {
+                            "enum": [
+                                "white",
+                                "black"
+                            ],
+                            "title": "PieceColor",
+                            "type": "string"
+                        }
+                    },
+                    "properties": {
+                        "game_ended_at": {
+                            "format": "date-time",
+                            "title": "Game Ended At",
+                            "type": "string"
+                        },
+                        "kind": {
+                            "$ref": "#/components/messages/game_ended/payload/$defs/OutcomeKind"
+                        },
+                        "winner": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/messages/game_ended/payload/$defs/PieceColor"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "default": null
+                        },
+                        "game_id": {
+                            "title": "Game Id",
+                            "type": "integer"
+                        },
+                        "time_update": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/messages/game_ended/payload/$defs/GameTimeUpdatePublic"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "game_id",
+                        "time_update"
+                    ],
+                    "title": "GameEndedBroadcastedData",
+                    "type": "object"
+                },
+                "title": "Game Ended (for specific game watchers)",
+                "summary": "Broadcasted to `game` channel group when the game ends"
+            },
+            "ply": {
+                "name": "ply",
+                "payload": {
+                    "$defs": {
+                        "PieceKind": {
+                            "enum": [
+                                "progressor",
+                                "aggressor",
+                                "defensor",
+                                "liberator",
+                                "dominator",
+                                "intellector"
+                            ],
+                            "title": "PieceKind",
+                            "type": "string"
+                        }
+                    },
+                    "properties": {
+                        "game_id": {
+                            "title": "Game Id",
+                            "type": "integer"
+                        },
+                        "from_i": {
+                            "title": "From I",
+                            "type": "integer"
+                        },
+                        "from_j": {
+                            "title": "From J",
+                            "type": "integer"
+                        },
+                        "to_i": {
+                            "title": "To I",
+                            "type": "integer"
+                        },
+                        "to_j": {
+                            "title": "To J",
+                            "type": "integer"
+                        },
+                        "morph_into": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/messages/ply/payload/$defs/PieceKind"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "default": null
+                        },
+                        "sip_after": {
+                            "anyOf": [
+                                {
+                                    "maxLength": 127,
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "default": null,
+                            "title": "Sip After"
+                        }
+                    },
+                    "required": [
+                        "game_id",
+                        "from_i",
+                        "from_j",
+                        "to_i",
+                        "to_j"
+                    ],
+                    "title": "PlyIntentData",
+                    "type": "object"
+                }
+            },
+            "send_chat_message": {
+                "name": "send_chat_message",
+                "payload": {
+                    "properties": {
+                        "game_id": {
+                            "title": "Game Id",
+                            "type": "integer"
+                        },
+                        "text": {
+                            "title": "Text",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "game_id",
+                        "text"
+                    ],
+                    "title": "ChatMessageIntentData",
+                    "type": "object"
+                }
+            },
+            "perform_offer_action": {
+                "name": "perform_offer_action",
+                "payload": {
+                    "$defs": {
+                        "OfferAction": {
+                            "enum": [
+                                "create",
+                                "cancel",
+                                "accept",
+                                "decline"
+                            ],
+                            "title": "OfferAction",
+                            "type": "string"
+                        },
+                        "OfferKind": {
+                            "enum": [
+                                "draw",
+                                "takeback"
+                            ],
+                            "title": "OfferKind",
+                            "type": "string"
+                        }
+                    },
+                    "properties": {
+                        "game_id": {
+                            "title": "Game Id",
+                            "type": "integer"
+                        },
+                        "action_kind": {
+                            "$ref": "#/components/messages/perform_offer_action/payload/$defs/OfferAction"
+                        },
+                        "offer_kind": {
+                            "$ref": "#/components/messages/perform_offer_action/payload/$defs/OfferKind"
+                        }
+                    },
+                    "required": [
+                        "game_id",
+                        "action_kind",
+                        "offer_kind"
+                    ],
+                    "title": "OfferActionIntentData",
+                    "type": "object"
+                }
+            },
+            "add_time": {
+                "name": "add_time",
+                "payload": {
+                    "properties": {
+                        "game_id": {
+                            "title": "Game Id",
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "game_id"
+                    ],
+                    "title": "AddTimeIntentData",
+                    "type": "object"
+                }
+            },
+            "resign": {
+                "name": "resign",
+                "payload": {
+                    "properties": {
+                        "game_id": {
+                            "title": "Game Id",
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "game_id"
+                    ],
+                    "title": "GameId",
                     "type": "object"
                 }
             }
         }
     },
     "operations": {
+        "everyone": {
+            "action": "send",
+            "messages": [
+                {
+                    "$ref": "#/channels/everyone/messages/server_shutdown"
+                }
+            ],
+            "channel": {
+                "$ref": "#/channels/everyone"
+            }
+        },
+        "NO_CHANNEL": {
+            "action": "send",
+            "messages": [
+                {
+                    "$ref": "#/channels/NO_CHANNEL/messages/refresh.player.started_games"
+                },
+                {
+                    "$ref": "#/channels/NO_CHANNEL/messages/refresh.public_challenge_list"
+                },
+                {
+                    "$ref": "#/channels/NO_CHANNEL/messages/refresh.game_list"
+                },
+                {
+                    "$ref": "#/channels/NO_CHANNEL/messages/refresh.incoming_challenges"
+                },
+                {
+                    "$ref": "#/channels/NO_CHANNEL/messages/refresh.outgoing_challenges"
+                },
+                {
+                    "$ref": "#/channels/NO_CHANNEL/messages/refresh.game"
+                }
+            ],
+            "channel": {
+                "$ref": "#/channels/NO_CHANNEL"
+            }
+        },
         "player.started_games": {
             "action": "send",
             "messages": [
@@ -2187,15 +4120,30 @@
                 "$ref": "#/channels/outgoing_challenges"
             }
         },
-        "everyone": {
+        "game.main": {
             "action": "send",
             "messages": [
                 {
-                    "$ref": "#/channels/everyone/messages/server_shutdown"
+                    "$ref": "#/channels/game.main/messages/new_ply"
+                },
+                {
+                    "$ref": "#/channels/game.main/messages/new_chat_message"
+                },
+                {
+                    "$ref": "#/channels/game.main/messages/offer_action_performed"
+                },
+                {
+                    "$ref": "#/channels/game.main/messages/time_added"
+                },
+                {
+                    "$ref": "#/channels/game.main/messages/rollback"
+                },
+                {
+                    "$ref": "#/channels/game.main/messages/game_ended"
                 }
             ],
             "channel": {
-                "$ref": "#/channels/everyone"
+                "$ref": "#/channels/game.main"
             }
         },
         "receive": {
@@ -2205,7 +4153,19 @@
             },
             "messages": [
                 {
-                    "$ref": "#/channels/NO_CHANNEL/messages/move"
+                    "$ref": "#/channels/NO_CHANNEL/messages/ply"
+                },
+                {
+                    "$ref": "#/channels/NO_CHANNEL/messages/send_chat_message"
+                },
+                {
+                    "$ref": "#/channels/NO_CHANNEL/messages/perform_offer_action"
+                },
+                {
+                    "$ref": "#/channels/NO_CHANNEL/messages/add_time"
+                },
+                {
+                    "$ref": "#/channels/NO_CHANNEL/messages/resign"
                 }
             ]
         }

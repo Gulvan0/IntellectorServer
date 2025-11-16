@@ -1,0 +1,227 @@
+from datetime import datetime, UTC
+
+import bcrypt  # type: ignore
+from fastapi import APIRouter, HTTPException, UploadFile, Depends
+from sqlalchemy import update
+from sqlmodel import col
+
+from src.net.base_router import LoggingRoute
+from src.common.user_ref import UserReference
+from src.player.methods import get_followed_player_logins, get_overall_game_stats, get_restrictions, get_roles, is_player_following_player
+from src.player.datatypes import GameStats, UserRole
+from src.common.dependencies import MainConfigDependency, MandatoryPlayerLoginDependency, MutableStateDependency, OptionalPlayerLoginDependency, SessionDependency, verify_admin
+from src.common.field_types import PlayerLogin
+from src.player.models import (
+    Player,
+    PlayerFollowedPlayer,
+    PlayerPublic,
+    PlayerRestriction,
+    PlayerRole,
+    PlayerUpdate,
+    RestrictionBatchRemovalPayload,
+    RestrictionCastingPayload,
+    RestrictionRemovalPayload,
+    RoleOperationPayload,
+)
+
+import src.game.methods.get as game_get_methods
+import src.study.methods as study_methods
+import src.pubsub.models as pubsub_models
+
+
+router = APIRouter(prefix="/player", route_class=LoggingRoute)
+
+
+@router.get("/{login}", response_model=PlayerPublic)
+async def get_player(
+    *,
+    login: PlayerLogin,
+    session: SessionDependency,
+    state: MutableStateDependency,
+    client_login: OptionalPlayerLoginDependency,
+    main_config: MainConfigDependency
+):
+    db_player = session.get(Player, login)
+    if not db_player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    game_counts = game_get_methods.get_overall_player_game_counts(session, login)
+    game_stats = get_overall_game_stats(session, login, game_counts, main_config.elo.calibration_games)
+
+    user_ref = UserReference.logged(login)
+    player = PlayerPublic(
+        login=db_player.login,
+        joined_at=db_player.joined_at,
+        nickname=db_player.nickname,
+        is_friend=is_player_following_player(session, client_login, login),
+        status=state.get_user_status_in_channel(user_ref, pubsub_models.IncomingChallengesEventChannel(user_ref=login)),
+        per_time_control_stats=game_stats.by_time_control,
+        total_stats=GameStats(elo=game_stats.best.elo, is_elo_provisional=game_stats.best.is_elo_provisional, games_cnt=game_counts.total),
+        studies_cnt=study_methods.get_studies_cnt(session, login, client_login == login),
+        followed_players=get_followed_player_logins(session, login),
+        roles=get_roles(session, login, db_player.preferred_role),
+        restrictions=get_restrictions(session, login)
+    )
+
+    return player
+
+
+@router.patch("/{login}")
+async def update_player(
+    *,
+    session: SessionDependency,
+    login: PlayerLogin,
+    client_login: MandatoryPlayerLoginDependency,
+    player: PlayerUpdate
+):
+    if client_login != login and not session.get(PlayerRole, (UserRole.ADMIN, client_login)):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    db_player = session.get(Player, login)
+    if not db_player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    if player.nickname:
+        if player.nickname.lower() != login:
+            raise HTTPException(status_code=400, detail="Only capitalization may be changed")
+        db_player.nickname = player.nickname
+
+    if player.password:
+        salt = bcrypt.gensalt()
+        db_player.password.salt = salt
+        db_player.password.password_hash = bcrypt.hashpw(player.password, salt)
+
+    if player.preferred_role:
+        if not session.get(PlayerRole, (player.preferred_role, login)):
+            raise HTTPException(status_code=400, detail="The player does not have the role selected to be set as preferred")
+        db_player.preferred_role = player.preferred_role
+
+    session.add(db_player)
+    session.commit()
+
+
+@router.post("/{login}/follow")
+async def follow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency):
+    if client_login == login:
+        raise HTTPException(status_code=400, detail="Cannot follow self")
+
+    if not session.get(Player, login):
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    if session.get(PlayerFollowedPlayer, (client_login, login)):
+        raise HTTPException(status_code=400, detail="Already followed")
+
+    db_player_followed_player = PlayerFollowedPlayer(
+        follower_login=client_login,
+        followed_login=login
+    )
+    session.add(db_player_followed_player)
+    session.commit()
+
+
+@router.post("/{login}/unfollow")
+async def unfollow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency):
+    if client_login == login:
+        raise HTTPException(status_code=400, detail="Cannot unfollow self")
+
+    db_player_followed_player = session.get(PlayerFollowedPlayer, (client_login, login))
+    if not db_player_followed_player:
+        raise HTTPException(status_code=404, detail="Player is not followed or doesn't exist")
+
+    session.delete(db_player_followed_player)
+    session.commit()
+
+
+@router.post("/{login}/role/add", dependencies=[Depends(verify_admin)])
+async def add_role(*, session: SessionDependency, login: PlayerLogin, payload: RoleOperationPayload):
+    if not session.get(Player, login):
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    if session.get(PlayerRole, (payload.role, login)):
+        raise HTTPException(status_code=400, detail="Role is already present")
+
+    db_role = PlayerRole(
+        role=payload.role,
+        login=login
+    )
+    session.add(db_role)
+    session.commit()
+
+
+@router.delete("/{login}/role/remove", dependencies=[Depends(verify_admin)])
+async def remove_role(
+    *,
+    session: SessionDependency,
+    login: PlayerLogin,
+    payload: RoleOperationPayload
+):
+    db_player = session.get(Player, login)
+    if not db_player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    db_role = session.get(PlayerRole, (payload.role, login))
+    if not db_role:
+        raise HTTPException(status_code=404, detail="Role is not assigned to this player")
+
+    if db_player.preferred_role == payload.role:
+        db_player.preferred_role = None
+        session.add(db_player)
+
+    session.delete(db_role)
+    session.commit()
+
+
+@router.post("/{login}/restriction/add", dependencies=[Depends(verify_admin)])
+async def add_restriction(
+    *,
+    session: SessionDependency,
+    login: PlayerLogin,
+    payload: RestrictionCastingPayload
+):
+    if not session.get(Player, login):
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    db_restriction = PlayerRestriction(
+        expires=payload.expires,
+        kind=payload.restriction,
+        login=login
+    )
+    session.add(db_restriction)
+    session.commit()
+
+
+@router.delete("/{login}/restriction/remove", dependencies=[Depends(verify_admin)])
+async def remove_restriction(*, session: SessionDependency, payload: RestrictionRemovalPayload):
+    db_restriction = session.get(PlayerRestriction, payload.restriction_id)
+    if not db_restriction:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    db_restriction.expires = datetime.now(UTC)
+    session.add(db_restriction)
+    session.commit()
+
+
+@router.delete("/{login}/restriction/purge", dependencies=[Depends(verify_admin)])
+async def purge_restrictions(
+    *,
+    session: SessionDependency,
+    login: PlayerLogin,
+    payload: RestrictionBatchRemovalPayload
+):
+    update_query = update(PlayerRestriction).values(expires=datetime.now(UTC)).where(col(PlayerRestriction.login) == login)
+    if payload.restriction:
+        update_query = update_query.where(col(PlayerRestriction.kind) == payload.restriction)
+    session.exec(update_query)  # type: ignore
+
+    session.commit()
+
+
+@router.post("/{login}/avatar/update")
+async def update_avatar(
+    *,
+    session: SessionDependency,
+    login: PlayerLogin,
+    image: UploadFile,
+    client_login: MandatoryPlayerLoginDependency
+):
+    raise HTTPException(status_code=501, detail="Avatar upload is not yet available")

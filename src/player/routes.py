@@ -1,18 +1,16 @@
 from datetime import datetime, UTC
-
-import bcrypt  # type: ignore
 from fastapi import APIRouter, HTTPException, UploadFile, Depends
 from sqlalchemy import update
 from sqlmodel import col
 
+from src.player.dependencies import DBPlayerDependency
 from src.net.base_router import LoggingRoute
 from src.common.user_ref import UserReference
 from src.player.methods import get_followed_player_logins, get_overall_game_stats, get_restrictions, get_roles, is_player_following_player
-from src.player.datatypes import GameStats, UserRole
+from src.player.datatypes import GameStats
 from src.common.dependencies import MainConfigDependency, MandatoryPlayerLoginDependency, MutableStateDependency, OptionalPlayerLoginDependency, SessionDependency, verify_admin
 from src.common.field_types import PlayerLogin
 from src.player.models import (
-    Player,
     PlayerFollowedPlayer,
     PlayerPublic,
     PlayerRestriction,
@@ -35,16 +33,13 @@ router = APIRouter(prefix="/player", route_class=LoggingRoute)
 @router.get("/{login}", response_model=PlayerPublic)
 async def get_player(
     *,
-    login: PlayerLogin,
     session: SessionDependency,
+    login: PlayerLogin,
+    db_player: DBPlayerDependency,
     state: MutableStateDependency,
     client_login: OptionalPlayerLoginDependency,
     main_config: MainConfigDependency
 ):
-    db_player = session.get(Player, login)
-    if not db_player:
-        raise HTTPException(status_code=404, detail="Player not found")
-
     game_counts = game_get_methods.get_overall_player_game_counts(session, login)
     game_stats = get_overall_game_stats(session, login, game_counts, main_config.elo.calibration_games)
 
@@ -57,7 +52,7 @@ async def get_player(
         status=state.get_user_status_in_channel(user_ref, pubsub_models.IncomingChallengesEventChannel(user_ref=login)),
         per_time_control_stats=game_stats.by_time_control,
         total_stats=GameStats(elo=game_stats.best.elo, is_elo_provisional=game_stats.best.is_elo_provisional, games_cnt=game_counts.total),
-        studies_cnt=study_methods.get_studies_cnt(session, login, client_login == login),
+        studies_cnt=study_methods.get_player_studies_cnt(session, login, client_login == login),
         followed_players=get_followed_player_logins(session, login),
         roles=get_roles(session, login, db_player.preferred_role),
         restrictions=get_restrictions(session, login)
@@ -71,25 +66,17 @@ async def update_player(
     *,
     session: SessionDependency,
     login: PlayerLogin,
+    db_player: DBPlayerDependency,
     client_login: MandatoryPlayerLoginDependency,
     player: PlayerUpdate
 ):
-    if client_login != login and not session.get(PlayerRole, (UserRole.ADMIN, client_login)):
+    if client_login != login:
         raise HTTPException(status_code=403, detail="Forbidden")
-
-    db_player = session.get(Player, login)
-    if not db_player:
-        raise HTTPException(status_code=404, detail="Player not found")
 
     if player.nickname:
         if player.nickname.lower() != login:
             raise HTTPException(status_code=400, detail="Only capitalization may be changed")
         db_player.nickname = player.nickname
-
-    if player.password:
-        salt = bcrypt.gensalt()
-        db_player.password.salt = salt
-        db_player.password.password_hash = bcrypt.hashpw(player.password, salt)
 
     if player.preferred_role:
         if not session.get(PlayerRole, (player.preferred_role, login)):
@@ -101,12 +88,9 @@ async def update_player(
 
 
 @router.post("/{login}/follow")
-async def follow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency):
+async def follow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency, _: DBPlayerDependency):
     if client_login == login:
         raise HTTPException(status_code=400, detail="Cannot follow self")
-
-    if not session.get(Player, login):
-        raise HTTPException(status_code=404, detail="Player not found")
 
     if session.get(PlayerFollowedPlayer, (client_login, login)):
         raise HTTPException(status_code=400, detail="Already followed")
@@ -133,10 +117,7 @@ async def unfollow(*, session: SessionDependency, login: PlayerLogin, client_log
 
 
 @router.post("/{login}/role/add", dependencies=[Depends(verify_admin)])
-async def add_role(*, session: SessionDependency, login: PlayerLogin, payload: RoleOperationPayload):
-    if not session.get(Player, login):
-        raise HTTPException(status_code=404, detail="Player not found")
-
+async def add_role(*, session: SessionDependency, login: PlayerLogin, payload: RoleOperationPayload, _: DBPlayerDependency):
     if session.get(PlayerRole, (payload.role, login)):
         raise HTTPException(status_code=400, detail="Role is already present")
 
@@ -153,12 +134,9 @@ async def remove_role(
     *,
     session: SessionDependency,
     login: PlayerLogin,
-    payload: RoleOperationPayload
+    payload: RoleOperationPayload,
+    db_player: DBPlayerDependency
 ):
-    db_player = session.get(Player, login)
-    if not db_player:
-        raise HTTPException(status_code=404, detail="Player not found")
-
     db_role = session.get(PlayerRole, (payload.role, login))
     if not db_role:
         raise HTTPException(status_code=404, detail="Role is not assigned to this player")
@@ -176,11 +154,9 @@ async def add_restriction(
     *,
     session: SessionDependency,
     login: PlayerLogin,
-    payload: RestrictionCastingPayload
+    payload: RestrictionCastingPayload,
+    _: DBPlayerDependency
 ):
-    if not session.get(Player, login):
-        raise HTTPException(status_code=404, detail="Player not found")
-
     db_restriction = PlayerRestriction(
         expires=payload.expires,
         kind=payload.restriction,

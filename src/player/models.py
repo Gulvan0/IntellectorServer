@@ -90,7 +90,6 @@ class PlayerPublic(PlayerBase):
 
 class PlayerUpdate(SQLModel):
     nickname: str | None = None
-    password: str | None = Field(min_length=6, max_length=128, default=None)
     preferred_role: UserRole | None = None
 
 

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field as PydanticField
 from sqlalchemy import CHAR, Column
 from sqlmodel import Field, SQLModel
-from src.common.field_types import CurrentDatetime
+from src.common.field_types import CurrentDatetime, PlayerLogin
 
 
 class AuthCredentials(BaseModel):
@@ -24,3 +24,8 @@ class PlayerPassword(SQLModel, table=True):
     created_at: CurrentDatetime
     salt: str = Field(sa_column=Column(CHAR(6)))
     password_hash: str = Field(sa_column=Column(CHAR(32)))
+
+
+class PlayerPasswordUpdate(BaseModel):
+    login: PlayerLogin
+    password: str = PydanticField(min_length=6, max_length=128)

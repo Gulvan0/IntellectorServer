@@ -34,12 +34,12 @@ async def create_open_challenge(
     main_config: MainConfigDependency,
     secret_config: SecretConfigDependency
 ):
-    perform_common_validations(challenge, caller, state.shutdown_activated, main_config.limits, session)
+    await perform_common_validations(challenge, caller, state.shutdown_activated, main_config.limits, session)
     await try_merging(challenge, caller, session, state, secret_config)
 
     db_challenge = challenge.to_db_challenge(caller.reference)
     session.add(db_challenge)
-    session.commit()
+    await session.commit()
 
     public_challenge = db_challenge.to_public(None)
 
@@ -50,7 +50,7 @@ async def create_open_challenge(
             PublicChallengeListEventChannel()
         )
 
-        notification_methods.send_new_public_challenge_notifications(
+        await notification_methods.send_new_public_challenge_notifications(
             caller=caller,
             public_challenge=public_challenge,
             integrations_config=secret_config.integrations,
@@ -71,8 +71,8 @@ async def create_direct_challenge(
     main_config: MainConfigDependency,
     secret_config: SecretConfigDependency
 ):
-    perform_common_validations(challenge, caller, state.shutdown_activated, main_config.limits, session)
-    callee = validate_direct_callee(challenge, caller, state.last_guest_id, session)
+    await perform_common_validations(challenge, caller, state.shutdown_activated, main_config.limits, session)
+    callee = await validate_direct_callee(challenge, caller, state.last_guest_id, session)
     await try_merging(challenge, caller, session, state, secret_config)
 
     direct_challenges_observer_channel = IncomingChallengesEventChannel(user_ref=challenge.callee_ref)
@@ -80,7 +80,7 @@ async def create_direct_challenge(
 
     db_challenge = challenge.to_db_challenge(caller.reference)
     session.add(db_challenge)
-    session.commit()
+    await session.commit()
 
     public_challenge = db_challenge.to_public(None)
     await state.ws_subscribers.broadcast(
@@ -93,37 +93,37 @@ async def create_direct_challenge(
 
 @router.get("/public", response_model=list[ChallengePublic])
 async def get_public_challenges(*, session: SessionDependency, offset: int = 0, limit: int = Query(default=50, le=50)):
-    challenges = session.exec(select(
+    challenges_result = await session.exec(select(
         Challenge
     ).where(
         Challenge.active == True,  # noqa
         Challenge.kind == ChallengeKind.PUBLIC
-    ).offset(offset).limit(limit)).all()
+    ).offset(offset).limit(limit))
 
     return [
-        to_public_challenge(session, challenge)
-        for challenge in challenges
+        await to_public_challenge(session, challenge)
+        for challenge in challenges_result.all()
     ]
 
 
 @router.get("/my_direct", response_model=list[ChallengePublic])
 async def get_my_direct_challenges(*, session: SessionDependency, client: MandatoryUserDependency):
     return [
-        to_public_challenge(session, challenge)
+        await to_public_challenge(session, challenge)
         for challenge in await get_direct_challenges(session, client)
     ]
 
 
 @router.get("/{id}", response_model=ChallengePublic)
 async def get_challenge(*, session: SessionDependency, id: int):
-    db_challenge = session.get(Challenge, id)
+    db_challenge = await session.get(Challenge, id)
 
     if not db_challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
 
     resulting_game = None
     if db_challenge.resulting_game:
-        resulting_game = game_cast_methods.to_public_game(session, db_challenge.resulting_game)
+        resulting_game = await game_cast_methods.to_public_game(session, db_challenge.resulting_game)
 
     return db_challenge.to_public(resulting_game)
 
@@ -137,7 +137,7 @@ async def cancel_challenge(
     state: MutableStateDependency,
     secret_config: SecretConfigDependency
 ):
-    db_challenge = session.get(Challenge, challenge_id)
+    db_challenge = await session.get(Challenge, challenge_id)
 
     if not db_challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
@@ -150,7 +150,7 @@ async def cancel_challenge(
 
     await cancel_specific_challenge(db_challenge, session, state, secret_config)
     session.add(db_challenge)
-    session.commit()
+    await session.commit()
 
 
 @router.post("/{id}/accept", response_model=game_models.GamePublic)
@@ -162,7 +162,7 @@ async def accept_challenge(
     state: MutableStateDependency,
     secret_config: SecretConfigDependency
 ):
-    db_challenge = session.get(Challenge, challenge_id)
+    db_challenge = await session.get(Challenge, challenge_id)
 
     if not db_challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
@@ -191,7 +191,7 @@ async def decline_challenge(
     state: MutableStateDependency,
     secret_config: SecretConfigDependency
 ):
-    db_challenge = session.get(Challenge, challenge_id)
+    db_challenge = await session.get(Challenge, challenge_id)
 
     if not db_challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
@@ -208,13 +208,13 @@ async def decline_challenge(
     db_challenge.active = False
     session.add(db_challenge)
 
-    notification_methods.delete_new_public_challenge_notifications(
+    await notification_methods.delete_new_public_challenge_notifications(
         challenge_id=challenge_id,
         session=session,
         vk_token=secret_config.integrations.vk.token
     )
 
-    session.commit()
+    await session.commit()
 
     await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.OUTGOING_CHALLENGE_REJECTED,

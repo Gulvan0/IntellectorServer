@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 from typing import Literal
-from sqlmodel import Session
 
 from src.game.exceptions import TimeoutReachedException
 from src.game.models.offer import GameOfferEventPublic
@@ -10,18 +9,19 @@ from src.game.models.time_control import GameFischerTimeControlPublic
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic, GameTimeUpdateReason
 from src.game.methods.get import get_ply_history, get_latest_time_update
 from src.rules import PieceColor
+from src.utils.async_orm_session import AsyncSession
 from src.utils.cast import model_cast, model_cast_optional
 
 
-def collect_game_events(
-    session: Session,
+async def collect_game_events(
+    session: AsyncSession,
     game_id: int,
     game: Game,
     include_spectator_messages: bool
 ) -> GenericEventList:
     events: GenericEventList = []
 
-    for ply_event in get_ply_history(session, game_id):
+    for ply_event in await get_ply_history(session, game_id):
         events.append(ply_event.to_public())
     for chat_event in game.chat_message_events:
         if include_spectator_messages or not chat_event.spectator:
@@ -36,8 +36,8 @@ def collect_game_events(
     return sorted(events, key=lambda x: x.occurred_at)
 
 
-def to_public_game(
-    session: Session,
+async def to_public_game(
+    session: AsyncSession,
     game: Game
 ) -> GamePublic:
     assert game.id
@@ -53,12 +53,12 @@ def to_public_game(
         fischer_time_control=model_cast_optional(game.fischer_time_control, GameFischerTimeControlPublic),
         outcome=game.outcome.to_public() if game.outcome else None,
         events=collect_game_events(session, game.id, game, include_spectator_messages=True),
-        latest_time_update=model_cast_optional(get_latest_time_update(session, game.id), GameTimeUpdatePublic)
+        latest_time_update=model_cast_optional(await get_latest_time_update(session, game.id), GameTimeUpdatePublic)
     )
 
 
-def compose_state_refresh(
-    session: Session,
+async def compose_state_refresh(
+    session: AsyncSession,
     game_id: int,
     game: Game,
     reason: Literal['sub', 'invalid_move'],
@@ -68,20 +68,20 @@ def compose_state_refresh(
         game_id=game_id,
         refresh_reason=reason,
         outcome=game.outcome.to_public() if game.outcome else None,
-        events=collect_game_events(session, game_id, game, include_spectator_messages),
-        latest_time_update=model_cast_optional(get_latest_time_update(session, game_id), GameTimeUpdatePublic)
+        events=await collect_game_events(session, game_id, game, include_spectator_messages),
+        latest_time_update=model_cast_optional(await get_latest_time_update(session, game_id), GameTimeUpdatePublic)
     )
 
 
-def construct_new_ply_time_update(
-    session: Session,
+async def construct_new_ply_time_update(
+    session: AsyncSession,
     game_id: int,
     ply_dt: datetime,
     new_ply_index: int,
     color_to_move: PieceColor,
     timeout_grace_ms: int
 ) -> GameTimeUpdate | None:
-    latest_time_update = get_latest_time_update(session, game_id)
+    latest_time_update = await get_latest_time_update(session, game_id)
     if not latest_time_update:
         return None
 

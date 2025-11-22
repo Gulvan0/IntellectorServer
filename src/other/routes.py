@@ -8,6 +8,7 @@ from src.net.outgoing import WebsocketOutgoingEventRegistry
 
 import src.challenge.methods.update as challenge_update_methods
 import src.game.methods.get as game_get_methods
+from src.pubsub.models import EveryoneEventChannel
 
 
 router = APIRouter(prefix="", route_class=LoggingRoute)
@@ -44,7 +45,8 @@ async def shutdown(
     await challenge_update_methods.cancel_all_challenges(session, state, secret_config)
     await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.SERVER_SHUTDOWN,
-        EmptyModel()
+        EmptyModel(),
+        EveryoneEventChannel()
     )
 
     if not game_get_methods.get_ongoing_finite_game(session):

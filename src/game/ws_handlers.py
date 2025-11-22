@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from sqlmodel import Session
 
 from src.common.user_ref import UserReference
 from src.game.exceptions import PlyInvalidException, TimeoutReachedException
@@ -18,10 +17,9 @@ from src.net.incoming import WebSocketHandlerCollection
 from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.net.sub_storage import SubscriberTag
 from src.net.utils.ws_error import WebSocketException
-from src.game.methods.cast import compose_state_refresh
+from src.game.methods.cast import compose_state_refresh, construct_new_ply_time_update
 from src.game.methods.update import cancel_all_active_offers, end_game
 from src.game.methods.get import (
-    construct_new_ply_time_update,
     get_ply_history,
     is_offer_active,
     get_initial_time,
@@ -32,6 +30,7 @@ from src.game.methods.get import (
 )
 from src.rules import DEFAULT_STARTING_SIP, HexCoordinates, PieceColor, Ply, Position, PositionFinalityGroup
 from src.game.datatypes import OfferAction, OfferKind, OutcomeKind
+from src.utils.async_orm_session import AsyncSession
 from src.utils.cast import model_cast
 
 
@@ -51,8 +50,8 @@ async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIn
     if not client:
         raise WebSocketException("Authorization required. Please provide an auth token")
 
-    with Session(ws.app.db_engine) as session:
-        game = session.get(Game, payload.game_id)
+    async with ws.app.get_db_session() as session:
+        game = await session.get(Game, payload.game_id)
         if not game:
             raise WebSocketException(f"Game {payload.game_id} does not exist")
 
@@ -69,7 +68,7 @@ async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIn
         else:
             raise WebSocketException(f"You are not the player in game {payload.game_id}")
 
-        prev_ply_event = get_last_ply_event(session, payload.game_id)
+        prev_ply_event = await get_last_ply_event(session, payload.game_id)
         prev_sip, new_ply_index = get_current_sip_and_ply_cnt(game, prev_ply_event)
         prev_position = Position.default_starting() if prev_sip == DEFAULT_STARTING_SIP else Position.from_sip(prev_sip)
 
@@ -91,7 +90,7 @@ async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIn
         except PlyInvalidException:
             await ws.send_event(
                 WebsocketOutgoingEventRegistry.REFRESH_GAME,
-                compose_state_refresh(
+                await compose_state_refresh(
                     session=session,
                     game_id=payload.game_id,
                     game=game,
@@ -105,7 +104,7 @@ async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIn
         ply_dt = datetime.now(UTC)
 
         try:
-            new_time_update = construct_new_ply_time_update(
+            new_time_update = await construct_new_ply_time_update(
                 session,
                 payload.game_id,
                 ply_dt,
@@ -146,7 +145,7 @@ async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIn
         if new_time_update:
             session.add(new_time_update)
         session.add(ply_event)
-        session.commit()
+        await session.commit()
 
         await ws.app.mutable_state.ws_subscribers.broadcast(
             WebsocketOutgoingEventRegistry.NEW_PLY,
@@ -176,7 +175,7 @@ async def send_chat_message(ws: WebSocketWrapper, client: UserReference | None, 
     if not client:
         raise WebSocketException("Authorization required. Please provide an auth token")
 
-    with Session(ws.app.db_engine) as session:
+    async with ws.app.get_db_session() as session:
         game = session.get(Game, payload.game_id)
         if not game:
             raise WebSocketException(f"Game {payload.game_id} does not exist")
@@ -193,7 +192,7 @@ async def send_chat_message(ws: WebSocketWrapper, client: UserReference | None, 
             spectator=is_spectator
         )
         session.add(db_event)
-        session.commit()
+        await session.commit()
 
         await ws.app.mutable_state.ws_subscribers.broadcast(
             event=WebsocketOutgoingEventRegistry.NEW_CHAT_MESSAGE,
@@ -204,7 +203,7 @@ async def send_chat_message(ws: WebSocketWrapper, client: UserReference | None, 
 
 
 async def submit_offer_action(
-    session: Session,
+    session: AsyncSession,
     ws: WebSocketWrapper,
     action: OfferAction,
     offer_kind: OfferKind,
@@ -220,7 +219,7 @@ async def submit_offer_action(
     )
     session.add(event)
     if commit:
-        session.commit()
+        await session.commit()
 
     await ws.app.mutable_state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.OFFER_ACTION_PERFORMED,
@@ -236,33 +235,33 @@ async def submit_offer_action(
 
 
 async def cancel_offer(
-    session: Session,
+    session: AsyncSession,
     ws: WebSocketWrapper,
     game_id: int,
     offer_kind: OfferKind,
     offer_author: PieceColor
 ) -> None:
-    if not is_offer_active(session, game_id, offer_kind, offer_author):
+    if not await is_offer_active(session, game_id, offer_kind, offer_author):
         raise WebSocketException("Offer is not active")
 
     await submit_offer_action(session, ws, OfferAction.CANCEL, offer_kind, offer_author, game_id)
 
 
 async def decline_offer(
-    session: Session,
+    session: AsyncSession,
     ws: WebSocketWrapper,
     game_id: int,
     offer_kind: OfferKind,
     offer_author: PieceColor
 ) -> None:
-    if not is_offer_active(session, game_id, offer_kind, offer_author):
+    if not await is_offer_active(session, game_id, offer_kind, offer_author):
         raise WebSocketException("Offer is not active")
 
     await submit_offer_action(session, ws, OfferAction.DECLINE, offer_kind, offer_author, game_id)
 
 
-async def accept_draw(session: Session, ws: WebSocketWrapper, game_id: int, offer_author: PieceColor, skip_activity_check: bool) -> None:
-    if not skip_activity_check and not is_offer_active(session, game_id, OfferKind.DRAW, offer_author):
+async def accept_draw(session: AsyncSession, ws: WebSocketWrapper, game_id: int, offer_author: PieceColor, skip_activity_check: bool) -> None:
+    if not skip_activity_check and not await is_offer_active(session, game_id, OfferKind.DRAW, offer_author):
         raise WebSocketException("Offer is not active")
 
     await submit_offer_action(session, ws, OfferAction.ACCEPT, OfferKind.DRAW, offer_author, game_id)
@@ -270,11 +269,11 @@ async def accept_draw(session: Session, ws: WebSocketWrapper, game_id: int, offe
     await end_game(session, ws.app.mutable_state, ws.app.secret_config, game_id, OutcomeKind.DRAW_AGREEMENT, None)
 
 
-async def accept_takeback(session: Session, ws: WebSocketWrapper, game_id: int, offer_author: PieceColor, game: Game) -> None:
-    if not is_offer_active(session, game_id, OfferKind.TAKEBACK, offer_author):
+async def accept_takeback(session: AsyncSession, ws: WebSocketWrapper, game_id: int, offer_author: PieceColor, game: Game) -> None:
+    if not await is_offer_active(session, game_id, OfferKind.TAKEBACK, offer_author):
         raise WebSocketException("Offer is not active")
 
-    ply_events = get_ply_history(session, game_id, reverse_order=True)
+    ply_events = await get_ply_history(session, game_id, reverse_order=True)
     last_ply_event = next(ply_events, None)
     if not last_ply_event:
         await submit_offer_action(session, ws, OfferAction.CANCEL, OfferKind.TAKEBACK, offer_author, game_id)
@@ -299,7 +298,7 @@ async def accept_takeback(session: Session, ws: WebSocketWrapper, game_id: int, 
         event.is_cancelled = True
     session.add_all(cancelled_ply_events)
 
-    if is_offer_active(session, game_id, OfferKind.TAKEBACK, offer_author.opposite()):
+    if await is_offer_active(session, game_id, OfferKind.TAKEBACK, offer_author.opposite()):
         await submit_offer_action(session, ws, OfferAction.CANCEL, OfferKind.TAKEBACK, offer_author.opposite(), game_id, commit=False)
     await submit_offer_action(session, ws, OfferAction.ACCEPT, OfferKind.TAKEBACK, offer_author, game_id, commit=False)
 
@@ -310,7 +309,7 @@ async def accept_takeback(session: Session, ws: WebSocketWrapper, game_id: int, 
         time_update = new_last_ply_event.time_update
         current_sip = new_last_ply_event.sip_after
     else:
-        time_update = get_initial_time(session, game_id)
+        time_update = await get_initial_time(session, game_id)
         current_sip = game.custom_starting_sip or DEFAULT_STARTING_SIP
 
     if time_update:
@@ -329,7 +328,7 @@ async def accept_takeback(session: Session, ws: WebSocketWrapper, game_id: int, 
         time_update=time_update
     )
     session.add(rollback_event)
-    session.commit()
+    await session.commit()
 
     await ws.app.mutable_state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.ROLLBACK,
@@ -339,7 +338,7 @@ async def accept_takeback(session: Session, ws: WebSocketWrapper, game_id: int, 
 
 
 async def create_offer(
-    session: Session,
+    session: AsyncSession,
     ws: WebSocketWrapper,
     game_id: int,
     color_to_move: PieceColor,
@@ -355,7 +354,7 @@ async def create_offer(
         if ply_cnt < ply_cnt_threshold:
             raise WebSocketException("Cannot ask for a takeback before your first move")
 
-    if is_offer_active(session, game_id, offer_kind, offer_author):
+    if await is_offer_active(session, game_id, offer_kind, offer_author):
         raise WebSocketException("Offer is already active")
 
     if offer_kind == OfferKind.DRAW and is_offer_active(session, game_id, offer_kind, offer_author.opposite()):
@@ -370,8 +369,8 @@ async def perform_offer_action(ws: WebSocketWrapper, client: UserReference | Non
     if not client:
         raise WebSocketException("Authorization required. Please provide an auth token")
 
-    with Session(ws.app.db_engine) as session:
-        game = session.get(Game, payload.game_id)
+    async with ws.app.get_db_session() as session:
+        game = await session.get(Game, payload.game_id)
         if not game:
             raise WebSocketException(f"Game {payload.game_id} does not exist")
 
@@ -390,7 +389,7 @@ async def perform_offer_action(ws: WebSocketWrapper, client: UserReference | Non
 
         match payload.action_kind:
             case OfferAction.CREATE:
-                last_ply_event = get_last_ply_event(session, payload.game_id)
+                last_ply_event = await get_last_ply_event(session, payload.game_id)
                 current_sip, ply_cnt = get_current_sip_and_ply_cnt(game, last_ply_event)
                 await create_offer(session, ws, payload.game_id, Position.color_to_move_from_sip(current_sip), ply_cnt, payload.offer_kind, client_color)
             case OfferAction.CANCEL:
@@ -409,8 +408,8 @@ async def add_time(ws: WebSocketWrapper, client: UserReference | None, payload: 
     if not client:
         raise WebSocketException("Authorization required. Please provide an auth token")
 
-    with Session(ws.app.db_engine) as session:
-        game = session.get(Game, payload.game_id)
+    async with ws.app.get_db_session() as session:
+        game = await session.get(Game, payload.game_id)
         if not game:
             raise WebSocketException(f"Game {payload.game_id} does not exist")
 
@@ -420,7 +419,7 @@ async def add_time(ws: WebSocketWrapper, client: UserReference | None, payload: 
         if game.outcome:
             raise WebSocketException(f"Game {payload.game_id} has already ended")
 
-        latest_time_update = get_latest_time_update(session, payload.game_id)
+        latest_time_update = await get_latest_time_update(session, payload.game_id)
 
         if not latest_time_update:
             raise WebSocketException(f"Game {payload.game_id} is a correspondence game")
@@ -452,7 +451,7 @@ async def add_time(ws: WebSocketWrapper, client: UserReference | None, payload: 
 
         session.add(time_added_event)
         session.add(appended_time_update)
-        session.commit()
+        await session.commit()
 
         await ws.app.mutable_state.ws_subscribers.broadcast(
             WebsocketOutgoingEventRegistry.TIME_ADDED,
@@ -466,8 +465,8 @@ async def resign(ws: WebSocketWrapper, client: UserReference | None, payload: Ga
     if not client:
         raise WebSocketException("Authorization required. Please provide an auth token")
 
-    with Session(ws.app.db_engine) as session:
-        game = session.get(Game, payload.game_id)
+    async with ws.app.get_db_session() as session:
+        game = await session.get(Game, payload.game_id)
         if not game:
             raise WebSocketException(f"Game {payload.game_id} does not exist")
 
@@ -484,7 +483,7 @@ async def resign(ws: WebSocketWrapper, client: UserReference | None, payload: Ga
         else:
             raise WebSocketException(f"You are not the player in game {payload.game_id}")
 
-        last_ply_event = get_last_ply_event(session, payload.game_id)
+        last_ply_event = await get_last_ply_event(session, payload.game_id)
         if not last_ply_event or last_ply_event.ply_index < 1:
             await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.ABORT, None)
         else:

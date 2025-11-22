@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import col, distinct, select
 
+from src.common.field_types import PlayerLogin
 from src.net.base_router import LoggingRoute
 from src.study.models import Study, StudyCreate, StudyPublic, StudyTag, StudyUpdate
 from src.study.datatypes import StudyPublicity
-from src.common.dependencies import OptionalPlayerLoginDependency, PlayerLogin, SessionDependency, MandatoryPlayerLoginDependency
+from src.common.dependencies import OptionalPlayerLoginDependency, SessionDependency, MandatoryPlayerLoginDependency
 
 
 router = APIRouter(prefix="/study", route_class=LoggingRoute)
@@ -15,9 +16,9 @@ async def create_study(*, session: SessionDependency, client_login: MandatoryPla
     db_study = study.build_table_model(client_login)
 
     session.add(db_study)
-    session.commit()
+    await session.commit()
 
-    session.refresh(db_study)
+    await session.refresh(db_study)
     return db_study
 
 
@@ -43,12 +44,13 @@ async def list_studies(
         query = query.where(col(Study.id).in_(fitting_ids))
 
     query = query.offset(offset).limit(limit)
-    return session.exec(query).all()  # noqa
+    result = await session.exec(query)
+    return result.all()
 
 
 @router.get("/{study_id}", response_model=StudyPublic)
 async def get_study(*, session: SessionDependency, study_id: int, client_login: OptionalPlayerLoginDependency):
-    db_study = session.get(Study, study_id)
+    db_study = await session.get(Study, study_id)
 
     if not db_study:
         raise HTTPException(status_code=404, detail="Study not found")
@@ -61,7 +63,7 @@ async def get_study(*, session: SessionDependency, study_id: int, client_login: 
 
 @router.patch("/{study_id}", response_model=StudyPublic)
 async def update_study(*, session: SessionDependency, client_login: MandatoryPlayerLoginDependency, study_id: int, study: StudyUpdate):
-    db_study = session.get(Study, study_id)
+    db_study = await session.get(Study, study_id)
     if not db_study:
         raise HTTPException(status_code=404, detail="Study not found")
 
@@ -74,15 +76,15 @@ async def update_study(*, session: SessionDependency, client_login: MandatoryPla
     db_study.sqlmodel_update(study.dump_for_table_model())  # noqa
 
     session.add(db_study)
-    session.commit()
+    await session.commit()
 
-    session.refresh(db_study)
+    await session.refresh(db_study)
     return db_study
 
 
 @router.delete("/{study_id}")
 async def delete_study(*, session: SessionDependency, client_login: MandatoryPlayerLoginDependency, study_id: int):
-    db_study = session.get(Study, study_id)
+    db_study = await session.get(Study, study_id)
     if not db_study:
         raise HTTPException(status_code=404, detail="Study not found")
 
@@ -93,6 +95,6 @@ async def delete_study(*, session: SessionDependency, client_login: MandatoryPla
         raise HTTPException(status_code=403, detail="Not the study's author")
 
     db_study.sqlmodel_update(dict(deleted=True))  # noqa
-    session.commit()
+    await session.commit()
 
     return dict(ok=True)

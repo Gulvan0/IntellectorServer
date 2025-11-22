@@ -32,7 +32,7 @@ async def guest(state: MutableStateDependency):
 @router.post("/signin", response_model=TokenResponse)
 async def signin(*, credentials: AuthCredentials, session: SessionDependency, state: MutableStateDependency):
     login = credentials.login.lower()
-    password_data = session.get(PlayerPassword, login)
+    password_data = await session.get(PlayerPassword, login)
     if not password_data:
         raise HTTPException(status_code=404, detail="User not found")
     if password_data.password_hash != bcrypt.hashpw(credentials.password, password_data.salt):
@@ -46,11 +46,11 @@ async def signin(*, credentials: AuthCredentials, session: SessionDependency, st
 async def register(*, credentials: AuthCredentials, session: SessionDependency, state: MutableStateDependency):
     login = credentials.login.lower()
 
-    password_data = session.get(PlayerPassword, login)
+    password_data = await session.get(PlayerPassword, login)
     if password_data:
         raise HTTPException(status_code=400, detail="User already exists")
 
-    player_methods.create_player(
+    await player_methods.create_player(
         session=session,
         login=login,
         nickname=credentials.login,  # case preserved!
@@ -64,7 +64,7 @@ async def register(*, credentials: AuthCredentials, session: SessionDependency, 
         password_hash=bcrypt.hashpw(credentials.password, salt)
     )
     session.add(password)
-    session.commit()
+    await session.commit()
 
     token = token_hex()
     state.add_logged(token, login)
@@ -78,10 +78,11 @@ async def update_password(
     client_login: MandatoryPlayerLoginDependency,
     session: SessionDependency
 ):
-    if client_login != payload.login and not session.get(player_models.PlayerRole, (player_datatypes.UserRole.ADMIN, client_login)):
+    existing_admin_entry = await session.get(player_models.PlayerRole, (player_datatypes.UserRole.ADMIN, client_login))
+    if client_login != payload.login and not existing_admin_entry:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    password_data = session.get(PlayerPassword, payload.login)
+    password_data = await session.get(PlayerPassword, payload.login)
     if not password_data:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -90,4 +91,4 @@ async def update_password(
     password_data.salt = salt
     password_data.password_hash = bcrypt.hashpw(payload.password, salt)
     session.add(password_data)
-    session.commit()
+    await session.commit()

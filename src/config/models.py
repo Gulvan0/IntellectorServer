@@ -40,7 +40,7 @@ class DBParams(BaseModel):
 
     @property
     def url(self) -> str:
-        return f"mysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+        return f"mysql+aiomysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
 
 
 class DiscordParams(BaseModel):

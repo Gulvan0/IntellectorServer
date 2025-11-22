@@ -1,5 +1,4 @@
 from datetime import UTC, datetime, timedelta
-from sqlmodel import Session
 
 from src.config.models import SecretConfig
 from src.game.models.main import Game
@@ -11,6 +10,7 @@ from src.net.core import MutableState
 from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.pubsub.models import GameEventChannel
 from src.rules import PieceColor
+from src.utils.async_orm_session import AsyncSession
 from src.utils.cast import model_cast
 
 import time
@@ -18,7 +18,7 @@ import src.notification.methods as notification_methods
 
 
 async def end_game(
-    session: Session,
+    session: AsyncSession,
     state: MutableState,
     secret_config: SecretConfig,
     game_id: int,
@@ -30,7 +30,7 @@ async def end_game(
     # TODO: Add to time updates table (calculate that!)
     # TODO: Send game ended events (multiple channels)
 
-    notification_methods.delete_game_started_notifications(
+    await notification_methods.delete_game_started_notifications(
         game_id=game_id,
         vk_token=secret_config.integrations.vk.token,
         session=session
@@ -44,7 +44,7 @@ async def end_game(
 
 async def check_timeout(
     *,
-    session: Session,
+    session: AsyncSession,
     state: MutableState,
     secret_config: SecretConfig,
     game_id: int,
@@ -54,14 +54,15 @@ async def check_timeout(
     if not threshold or threshold > time.time():
         return False
 
-    if not outcome_abscence_checked and session.get(GameOutcome, game_id) is not None:
+    existing_outcome = await session.get(GameOutcome, game_id)
+    if not outcome_abscence_checked and existing_outcome is not None:
         return False
 
-    latest_time_update = get_latest_time_update(session, game_id)
+    latest_time_update = await get_latest_time_update(session, game_id)
     if not latest_time_update or not latest_time_update.ticking_side:
         return False
 
-    game = session.get(Game, game_id)
+    game = await session.get(Game, game_id)
     timeout_delta_threshold = -60000 if game and game.external_uploader_ref else 0  # 1 minute grace time for external games to account for delays
 
     now_dt = datetime.now(UTC)
@@ -76,8 +77,8 @@ async def check_timeout(
     return False
 
 
-async def cancel_all_active_offers(session: Session, state: MutableState, game_id: int, ply_dt: datetime) -> None:
-    for offer_event in get_active_offers(session, game_id):
+async def cancel_all_active_offers(session: AsyncSession, state: MutableState, game_id: int, ply_dt: datetime) -> None:
+    for offer_event in await get_active_offers(session, game_id):
         cancel_event = GameOfferEvent(
             occurred_at=ply_dt,
             action=OfferAction.CANCEL,
@@ -92,4 +93,4 @@ async def cancel_all_active_offers(session: Session, state: MutableState, game_i
             model_cast(cancel_event, OfferActionBroadcastedData),
             GameEventChannel(game_id=game_id)
         )
-    session.commit()
+    await session.commit()

@@ -1,6 +1,7 @@
 from typing import Iterable
 from sqlalchemy import ScalarResult
-from sqlmodel import Session, and_, col, desc, or_, select, func
+from sqlmodel import and_, col, desc, or_, select, func
+from sqlmodel.sql.expression import SelectOfScalar
 
 from src.common.sql import count_if
 from src.common.time_control import TimeControlKind
@@ -12,10 +13,11 @@ from src.game.models.ply import GamePlyEvent
 from src.game.models.rest import GameFilter
 from src.game.models.time_update import GameTimeUpdate
 from src.rules import PieceColor, PieceKind, PlyKind
+from src.utils.async_orm_session import AsyncSession
 
 
-def get_ply_history(session: Session, game_id: int, reverse_order: bool = False) -> ScalarResult[GamePlyEvent]:
-    return session.exec(select(
+async def get_ply_history(session: AsyncSession, game_id: int, reverse_order: bool = False) -> ScalarResult[GamePlyEvent]:
+    return await session.exec(select(
         GamePlyEvent
     ).where(
         GamePlyEvent.game_id == game_id,
@@ -25,18 +27,20 @@ def get_ply_history(session: Session, game_id: int, reverse_order: bool = False)
     ))
 
 
-def get_ply_cnt(session: Session, game_id: int) -> int:
-    last_ply_index = session.exec(select(
+async def get_ply_cnt(session: AsyncSession, game_id: int) -> int:
+    query: SelectOfScalar[int] = select(
         func.max(GamePlyEvent.ply_index)
     ).where(
         GamePlyEvent.game_id == game_id,
         not GamePlyEvent.is_cancelled
-    )).first()
+    )
+    result = await session.exec(query)
+    last_ply_index = result.first()
     return last_ply_index + 1 if last_ply_index else 0
 
 
-def get_active_offers(session: Session, game_id: int) -> ScalarResult[GameOfferEvent]:
-    return session.exec(
+async def get_active_offers(session: AsyncSession, game_id: int) -> ScalarResult[GameOfferEvent]:
+    return await session.exec(
         select(
             GameOfferEvent
         ).where(
@@ -50,8 +54,8 @@ def get_active_offers(session: Session, game_id: int) -> ScalarResult[GameOfferE
     )
 
 
-def is_offer_active(session: Session, game_id: int, offer_kind: OfferKind, offer_author: PieceColor) -> bool:
-    return session.exec(
+async def is_offer_active(session: AsyncSession, game_id: int, offer_kind: OfferKind, offer_author: PieceColor) -> bool:
+    result = await session.exec(
         select(
             GameOfferEvent.action
         ).where(
@@ -61,11 +65,12 @@ def is_offer_active(session: Session, game_id: int, offer_kind: OfferKind, offer
         ).order_by(
             desc(GameOfferEvent.occurred_at)
         )
-    ).first() == OfferAction.CREATE.value
+    )
+    return result.first() == OfferAction.CREATE.value
 
 
-def get_overall_player_game_counts(session: Session, player_login: str) -> OverallGameCounts:
-    db_games_cnt = session.exec(select(
+async def get_overall_player_game_counts(session: AsyncSession, player_login: str) -> OverallGameCounts:
+    db_games_cnt = await session.exec(select(
         Game.time_control_kind,
         func.count(col(Game.id))
     ).where(
@@ -84,37 +89,50 @@ def get_overall_player_game_counts(session: Session, player_login: str) -> Overa
     return game_counts
 
 
-async def get_current_games(session: Session, game_filter: GameFilter, offset: int = 0, limit: int = 10) -> Iterable[Game]:
-    return session.exec(select(
+async def get_current_games(session: AsyncSession, game_filter: GameFilter, offset: int = 0, limit: int = 10) -> Iterable[Game]:
+    result = await session.exec(select(
         Game
     ).where(
         Game.outcome == None,  # noqa
         *game_filter.construct_conditions()
-    ).offset(offset).limit(limit)).all()
+    ).offset(
+        offset
+    ).limit(
+        limit
+    ))
+    return result.all()
 
 
-async def get_recent_games(session: Session, game_filter: GameFilter, offset: int = 0, limit: int = 10) -> Iterable[Game]:
-    return session.exec(select(
+async def get_recent_games(session: AsyncSession, game_filter: GameFilter, offset: int = 0, limit: int = 10) -> Iterable[Game]:
+    result = await session.exec(select(
         Game
     ).where(
         Game.outcome != None,  # noqa
         *game_filter.construct_conditions()
-    ).order_by(desc(Game.started_at)).offset(offset).limit(limit)).all()
+    ).order_by(
+        desc(Game.started_at)
+    ).offset(
+        offset
+    ).limit(
+        limit
+    ))
+    return result.all()
 
 
-def get_ongoing_finite_game(session: Session) -> Game | None:
-    return session.exec(
+async def get_ongoing_finite_game(session: AsyncSession) -> Game | None:
+    result = await session.exec(
         select(Game)
         .join(GameOutcome)
         .where(
             Game.outcome != None,
             Game.time_control_kind != TimeControlKind.CORRESPONDENCE
         )
-    ).first()
+    )
+    return result.first()
 
 
-def get_last_ply_event(session: Session, game_id: int) -> GamePlyEvent | None:
-    return session.exec(
+async def get_last_ply_event(session: AsyncSession, game_id: int) -> GamePlyEvent | None:
+    result = await session.exec(
         select(GamePlyEvent)
         .where(
             GamePlyEvent.game_id == game_id,
@@ -123,11 +141,12 @@ def get_last_ply_event(session: Session, game_id: int) -> GamePlyEvent | None:
         .order_by(
             desc(GamePlyEvent.ply_index)
         )
-    ).first()
+    )
+    return result.first()
 
 
-def get_initial_time(session: Session, game_id: int) -> GameTimeUpdate | None:
-    return session.exec(
+async def get_initial_time(session: AsyncSession, game_id: int) -> GameTimeUpdate | None:
+    result = await session.exec(
         select(GameTimeUpdate)
         .where(
             GameTimeUpdate.game_id == game_id
@@ -135,11 +154,12 @@ def get_initial_time(session: Session, game_id: int) -> GameTimeUpdate | None:
         .order_by(
             col(GameTimeUpdate.id)
         )
-    ).first()
+    )
+    return result.first()
 
 
-def get_latest_time_update(session: Session, game_id: int) -> GameTimeUpdate | None:
-    return session.exec(
+async def get_latest_time_update(session: AsyncSession, game_id: int) -> GameTimeUpdate | None:
+    result = await session.exec(
         select(GameTimeUpdate)
         .where(
             GameTimeUpdate.game_id == game_id
@@ -147,22 +167,24 @@ def get_latest_time_update(session: Session, game_id: int) -> GameTimeUpdate | N
         .order_by(
             desc(GameTimeUpdate.id)
         )
-    ).first()
+    )
+    return result.first()
 
 
-def has_occured_thrice(session: Session, game_id: int, sip: str) -> bool:
-    same_position_occurences_cnt = session.exec(select(
+async def has_occured_thrice(session: AsyncSession, game_id: int, sip: str) -> bool:
+    result = await session.exec(select(
         func.count(col(GamePlyEvent.id))
     ).where(
         GamePlyEvent.game_id == game_id,
         not GamePlyEvent.is_cancelled,
         GamePlyEvent.sip_after == sip
-    )).one()
+    ))
+    same_position_occurences_cnt = result.one()
     return same_position_occurences_cnt >= 3
 
 
-def is_stale(session: Session, game_id: int, last_ply_index: int) -> bool:
-    last_progressive_ply_index = session.exec(select(
+async def is_stale(session: AsyncSession, game_id: int, last_ply_index: int) -> bool:
+    result = await session.exec(select(
         GamePlyEvent.ply_index
     ).where(
         GamePlyEvent.game_id == game_id,
@@ -174,5 +196,6 @@ def is_stale(session: Session, game_id: int, last_ply_index: int) -> bool:
             ),
             GamePlyEvent.moved_piece == PieceKind.PROGRESSOR
         )
-    )).first()
+    ))
+    last_progressive_ply_index = result.first()
     return last_ply_index - (last_progressive_ply_index or -1) >= 60

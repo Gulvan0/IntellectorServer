@@ -73,7 +73,7 @@ async def append_ply(
     state: MutableStateDependency,
     secret_config: SecretConfigDependency
 ):
-    db_game = session.get(Game, payload.game_id)
+    db_game = await session.get(Game, payload.game_id)
     if not db_game:
         raise HTTPException(status_code=404, detail="Game not found")
 
@@ -88,7 +88,7 @@ async def append_ply(
     if db_game.outcome:
         raise HTTPException(status_code=400, detail="Game has already ended")
 
-    prev_ply_event = get_last_ply_event(session, payload.game_id)
+    prev_ply_event = await get_last_ply_event(session, payload.game_id)
     prev_sip, new_ply_index = get_current_sip_and_ply_cnt(db_game, prev_ply_event)
     prev_position = Position.default_starting() if prev_sip == DEFAULT_STARTING_SIP else Position.from_sip(prev_sip)
 
@@ -137,7 +137,7 @@ async def append_ply(
         time_update=new_time_update
     )
     session.add(ply_event)
-    session.commit()
+    await session.commit()
 
     await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.NEW_PLY,
@@ -188,7 +188,7 @@ async def end_external_game_route(
     if payload.outcome_kind != OutcomeKind.DRAW_AGREEMENT and not payload.winner:
         raise HTTPException(status_code=400, detail="This outcome kind should have a winner")
 
-    db_game = session.get(Game, payload.game_id)
+    db_game = await session.get(Game, payload.game_id)
     if not db_game:
         raise HTTPException(status_code=404, detail="Game not found")
 
@@ -211,7 +211,7 @@ async def rollback_external_game_route(
     session: SessionDependency,
     state: MutableStateDependency
 ):
-    game = session.get(Game, payload.game_id)
+    game = await session.get(Game, payload.game_id)
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
 
@@ -226,7 +226,7 @@ async def rollback_external_game_route(
     if game.outcome:
         raise HTTPException(status_code=400, detail="Game has already ended")
 
-    ply_events = get_ply_history(session, payload.game_id, reverse_order=True)
+    ply_events = await get_ply_history(session, payload.game_id, reverse_order=True)
     last_ply_event = next(ply_events, None)
     if not last_ply_event:
         raise HTTPException(status_code=400, detail="Too early for a rollback")
@@ -258,7 +258,7 @@ async def rollback_external_game_route(
         time_update = new_last_ply_event.time_update
         current_sip = new_last_ply_event.sip_after
     else:
-        time_update = get_initial_time(session, payload.game_id)
+        time_update = await get_initial_time(session, payload.game_id)
         current_sip = game.custom_starting_sip or DEFAULT_STARTING_SIP
 
     requested_by = Position.color_to_move_from_sip(current_sip)
@@ -279,7 +279,7 @@ async def rollback_external_game_route(
         time_update=time_update
     )
     session.add(rollback_event)
-    session.commit()
+    await session.commit()
 
     await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.ROLLBACK,
@@ -297,7 +297,7 @@ async def add_time_external_game_route(
     state: MutableStateDependency,
     main_config: MainConfigDependency
 ):
-    game = session.get(Game, payload.game_id)
+    game = await session.get(Game, payload.game_id)
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
 
@@ -312,7 +312,7 @@ async def add_time_external_game_route(
     if game.outcome:
         raise HTTPException(status_code=400, detail="Game has already ended")
 
-    latest_time_update = get_latest_time_update(session, payload.game_id)
+    latest_time_update = await get_latest_time_update(session, payload.game_id)
 
     if not latest_time_update:
         raise HTTPException(status_code=400, detail=f"Game {payload.game_id} is a correspondence game")
@@ -340,7 +340,7 @@ async def add_time_external_game_route(
 
     session.add(time_added_event)
     session.add(appended_time_update)
-    session.commit()
+    await session.commit()
 
     await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.TIME_ADDED,

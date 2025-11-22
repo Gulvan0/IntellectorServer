@@ -21,7 +21,7 @@ async def get_current_games_route(
     game_filter: GameFilter = GameFilter()
 ):
     return [
-        to_public_game(session, game)
+        await to_public_game(session, game)
         for game in await get_current_games(session, game_filter, offset, limit)
     ]
 
@@ -35,7 +35,7 @@ async def get_recent_games_route(
     game_filter: GameFilter = GameFilter()
 ):
     return [
-        to_public_game(session, game)
+        await to_public_game(session, game)
         for game in await get_recent_games(session, game_filter, offset, limit)
     ]
 
@@ -46,12 +46,12 @@ async def get_game(
     session: SessionDependency,
     game_id: int
 ):
-    db_game = session.get(Game, game_id)
+    db_game = await session.get(Game, game_id)
 
     if not db_game:
         raise HTTPException(status_code=404, detail="Game not found")
 
-    return to_public_game(session, db_game)
+    return await to_public_game(session, db_game)
 
 
 @router.get("/{game_id}/check_timeout")

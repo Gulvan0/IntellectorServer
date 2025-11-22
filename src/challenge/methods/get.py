@@ -1,34 +1,40 @@
 from typing import Iterable
-from sqlalchemy import ColumnElement
-from sqlmodel import Session, and_, or_, select, func, col
+from sqlmodel import and_, or_, select, func, col
 
 from src.challenge.datatypes import ChallengeKind
 from src.challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen
 from src.challenge.sql import time_control_equality_conditions
 from src.common.user_ref import UserReference
+from src.utils.async_orm_session import AsyncSession
 
 
-def get_total_active_challenges_by_caller(session: Session, caller: UserReference) -> int:
-    return session.exec(select(
+async def get_total_active_challenges_by_caller(session: AsyncSession, caller: UserReference) -> int:
+    result = await session.exec(select(
         func.count(col(Challenge.id))
     ).where(
         Challenge.active,
         Challenge.caller_ref == caller.reference
-    )).one()
+    ))
+    return result.one()
 
 
-def get_active_challenge_cnt_by_players(session: Session, caller: UserReference, callee_ref: str) -> int:
-    return session.exec(select(
+async def get_active_challenge_cnt_by_players(session: AsyncSession, caller: UserReference, callee_ref: str) -> int:
+    result = await session.exec(select(
         func.count(col(Challenge.id))
     ).where(
         Challenge.active,
         Challenge.caller_ref == caller.reference,
         Challenge.kind == ChallengeKind.DIRECT,
         Challenge.callee_ref == callee_ref
-    )).one()
+    ))
+    return result.one()
 
 
-def get_identical_challenge(session: Session, caller: UserReference, challenge: ChallengeCreateOpen | ChallengeCreateDirect) -> Challenge | None:
+async def get_identical_challenge(
+    session: AsyncSession,
+    caller: UserReference,
+    challenge: ChallengeCreateOpen | ChallengeCreateDirect
+) -> Challenge | None:
     conditions = [
         Challenge.active,
         Challenge.acceptor_color == challenge.acceptor_color,
@@ -41,13 +47,15 @@ def get_identical_challenge(session: Session, caller: UserReference, challenge: 
             Challenge.kind == ChallengeKind.DIRECT,
             Challenge.callee_ref == challenge.callee_ref,
         ]
-    return session.exec(
+
+    result = await session.exec(
         select(Challenge).where(*conditions)
-    ).first()
+    )
+    return result.first()
 
 
-def get_mergeable_challenge(
-    session: Session,
+async def get_mergeable_challenge(
+    session: AsyncSession,
     caller: UserReference,
     challenge: ChallengeCreateOpen | ChallengeCreateDirect
 ) -> Challenge | None:
@@ -79,10 +87,16 @@ def get_mergeable_challenge(
         col(Challenge.created_at)
     )
 
-    return session.exec(query).first()
+    result = await session.exec(query)
+    return result.first()
 
 
-async def get_direct_challenges(session: Session, user: UserReference, include_incoming: bool = True, include_outgoing: bool = True) -> Iterable[Challenge]:
+async def get_direct_challenges(
+    session: AsyncSession,
+    user: UserReference,
+    include_incoming: bool = True,
+    include_outgoing: bool = True
+) -> Iterable[Challenge]:
     assert include_incoming or include_outgoing
 
     user_filters = []
@@ -91,9 +105,10 @@ async def get_direct_challenges(session: Session, user: UserReference, include_i
     if include_outgoing:
         user_filters.append(Challenge.caller_ref == user.reference)
 
-    return session.exec(select(
+    result = await session.exec(select(
         Challenge
     ).where(
         Challenge.active == True,  # noqa
         or_(*user_filters)
-    )).all()
+    ))
+    return result.all()

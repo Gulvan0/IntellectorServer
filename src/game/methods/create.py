@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from sqlmodel import Session
 
 from src.common.models import Id
 from src.common.user_ref import UserReference
@@ -12,6 +11,7 @@ from src.game.models.main import Game, GamePublic, GameStartedBroadcastedData
 from src.game.models.time_control import GameFischerTimeControl, GameFischerTimeControlPublic
 from src.net.core import MutableState
 from src.common.time_control import FischerTimeControlEntity, TimeControlKind
+from src.utils.async_orm_session import AsyncSession
 from src.utils.cast import model_cast_optional
 
 import random
@@ -44,7 +44,7 @@ async def create_game(
     rated: bool,
     custom_starting_sip: str | None,
     external_uploader_ref: str | None,
-    session: Session,
+    session: AsyncSession,
     state: MutableState,
     deactivated_challenge: challenge_models.Challenge | None = None
 ) -> GamePublic:
@@ -80,9 +80,9 @@ async def create_game(
         deactivated_challenge.resulting_game = db_game
         session.add(deactivated_challenge)
 
-    session.commit()
+    await session.commit()
 
-    public_game = to_public_game(session, db_game)
+    public_game = await to_public_game(session, db_game)
 
     for player_ref in [white_player_ref, black_player_ref]:
         await state.ws_subscribers.broadcast(
@@ -112,7 +112,7 @@ async def create_game(
 async def create_internal_game(
     challenge: challenge_models.Challenge,
     acceptor: UserReference,
-    session: Session,
+    session: AsyncSession,
     state: MutableState,
     secret_config: SecretConfig
 ) -> GamePublic:
@@ -132,7 +132,7 @@ async def create_internal_game(
 
     assert challenge.id
 
-    notification_methods.delete_new_public_challenge_notifications(
+    await notification_methods.delete_new_public_challenge_notifications(
         challenge_id=challenge.id,
         session=session,
         vk_token=secret_config.integrations.vk.token
@@ -153,7 +153,7 @@ async def create_internal_game(
         OutgoingChallengesEventChannel(user_ref=challenge.caller_ref)
     )
 
-    notification_methods.send_game_started_notifications(
+    await notification_methods.send_game_started_notifications(
         white_player_ref,
         black_player_ref,
         public_game,
@@ -170,7 +170,7 @@ async def create_external_game(
     black_player_ref: str,
     time_control: FischerTimeControlEntity | None,
     custom_starting_sip: str | None,
-    session: Session,
+    session: AsyncSession,
     state: MutableState
 ) -> GamePublic:
     return await create_game(

@@ -40,22 +40,22 @@ async def get_player(
     client_login: OptionalPlayerLoginDependency,
     main_config: MainConfigDependency
 ):
-    game_counts = game_get_methods.get_overall_player_game_counts(session, login)
-    game_stats = get_overall_game_stats(session, login, game_counts, main_config.elo.calibration_games)
+    game_counts = await game_get_methods.get_overall_player_game_counts(session, login)
+    game_stats = await get_overall_game_stats(session, login, game_counts, main_config.elo.calibration_games)
 
     user_ref = UserReference.logged(login)
     player = PlayerPublic(
         login=db_player.login,
         joined_at=db_player.joined_at,
         nickname=db_player.nickname,
-        is_friend=is_player_following_player(session, client_login, login),
+        is_friend=await is_player_following_player(session, client_login, login),
         status=state.get_user_status_in_channel(user_ref, pubsub_models.IncomingChallengesEventChannel(user_ref=login)),
         per_time_control_stats=game_stats.by_time_control,
         total_stats=GameStats(elo=game_stats.best.elo, is_elo_provisional=game_stats.best.is_elo_provisional, games_cnt=game_counts.total),
-        studies_cnt=study_methods.get_player_studies_cnt(session, login, client_login == login),
-        followed_players=get_followed_player_logins(session, login),
-        roles=get_roles(session, login, db_player.preferred_role),
-        restrictions=get_restrictions(session, login)
+        studies_cnt=await study_methods.get_player_studies_cnt(session, login, client_login == login),
+        followed_players=await get_followed_player_logins(session, login),
+        roles=await get_roles(session, login, db_player.preferred_role),
+        restrictions=await get_restrictions(session, login)
     )
 
     return player
@@ -79,12 +79,12 @@ async def update_player(
         db_player.nickname = player.nickname
 
     if player.preferred_role:
-        if not session.get(PlayerRole, (player.preferred_role, login)):
+        if not await session.get(PlayerRole, (player.preferred_role, login)):
             raise HTTPException(status_code=400, detail="The player does not have the role selected to be set as preferred")
         db_player.preferred_role = player.preferred_role
 
     session.add(db_player)
-    session.commit()
+    await session.commit()
 
 
 @router.post("/{login}/follow")
@@ -92,7 +92,7 @@ async def follow(*, session: SessionDependency, login: PlayerLogin, client_login
     if client_login == login:
         raise HTTPException(status_code=400, detail="Cannot follow self")
 
-    if session.get(PlayerFollowedPlayer, (client_login, login)):
+    if await session.get(PlayerFollowedPlayer, (client_login, login)):
         raise HTTPException(status_code=400, detail="Already followed")
 
     db_player_followed_player = PlayerFollowedPlayer(
@@ -100,7 +100,7 @@ async def follow(*, session: SessionDependency, login: PlayerLogin, client_login
         followed_login=login
     )
     session.add(db_player_followed_player)
-    session.commit()
+    await session.commit()
 
 
 @router.post("/{login}/unfollow")
@@ -108,17 +108,17 @@ async def unfollow(*, session: SessionDependency, login: PlayerLogin, client_log
     if client_login == login:
         raise HTTPException(status_code=400, detail="Cannot unfollow self")
 
-    db_player_followed_player = session.get(PlayerFollowedPlayer, (client_login, login))
+    db_player_followed_player = await session.get(PlayerFollowedPlayer, (client_login, login))
     if not db_player_followed_player:
         raise HTTPException(status_code=404, detail="Player is not followed or doesn't exist")
 
-    session.delete(db_player_followed_player)
-    session.commit()
+    await session.delete(db_player_followed_player)
+    await session.commit()
 
 
 @router.post("/{login}/role/add", dependencies=[Depends(verify_admin)])
 async def add_role(*, session: SessionDependency, login: PlayerLogin, payload: RoleOperationPayload, _: DBPlayerDependency):
-    if session.get(PlayerRole, (payload.role, login)):
+    if await session.get(PlayerRole, (payload.role, login)):
         raise HTTPException(status_code=400, detail="Role is already present")
 
     db_role = PlayerRole(
@@ -126,7 +126,7 @@ async def add_role(*, session: SessionDependency, login: PlayerLogin, payload: R
         login=login
     )
     session.add(db_role)
-    session.commit()
+    await session.commit()
 
 
 @router.delete("/{login}/role/remove", dependencies=[Depends(verify_admin)])
@@ -137,7 +137,7 @@ async def remove_role(
     payload: RoleOperationPayload,
     db_player: DBPlayerDependency
 ):
-    db_role = session.get(PlayerRole, (payload.role, login))
+    db_role = await session.get(PlayerRole, (payload.role, login))
     if not db_role:
         raise HTTPException(status_code=404, detail="Role is not assigned to this player")
 
@@ -145,8 +145,8 @@ async def remove_role(
         db_player.preferred_role = None
         session.add(db_player)
 
-    session.delete(db_role)
-    session.commit()
+    await session.delete(db_role)
+    await session.commit()
 
 
 @router.post("/{login}/restriction/add", dependencies=[Depends(verify_admin)])
@@ -163,18 +163,18 @@ async def add_restriction(
         login=login
     )
     session.add(db_restriction)
-    session.commit()
+    await session.commit()
 
 
 @router.delete("/{login}/restriction/remove", dependencies=[Depends(verify_admin)])
 async def remove_restriction(*, session: SessionDependency, payload: RestrictionRemovalPayload):
-    db_restriction = session.get(PlayerRestriction, payload.restriction_id)
+    db_restriction = await session.get(PlayerRestriction, payload.restriction_id)
     if not db_restriction:
         raise HTTPException(status_code=404, detail="Not found")
 
     db_restriction.expires = datetime.now(UTC)
     session.add(db_restriction)
-    session.commit()
+    await session.commit()
 
 
 @router.delete("/{login}/restriction/purge", dependencies=[Depends(verify_admin)])
@@ -187,9 +187,9 @@ async def purge_restrictions(
     update_query = update(PlayerRestriction).values(expires=datetime.now(UTC)).where(col(PlayerRestriction.login) == login)
     if payload.restriction:
         update_query = update_query.where(col(PlayerRestriction.kind) == payload.restriction)
-    session.exec(update_query)  # type: ignore
+    await session.exec(update_query)  # type: ignore
 
-    session.commit()
+    await session.commit()
 
 
 @router.post("/{login}/avatar/update")

@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Coroutine
 
 from pydantic import BaseModel, ValidationError
-from sqlmodel import Session
 
 from src.common.user_ref import UserReference
 from src.log.models import WSLog
@@ -86,9 +85,9 @@ class WebSocketHandlerCollection:
         try:
             message = WebsocketIncomingMessage.model_validate(data)
         except ValidationError as e:
-            with Session(ws.app.db_engine) as session:
+            async with ws.app.get_db_session() as session:
                 session.add(log_entry)
-                session.commit()
+                await session.commit()
             await ws.send_validation_error(e)
             return
 
@@ -104,15 +103,15 @@ class WebSocketHandlerCollection:
         if message.token:
             client = token_map.get(message.token)
             if not client:
-                with Session(ws.app.db_engine) as session:
+                async with ws.app.get_db_session() as session:
                     session.add(log_entry)
-                    session.commit()
+                    await session.commit()
                 await ws.send_error(ErrorKind.AUTH_ERROR, "Invalid token")
                 return
             log_entry.authorized_as = client.reference
-            with Session(ws.app.db_engine) as session:
+            async with ws.app.get_db_session() as session:
                 session.add(log_entry)
-                session.commit()
+                await session.commit()
 
         handler = self._slug_to_handler.get(message.event)
         if not handler:

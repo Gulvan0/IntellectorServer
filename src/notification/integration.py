@@ -1,43 +1,50 @@
-import requests  # type: ignore
+import aiohttp
 
 
-def post_vk_message(chat_id: int, text: str, token: str) -> int | None:
+async def post_vk_message(chat_id: int, text: str, token: str) -> int | None:
     try:
-        return requests.post(
-            'https://api.vk.ru/method/messages.send',
-            params=dict(
-                random_id=0,
-                peer_ids=chat_id,
-                message=text,
-                access_token=token,
-                v="5.199"
-            )
-        ).json().get("conversation_message_id")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                'https://api.vk.ru/method/messages.send',
+                params=dict(
+                    random_id=0,
+                    peer_ids=chat_id,
+                    message=text,
+                    access_token=token,
+                    v="5.199"
+                )
+            ) as response:
+                response_json: dict = await response.json()
+                return response_json.get("conversation_message_id")
     except Exception:
         return None
 
 
-def delete_vk_message(message_id: int, chat_id: int, token: str) -> None:
+async def delete_vk_message(message_id: int, chat_id: int, token: str) -> None:
     try:
-        requests.post(
-            'https://api.vk.ru/method/messages.delete',
-            params=dict(
-                cmids=message_id,
-                delete_for_all=1,
-                peer_id=chat_id,
-                access_token=token,
-                v="5.199"
+        async with aiohttp.ClientSession() as session:
+            response = await session.post(
+                'https://api.vk.ru/method/messages.delete',
+                params=dict(
+                    cmids=message_id,
+                    delete_for_all=1,
+                    peer_id=chat_id,
+                    access_token=token,
+                    v="5.199"
+                )
             )
-        )
+            await response.release()
     except Exception:
         pass
 
 
-def post_discord_webhook(url: str, text: str) -> None:
+async def post_discord_webhook(url: str, text: str) -> None:
     try:
-        requests.post(
-            url,
-            json=dict(content=text)
-        )
+        async with aiohttp.ClientSession() as session:
+            response = await session.post(
+                url,
+                json=dict(content=text)
+            )
+            await response.release()
     except Exception:
         pass

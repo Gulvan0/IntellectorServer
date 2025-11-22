@@ -9,8 +9,8 @@ from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from jinja2 import Template
 from pydantic import BaseModel, ValidationError
-from sqlmodel import SQLModel, Session, create_engine
-from sqlalchemy import Engine, text
+from sqlmodel import SQLModel
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from src.common.user_ref import UserReference
 from src.pubsub.models import EventChannel, EveryoneEventChannel
@@ -23,6 +23,7 @@ from src.net.utils.ws_error import ErrorKind
 from src.config.loader import load
 from src.player.datatypes import UserStatus
 from src.utils.bijective_map import BijectiveMap
+from src.utils.async_orm_session import AsyncSession
 
 from src.auth.models import *  # noqa: F401, F403
 from src.challenge.models import *  # noqa: F401, F403
@@ -77,14 +78,14 @@ class WebSocketWrapper:
         return None
 
     async def _send_logged_json(self, payload: dict) -> None:
-        with Session(self.app.db_engine) as session:
+        async with AsyncSession(self.app.db_engine) as session:
             session.add(WSLog(
                 connection_id=str(self.uuid),
                 authorized_as=self.get_user_ref(),
                 payload=json.dumps(payload, ensure_ascii=False),
                 incoming=False
             ))
-            session.commit()
+            await session.commit()
 
         await self.ws.send_json(payload)
 
@@ -141,16 +142,23 @@ class MutableState:
 
 class App(FastAPI):
     @asynccontextmanager
-    async def __lifespan(self: App):
+    async def __lifespan(self):
         SQLModel.metadata.create_all(self.db_engine)  # All models were imported using wildcard at the top of this file
 
         last_guest_id_query = LAST_GUEST_ID_QUERY_PATH.read_text()
-        with Session(self.db_engine) as session:
+        async with AsyncSession(self.db_engine) as session:
+            result = session.exec_raw(last_guest_id_query)
+            self.mutable_state.last_guest_id = result.scalar() or 0
+
             session.add(ServerLaunch())
-            self.mutable_state.last_guest_id = session.connection().execute(text(last_guest_id_query)).scalar() or 0
-            session.commit()
+            await session.commit()
 
         yield
+
+    @asynccontextmanager
+    async def get_db_session(self):
+        async with AsyncSession(self.db_engine) as session:
+            yield session
 
     def __init__(self, rest_routers: list[APIRouter], ws_collections: list[WebSocketHandlerCollection]) -> None:
         super().__init__(lifespan=App.__lifespan)
@@ -160,7 +168,7 @@ class App(FastAPI):
         self.main_config: MainConfig = load('main', MainConfig)
         self.secret_config: SecretConfig = load('secret', SecretConfig)
 
-        self.db_engine: Engine = create_engine(self.secret_config.db.url)
+        self.db_engine: AsyncEngine = create_async_engine(self.secret_config.db.url)
 
         for router in rest_routers:
             self.include_router(router)

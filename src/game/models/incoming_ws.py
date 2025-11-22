@@ -1,11 +1,10 @@
-from pydantic import BaseModel
-
 from src.rules import PieceKind
 from src.common.field_types import Sip
 from src.game.datatypes import OfferAction, OfferKind
+from src.utils.custom_model import CustomModel
 
 
-class PlyIntentData(BaseModel):
+class PlyIntentData(CustomModel):
     game_id: int
     from_i: int
     from_j: int
@@ -15,16 +14,16 @@ class PlyIntentData(BaseModel):
     sip_after: Sip | None = None
 
 
-class ChatMessageIntentData(BaseModel):
+class ChatMessageIntentData(CustomModel):
     game_id: int
     text: str
 
 
-class OfferActionIntentData(BaseModel):
+class OfferActionIntentData(CustomModel):
     game_id: int
     action_kind: OfferAction
     offer_kind: OfferKind
 
 
-class AddTimeIntentData(BaseModel):
+class AddTimeIntentData(CustomModel):
     game_id: int

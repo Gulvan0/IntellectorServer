@@ -1,33 +1,32 @@
 from datetime import datetime
 from typing import Any
-from pydantic import BaseModel
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from src.rules import PieceKind
-
 from src.common.field_types import CurrentDatetime, Sip
 from src.study.datatypes import StudyPublicity
+from src.utils.custom_model import CustomModel, CustomSQLModel
 
 import src.player.models as player_models
 
 
-class ApiHexCoords(BaseModel):
+class ApiHexCoords(CustomModel):
     i: int = Field(ge=0, le=8)
     j: int = Field(ge=0, le=6)
 
 
-class ApiPly(BaseModel):
+class ApiPly(CustomModel):
     departure: ApiHexCoords
     destination: ApiHexCoords
     morph_into: PieceKind | None = None
 
 
-class ApiVariationNode(BaseModel):
+class ApiVariationNode(CustomModel):
     path: str
     ply: ApiPly
 
 
-class StudyBase(SQLModel):
+class StudyBase(CustomSQLModel):
     name: str = Field(max_length=64)
     description: str = Field(max_length=2000)
     publicity: StudyPublicity
@@ -47,7 +46,7 @@ class Study(StudyBase, table=True):
     nodes: list["StudyVariationNode"] = Relationship(back_populates="study", cascade_delete=True)
 
 
-class StudyTagBase(SQLModel):
+class StudyTagBase(CustomSQLModel):
     tag: str = Field(primary_key=True, max_length=16)
 
 
@@ -61,7 +60,7 @@ class StudyTagPublic(StudyTagBase):
     pass
 
 
-class StudyVariationNodeBase(SQLModel):
+class StudyVariationNodeBase(CustomSQLModel):
     joined_path: str = Field(primary_key=True, max_length=500)
     ply_from_i: int
     ply_from_j: int
@@ -110,7 +109,7 @@ class StudyCreate(StudyBase):
         )
 
 
-class StudyUpdate(SQLModel):
+class StudyUpdate(CustomSQLModel):
     name: str | None = Field(max_length=64, default=None)
     description: str | None = Field(max_length=2000, default=None)
     publicity: StudyPublicity | None = None

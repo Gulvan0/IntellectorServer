@@ -1,13 +1,13 @@
-from pydantic import BaseModel
 from sqlalchemy import ColumnElement
 from sqlmodel import or_
 
 from src.game.models.main import Game
 from src.common.field_types import OptionalPlayerRef
 from src.game.datatypes import TimeControlKind
+from src.utils.custom_model import CustomModel
 
 
-class GameFilter(BaseModel):
+class GameFilter(CustomModel):
     player_ref: OptionalPlayerRef = None
     time_control_kind: TimeControlKind | None = None
 

@@ -39,7 +39,6 @@ from src.net.base_router import LoggingRoute
 from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.pubsub.models import GameEventChannel
 from src.rules import DEFAULT_STARTING_SIP, HexCoordinates, PieceColor, Ply, Position, PositionFinalityGroup
-from src.utils.cast import model_cast_optional
 
 
 router = APIRouter(prefix="/game/external", route_class=LoggingRoute)
@@ -150,7 +149,7 @@ async def append_ply(
             morph_into=ply.morph_into,
             game_id=payload.game_id,
             sip_after=new_sip,
-            time_update=model_cast_optional(new_time_update, GameTimeUpdatePublic)
+            time_update=GameTimeUpdatePublic.cast(new_time_update)
         ),
         GameEventChannel(game_id=payload.game_id)
     )

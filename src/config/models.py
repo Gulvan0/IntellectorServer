@@ -1,28 +1,28 @@
-from pydantic import BaseModel
+from src.utils.custom_model import CustomModel
 
 
-class KeepAliveParams(BaseModel):
+class KeepAliveParams(CustomModel):
     beat_interval_ms: int
     timeout_ms: int
 
 
-class EloParams(BaseModel):
+class EloParams(CustomModel):
     default: int
     max_log_slope: float
     normal_log_slope: float
     calibration_games: int
 
 
-class RuleParams(BaseModel):
+class RuleParams(CustomModel):
     secs_added_manually: int
 
 
-class LimitParams(BaseModel):
+class LimitParams(CustomModel):
     max_total_active_challenges: int
     max_same_callee_active_challenges: int
 
 
-class MainConfig(BaseModel):
+class MainConfig(CustomModel):
     min_client_build: int
     server_build: int
     keep_alive: KeepAliveParams
@@ -31,7 +31,7 @@ class MainConfig(BaseModel):
     limits: LimitParams
 
 
-class DBParams(BaseModel):
+class DBParams(CustomModel):
     host: str
     port: int
     user: str
@@ -43,32 +43,32 @@ class DBParams(BaseModel):
         return f"mysql+aiomysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
 
 
-class DiscordParams(BaseModel):
+class DiscordParams(CustomModel):
     webhook_url: str
 
 
-class TelegramParams(BaseModel):
+class TelegramParams(CustomModel):
     token: str
     admin_chat_id: int
 
 
-class VkParams(BaseModel):
+class VkParams(CustomModel):
     token: str
     community_chat_id: int
 
 
-class IntegrationParams(BaseModel):
+class IntegrationParams(CustomModel):
     discord: DiscordParams
     telegram: TelegramParams
     vk: VkParams
 
 
-class SSLParams(BaseModel):
+class SSLParams(CustomModel):
     cert_path: str
     key_path: str
 
 
-class SecretConfig(BaseModel):
+class SecretConfig(CustomModel):
     db: DBParams
     integrations: IntegrationParams
     ssl: SSLParams | None = None

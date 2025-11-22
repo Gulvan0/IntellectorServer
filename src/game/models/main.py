@@ -1,7 +1,5 @@
 from typing import Literal, Optional
-
-from pydantic import BaseModel
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from src.common.field_types import CurrentDatetime, OptionalSip, PlayerRef, OptionalPlayerRef
 from src.common.time_control import TimeControlKind
@@ -13,12 +11,13 @@ from src.game.models.offer import GameOfferEvent, GameOfferEventPublic
 from src.game.models.rollback import GameRollbackEvent, GameRollbackEventPublic
 from src.game.models.time_added import GameTimeAddedEvent, GameTimeAddedEventPublic
 from src.game.models.time_update import GameTimeUpdatePublic
+from src.utils.custom_model import CustomModel, CustomSQLModel
 
 
 GenericEventList = list[GamePlyEventPublic | GameChatMessageEventPublic | GameOfferEventPublic | GameTimeAddedEventPublic | GameRollbackEventPublic]
 
 
-class GameBase(SQLModel):
+class GameBase(CustomSQLModel):
     started_at: CurrentDatetime
 
     white_player_ref: PlayerRef
@@ -55,7 +54,7 @@ class GameStartedBroadcastedData(GameBase):
     fischer_time_control: GameFischerTimeControlPublic | None
 
 
-class GameStateRefresh(BaseModel):
+class GameStateRefresh(CustomModel):
     game_id: int
     refresh_reason: Literal['sub', 'invalid_move']
     outcome: GameOutcomePublic | None

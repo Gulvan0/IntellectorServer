@@ -1,52 +1,53 @@
 from typing import Annotated, ClassVar, Literal, Union
+from pydantic import Field
 
-from pydantic import BaseModel, Field
+from src.utils.custom_model import CustomFrozenModel
 
 
-class EveryoneEventChannel(BaseModel, frozen=True):
+class EveryoneEventChannel(CustomFrozenModel, frozen=True):
     group: ClassVar[str] = 'everyone'
     channel_group: Literal['everyone'] = 'everyone'
 
 
-class PublicChallengeListEventChannel(BaseModel, frozen=True):
+class PublicChallengeListEventChannel(CustomFrozenModel, frozen=True):
     group: ClassVar[str] = 'public_challenge_list'
     channel_group: Literal['public_challenge_list'] = 'public_challenge_list'
 
 
-class GameListEventChannel(BaseModel, frozen=True):
+class GameListEventChannel(CustomFrozenModel, frozen=True):
     group: ClassVar[str] = 'game_list'
     channel_group: Literal['game_list'] = 'game_list'
 
 
-class IncomingChallengesEventChannel(BaseModel, frozen=True):
+class IncomingChallengesEventChannel(CustomFrozenModel, frozen=True):
     group: ClassVar[str] = 'incoming_challenges'
     channel_group: Literal['incoming_challenges'] = 'incoming_challenges'
 
     user_ref: str
 
 
-class OutgoingChallengesEventChannel(BaseModel, frozen=True):
+class OutgoingChallengesEventChannel(CustomFrozenModel, frozen=True):
     group: ClassVar[str] = 'outgoing_challenges'
     channel_group: Literal['outgoing_challenges'] = 'outgoing_challenges'
 
     user_ref: str
 
 
-class GameEventChannel(BaseModel, frozen=True):
+class GameEventChannel(CustomFrozenModel, frozen=True):
     group: ClassVar[str] = 'game.main'
     channel_group: Literal['game.main'] = 'game.main'
 
     game_id: int
 
 
-class StartedPlayerGamesEventChannel(BaseModel, frozen=True):
+class StartedPlayerGamesEventChannel(CustomFrozenModel, frozen=True):
     group: ClassVar[str] = 'player.started_games'
     channel_group: Literal['player.started_games'] = 'player.started_games'
 
     watched_ref: str
 
 
-class SubscriberListEventChannel(BaseModel, frozen=True):
+class SubscriberListEventChannel(CustomFrozenModel, frozen=True):
     group: ClassVar[str] = 'subscriber_list'
     channel_group: Literal['subscriber_list'] = 'subscriber_list'
 

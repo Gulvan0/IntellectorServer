@@ -10,7 +10,6 @@ from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic, Ga
 from src.game.methods.get import get_ply_history, get_latest_time_update
 from src.rules import PieceColor
 from src.utils.async_orm_session import AsyncSession
-from src.utils.cast import model_cast, model_cast_optional
 
 
 async def collect_game_events(
@@ -25,9 +24,9 @@ async def collect_game_events(
         events.append(ply_event.to_public())
     for chat_event in game.chat_message_events:
         if include_spectator_messages or not chat_event.spectator:
-            events.append(model_cast(chat_event, GameChatMessageEventPublic))
+            events.append(GameChatMessageEventPublic.cast(chat_event))
     for offer_event in game.offer_events:
-        events.append(model_cast(offer_event, GameOfferEventPublic))
+        events.append(GameOfferEventPublic.cast(offer_event))
     for time_added_event in game.time_added_events:
         events.append(time_added_event.to_public())
     for rollback_event in game.rollback_events:
@@ -50,10 +49,10 @@ async def to_public_game(
         custom_starting_sip=game.custom_starting_sip,
         external_uploader_ref=game.external_uploader_ref,
         id=game.id,
-        fischer_time_control=model_cast_optional(game.fischer_time_control, GameFischerTimeControlPublic),
+        fischer_time_control=GameFischerTimeControlPublic.cast(game.fischer_time_control),
         outcome=game.outcome.to_public() if game.outcome else None,
         events=collect_game_events(session, game.id, game, include_spectator_messages=True),
-        latest_time_update=model_cast_optional(await get_latest_time_update(session, game.id), GameTimeUpdatePublic)
+        latest_time_update=GameTimeUpdatePublic.cast(await get_latest_time_update(session, game.id))
     )
 
 
@@ -69,7 +68,7 @@ async def compose_state_refresh(
         refresh_reason=reason,
         outcome=game.outcome.to_public() if game.outcome else None,
         events=await collect_game_events(session, game_id, game, include_spectator_messages),
-        latest_time_update=model_cast_optional(await get_latest_time_update(session, game_id), GameTimeUpdatePublic)
+        latest_time_update=GameTimeUpdatePublic.cast(await get_latest_time_update(session, game_id))
     )
 
 

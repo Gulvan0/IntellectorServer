@@ -1,14 +1,14 @@
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from src.rules import PieceColor, PieceKind, PlyKind
-from src.utils.cast import model_cast_optional
 from src.common.field_types import CurrentDatetime, Sip
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
+from src.utils.custom_model import CustomSQLModel
 
 import src.game.models.main as game_main_models
 
 
-class GamePlyEventBase(SQLModel):
+class GamePlyEventBase(CustomSQLModel):
     occurred_at: CurrentDatetime
     ply_index: int
     from_i: int
@@ -42,7 +42,7 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
             to_j=self.to_j,
             morph_into=self.morph_into,
             is_cancelled=self.is_cancelled,
-            time_update=model_cast_optional(self.time_update, GameTimeUpdatePublic)
+            time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
 
     def to_broadcasted_data(self) -> "PlyBroadcastedData":
@@ -56,7 +56,7 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
             morph_into=self.morph_into,
             game_id=self.game_id,
             sip_after=self.sip_after,
-            time_update=model_cast_optional(self.time_update, GameTimeUpdatePublic)
+            time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
 
 

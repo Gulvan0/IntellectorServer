@@ -1,14 +1,14 @@
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from src.rules import PieceColor
-from src.utils.cast import model_cast_optional
 from src.common.field_types import CurrentDatetime, Sip
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
+from src.utils.custom_model import CustomSQLModel
 
 import src.game.models.main as game_main_models
 
 
-class GameRollbackEventBase(SQLModel):
+class GameRollbackEventBase(CustomSQLModel):
     occurred_at: CurrentDatetime
     ply_cnt_before: int
     ply_cnt_after: int
@@ -30,7 +30,7 @@ class GameRollbackEvent(GameRollbackEventBase, table=True):
             ply_cnt_before=self.ply_cnt_before,
             ply_cnt_after=self.ply_cnt_after,
             requested_by=self.requested_by,
-            time_update=model_cast_optional(self.time_update, GameTimeUpdatePublic)
+            time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
 
     def to_broadcasted_data(self, updated_sip: str) -> "RollbackBroadcastedData":
@@ -39,7 +39,7 @@ class GameRollbackEvent(GameRollbackEventBase, table=True):
             ply_cnt_before=self.ply_cnt_before,
             ply_cnt_after=self.ply_cnt_after,
             requested_by=self.requested_by,
-            time_update=model_cast_optional(self.time_update, GameTimeUpdatePublic),
+            time_update=GameTimeUpdatePublic.cast(self.time_update),
             game_id=self.game_id,
             updated_sip=updated_sip
         )

@@ -1,13 +1,14 @@
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from src.rules import PieceColor
 from src.common.field_types import CurrentDatetime
 from src.game.datatypes import OfferAction, OfferKind
+from src.utils.custom_model import CustomSQLModel
 
 import src.game.models.main as game_main_models
 
 
-class GameOfferEventBase(SQLModel):
+class GameOfferEventBase(CustomSQLModel):
     occurred_at: CurrentDatetime
     action: OfferAction
     offer_kind: OfferKind

@@ -1,10 +1,11 @@
 from typing import Optional
 from datetime import UTC, datetime
 from enum import StrEnum, auto
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from src.rules import PieceColor
 from src.game.models.main import Game
+from src.utils.custom_model import CustomSQLModel
 
 
 class GameTimeUpdateReason(StrEnum):
@@ -15,7 +16,7 @@ class GameTimeUpdateReason(StrEnum):
     GAME_ENDED = auto()
 
 
-class GameTimeUpdateBase(SQLModel):
+class GameTimeUpdateBase(CustomSQLModel):
     updated_at: datetime
     white_ms: int
     black_ms: int

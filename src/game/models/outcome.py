@@ -1,15 +1,15 @@
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from src.rules import PieceColor
 from src.common.field_types import CurrentDatetime
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from src.game.datatypes import OutcomeKind
-from src.utils.cast import model_cast_optional
+from src.utils.custom_model import CustomSQLModel
 
 import src.game.models.main as game_main_models
 
 
-class GameOutcomeBase(SQLModel):
+class GameOutcomeBase(CustomSQLModel):
     game_ended_at: CurrentDatetime
     kind: OutcomeKind
     winner: PieceColor | None = None
@@ -28,7 +28,7 @@ class GameOutcome(GameOutcomeBase, table=True):
             game_ended_at=self.game_ended_at,
             kind=self.kind,
             winner=self.winner,
-            time_update=model_cast_optional(self.time_update, GameTimeUpdatePublic)
+            time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
 
     def to_broadcasted_data(self) -> "GameEndedBroadcastedData":
@@ -37,7 +37,7 @@ class GameOutcome(GameOutcomeBase, table=True):
             kind=self.kind,
             winner=self.winner,
             game_id=self.game_id,
-            time_update=model_cast_optional(self.time_update, GameTimeUpdatePublic)
+            time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
 
 

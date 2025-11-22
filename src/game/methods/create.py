@@ -8,11 +8,10 @@ from src.game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.pubsub.models import GameListEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
 from src.game.models.main import Game, GamePublic, GameStartedBroadcastedData
-from src.game.models.time_control import GameFischerTimeControl, GameFischerTimeControlPublic
+from src.game.models.time_control import GameFischerTimeControl
 from src.net.core import MutableState
 from src.common.time_control import FischerTimeControlEntity, TimeControlKind
 from src.utils.async_orm_session import AsyncSession
-from src.utils.cast import model_cast_optional
 
 import random
 import src.challenge.datatypes as challenge_datatypes
@@ -92,17 +91,7 @@ async def create_game(
         )
     await state.ws_subscribers.broadcast(
         WebsocketOutgoingEventRegistry.NEW_ACTIVE_GAME,
-        GameStartedBroadcastedData(
-            started_at=public_game.started_at,
-            white_player_ref=public_game.white_player_ref,
-            black_player_ref=public_game.black_player_ref,
-            time_control_kind=public_game.time_control_kind,
-            rated=public_game.rated,
-            custom_starting_sip=public_game.custom_starting_sip,
-            external_uploader_ref=public_game.external_uploader_ref,
-            id=public_game.id,
-            fischer_time_control=model_cast_optional(public_game.fischer_time_control, GameFischerTimeControlPublic)
-        ),
+        GameStartedBroadcastedData.cast(public_game),
         GameListEventChannel()
     )
 

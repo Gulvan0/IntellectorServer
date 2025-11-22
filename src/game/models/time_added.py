@@ -1,14 +1,14 @@
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from src.rules import PieceColor
-from src.utils.cast import model_cast
 from src.common.field_types import CurrentDatetime
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
+from src.utils.custom_model import CustomSQLModel
 
 import src.game.models.main as game_main_models
 
 
-class GameTimeAddedEventBase(SQLModel):
+class GameTimeAddedEventBase(CustomSQLModel):
     occurred_at: CurrentDatetime
     amount_seconds: int
     receiver: PieceColor
@@ -28,7 +28,7 @@ class GameTimeAddedEvent(GameTimeAddedEventBase, table=True):
             occurred_at=self.occurred_at,
             amount_seconds=self.amount_seconds,
             receiver=self.receiver,
-            time_update=model_cast(self.time_update, GameTimeUpdatePublic)
+            time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
 
     def to_broadcasted_data(self) -> "TimeAddedBroadcastedData":
@@ -37,7 +37,7 @@ class GameTimeAddedEvent(GameTimeAddedEventBase, table=True):
             amount_seconds=self.amount_seconds,
             receiver=self.receiver,
             game_id=self.game_id,
-            time_update=model_cast(self.time_update, GameTimeUpdatePublic)
+            time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
 
 

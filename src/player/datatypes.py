@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
 from enum import auto, StrEnum
 from typing import Self
-from pydantic import BaseModel
 
 from src.common.time_control import TimeControlKind
+from src.utils.custom_model import CustomModel
 
 
 class UserRole(StrEnum):
@@ -32,7 +32,7 @@ class UserStatus(StrEnum):
                 return False
 
 
-class GameStats(BaseModel):
+class GameStats(CustomModel):
     elo: int | None
     is_elo_provisional: bool
     games_cnt: int

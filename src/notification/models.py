@@ -1,5 +1,7 @@
 from enum import StrEnum, auto
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field
+
+from src.utils.custom_model import CustomSQLModel
 
 
 class NotificationApp(StrEnum):
@@ -7,7 +9,7 @@ class NotificationApp(StrEnum):
     VK = auto()
 
 
-class StoredNotificationBase(SQLModel):
+class StoredNotificationBase(CustomSQLModel):
     id: int | None = Field(default=None, primary_key=True)
     app: NotificationApp
     chat_id: int

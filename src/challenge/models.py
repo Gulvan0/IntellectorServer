@@ -1,18 +1,16 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal, Optional
-
-from pydantic import BaseModel
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from src.challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
 from src.common.time_control import FischerTimeControlEntity, TimeControlKind
-from src.utils.cast import model_cast_optional
 from src.common.field_types import CurrentDatetime, PlayerRef, OptionalSip, OptionalPlayerRef
+from src.utils.custom_model import CustomModel, CustomSQLModel
 
 import src.game.models.main as game_models
 
 
-class ChallengeBase(SQLModel):
+class ChallengeBase(CustomSQLModel):
     acceptor_color: ChallengeAcceptorColor = ChallengeAcceptorColor.RANDOM
     custom_starting_sip: OptionalSip
     rated: bool
@@ -43,12 +41,12 @@ class Challenge(ChallengeBase, table=True):
             kind=self.kind,
             time_control_kind=self.time_control_kind,
             active=self.active,
-            fischer_time_control=model_cast_optional(self.fischer_time_control, ChallengeFischerTimeControlPublic),
+            fischer_time_control=ChallengeFischerTimeControlPublic.cast(self.fischer_time_control),
             resulting_game=resulting_game
         )
 
 
-class ChallengeFischerTimeControlBase(SQLModel):
+class ChallengeFischerTimeControlBase(CustomSQLModel):
     start_seconds: int = Field(gt=0, le=60 * 60 * 6)
     increment_seconds: int = Field(default=0, ge=0, le=60 * 2)
 
@@ -85,7 +83,7 @@ class ChallengeCreateOpen(ChallengeBase):
             caller_ref=caller_ref,
             kind=challenge_kind,
             time_control_kind=TimeControlKind.of(self.fischer_time_control),
-            fischer_time_control=model_cast_optional(self.fischer_time_control, ChallengeFischerTimeControl)
+            fischer_time_control=ChallengeFischerTimeControl.cast(self.fischer_time_control)
         )
 
 
@@ -102,7 +100,7 @@ class ChallengeCreateDirect(ChallengeBase):
             callee_ref=self.callee_ref,
             kind=ChallengeKind.DIRECT,
             time_control_kind=TimeControlKind.of(self.fischer_time_control),
-            fischer_time_control=model_cast_optional(self.fischer_time_control, ChallengeFischerTimeControl)
+            fischer_time_control=ChallengeFischerTimeControl.cast(self.fischer_time_control)
         )
 
 
@@ -118,14 +116,14 @@ class ChallengePublic(ChallengeBase):
     resulting_game: game_models.GamePublic | None = None
 
 
-class ChallengeCreateResponse(BaseModel):
+class ChallengeCreateResponse(CustomModel):
     result: Literal["created", "merged"]
     challenge: ChallengePublic | None = None
     callee_online: bool | None = None
     game: game_models.GamePublic | None = None
 
 
-class ChallengeListStateRefresh(BaseModel):
+class ChallengeListStateRefresh(CustomModel):
     challenges: list[Challenge]
 
 

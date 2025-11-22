@@ -31,7 +31,6 @@ from src.game.methods.get import (
 from src.rules import DEFAULT_STARTING_SIP, HexCoordinates, PieceColor, Ply, Position, PositionFinalityGroup
 from src.game.datatypes import OfferAction, OfferKind, OutcomeKind
 from src.utils.async_orm_session import AsyncSession
-from src.utils.cast import model_cast
 
 
 collection = WebSocketHandlerCollection()
@@ -196,7 +195,7 @@ async def send_chat_message(ws: WebSocketWrapper, client: UserReference | None, 
 
         await ws.app.mutable_state.ws_subscribers.broadcast(
             event=WebsocketOutgoingEventRegistry.NEW_CHAT_MESSAGE,
-            payload=model_cast(db_event, ChatMessageBroadcastedData),
+            payload=ChatMessageBroadcastedData.cast(db_event),
             channel=GameEventChannel(game_id=payload.game_id),
             tag_blacklist={SubscriberTag.PARTICIPATING_PLAYER} if not game.outcome and is_spectator else set()
         )

@@ -1,20 +1,21 @@
 from typing import Literal
-from pydantic import BaseModel, Field as PydanticField
+from pydantic import Field as PydanticField
 
 from src.rules import PieceColor, PieceKind
 from src.common.field_types import OptionalSip, PlayerRef
 from src.game.datatypes import OutcomeKind
 from src.game.models.time_control import GameFischerTimeControlCreate
+from src.utils.custom_model import CustomModel
 
 
-class ExternalGameCreatePayload(BaseModel):
+class ExternalGameCreatePayload(CustomModel):
     white_player_ref: PlayerRef
     black_player_ref: PlayerRef
     custom_starting_sip: OptionalSip
     time_control: GameFischerTimeControlCreate
 
 
-class ExternalGameAppendPlyPayload(BaseModel):
+class ExternalGameAppendPlyPayload(CustomModel):
     game_id: int
     from_i: int
     from_j: int
@@ -25,26 +26,26 @@ class ExternalGameAppendPlyPayload(BaseModel):
     black_ms_after_execution: int | None = None
 
 
-class SimpleOutcome(BaseModel):
+class SimpleOutcome(CustomModel):
     kind: OutcomeKind
     winner: PieceColor | None = None
 
 
-class ExternalGameAppendPlyResponse(BaseModel):
+class ExternalGameAppendPlyResponse(CustomModel):
     outcome: SimpleOutcome | None
 
 
-class ExternalGameEndPayload(BaseModel):
+class ExternalGameEndPayload(CustomModel):
     game_id: int
     outcome_kind: Literal[OutcomeKind.ABORT, OutcomeKind.ABANDON, OutcomeKind.DRAW_AGREEMENT, OutcomeKind.RESIGN]
     winner: PieceColor | None = None
 
 
-class ExternalGameRollbackPayload(BaseModel):
+class ExternalGameRollbackPayload(CustomModel):
     game_id: int
     new_ply_cnt: int = PydanticField(ge=0)
 
 
-class ExternalGameAddTimePayload(BaseModel):
+class ExternalGameAddTimePayload(CustomModel):
     game_id: int
     receiver: PieceColor

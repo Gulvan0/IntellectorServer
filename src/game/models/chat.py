@@ -1,11 +1,12 @@
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from src.common.field_types import CurrentDatetime, PlayerRef
+from src.utils.custom_model import CustomSQLModel
 
 import src.game.models.main as game_main_models
 
 
-class GameChatMessageEventBase(SQLModel):
+class GameChatMessageEventBase(CustomSQLModel):
     occurred_at: CurrentDatetime
     author_ref: PlayerRef
     text: str

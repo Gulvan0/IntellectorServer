@@ -1,9 +1,9 @@
-from pydantic import BaseModel
+from src.utils.custom_model import CustomModel
 
 
-class EmptyModel(BaseModel):
+class EmptyModel(CustomModel):
     pass
 
 
-class Id(BaseModel):
+class Id(CustomModel):
     id: int

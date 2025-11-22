@@ -1,18 +1,16 @@
 from datetime import datetime
-from typing import Self
-
-from pydantic import BaseModel
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from src.common.field_types import CurrentDatetime
 from src.player.datatypes import GameStats, UserRestrictionKind, UserRole, UserStatus
 from src.common.time_control import TimeControlKind
+from src.utils.custom_model import CustomModel, CustomSQLModel
 
 import src.game.models.main as main_game_models
 import src.study.models as study_models
 
 
-class PlayerBase(SQLModel):
+class PlayerBase(CustomSQLModel):
     login: str = Field(primary_key=True, max_length=32)
     joined_at: CurrentDatetime
     nickname: str
@@ -28,7 +26,7 @@ class Player(PlayerBase, table=True):
     studies: list[study_models.Study] = Relationship(back_populates="author", cascade_delete=True)
 
 
-class PlayerRoleBase(SQLModel):
+class PlayerRoleBase(CustomSQLModel):
     role: UserRole = Field(primary_key=True)
     granted_at: CurrentDatetime
 
@@ -43,7 +41,7 @@ class PlayerRolePublic(PlayerRoleBase):
     is_main: bool
 
 
-class PlayerRestrictionBase(SQLModel):
+class PlayerRestrictionBase(CustomSQLModel):
     id: int | None = Field(default=None, primary_key=True)
     casted_at: CurrentDatetime
     expires: datetime | None = None
@@ -60,13 +58,13 @@ class PlayerRestrictionPublic(PlayerRestrictionBase):
     pass
 
 
-class PlayerFollowedPlayer(SQLModel, table=True):
+class PlayerFollowedPlayer(CustomSQLModel, table=True):
     follower_login: str = Field(primary_key=True, foreign_key="player.login")
     followed_login: str = Field(primary_key=True, foreign_key="player.login")
     follows_since: CurrentDatetime
 
 
-class PlayerEloProgress(SQLModel, table=True):  # Used for: current elo retrieval, elo history plotting, antifraud checks
+class PlayerEloProgress(CustomSQLModel, table=True):  # Used for: current elo retrieval, elo history plotting, antifraud checks
     id: int | None = Field(default=None, primary_key=True)
     login: str = Field(foreign_key="player.login")
     ts: CurrentDatetime
@@ -88,28 +86,28 @@ class PlayerPublic(PlayerBase):
     restrictions: list[PlayerRestrictionPublic]
 
 
-class PlayerUpdate(SQLModel):
+class PlayerUpdate(CustomSQLModel):
     nickname: str | None = None
     preferred_role: UserRole | None = None
 
 
-class RoleOperationPayload(BaseModel):
+class RoleOperationPayload(CustomModel):
     role: UserRole
 
 
-class RestrictionCastingPayload(BaseModel):
+class RestrictionCastingPayload(CustomModel):
     restriction: UserRestrictionKind
     expires: datetime | None = None
 
 
-class RestrictionRemovalPayload(BaseModel):
+class RestrictionRemovalPayload(CustomModel):
     restriction_id: int
 
 
-class RestrictionBatchRemovalPayload(BaseModel):
+class RestrictionBatchRemovalPayload(CustomModel):
     restriction: UserRestrictionKind | None = None
 
 
-class StartedPlayerGamesStateRefresh(BaseModel):
+class StartedPlayerGamesStateRefresh(CustomModel):
     player_ref: str
     current_game: main_game_models.Game | None

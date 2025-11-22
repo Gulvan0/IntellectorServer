@@ -1,11 +1,13 @@
 from typing import TYPE_CHECKING
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from src.common.time_control import FischerTimeControlEntity
+from src.utils.custom_model import CustomSQLModel
+
 import src.game.models.main as game_main_models
 
 
-class GameFischerTimeControlBase(SQLModel):
+class GameFischerTimeControlBase(CustomSQLModel):
     start_seconds: int
     increment_seconds: int = 0
 

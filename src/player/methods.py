@@ -4,7 +4,6 @@ from src.common.user_ref import UserReference
 from src.player.models import Player, PlayerEloProgress, PlayerFollowedPlayer, PlayerRestriction, PlayerRestrictionPublic, PlayerRole, PlayerRolePublic
 from src.player.datatypes import GameStats, OverallGameStats, UserRestrictionKind, UserRole
 from src.utils.async_orm_session import AsyncSession
-from src.utils.cast import model_cast
 
 import src.game.datatypes as game_datatypes
 
@@ -85,7 +84,7 @@ async def get_restrictions(session: AsyncSession, restriction_owner_login: str) 
         not_expired(PlayerRestriction.expires)
     ))
     return [
-        model_cast(db_restriction, PlayerRestrictionPublic)
+        PlayerRestrictionPublic.cast(db_restriction)
         for db_restriction in db_restrictions
     ]
 

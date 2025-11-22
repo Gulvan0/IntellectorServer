@@ -11,7 +11,6 @@ from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.pubsub.models import GameEventChannel
 from src.rules import PieceColor
 from src.utils.async_orm_session import AsyncSession
-from src.utils.cast import model_cast
 
 import time
 import src.notification.methods as notification_methods
@@ -90,7 +89,7 @@ async def cancel_all_active_offers(session: AsyncSession, state: MutableState, g
 
         await state.ws_subscribers.broadcast(
             WebsocketOutgoingEventRegistry.OFFER_ACTION_PERFORMED,
-            model_cast(cancel_event, OfferActionBroadcastedData),
+            OfferActionBroadcastedData.cast(cancel_event),
             GameEventChannel(game_id=game_id)
         )
     await session.commit()

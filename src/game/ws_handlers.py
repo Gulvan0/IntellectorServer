@@ -1,15 +1,15 @@
 from datetime import UTC, datetime
 
 from src.common.user_ref import UserReference
+from src.game.dependencies.ws import any_user_dependencies, player_dependencies
+from src.game.endpoint_sinks import add_time_sink, append_ply_sink
 from src.game.exceptions import PlyInvalidException, TimeoutReachedException
 from src.game.models.chat import ChatMessageBroadcastedData, GameChatMessageEvent
 from src.game.models.incoming_ws import AddTimeIntentData, ChatMessageIntentData, OfferActionIntentData, PlyIntentData
 from src.game.models.main import Game
 from src.game.models.offer import GameOfferEvent, OfferActionBroadcastedData
 from src.game.models.other import GameId
-from src.game.models.ply import GamePlyEvent
 from src.game.models.rollback import GameRollbackEvent
-from src.game.models.time_added import GameTimeAddedEvent
 from src.pubsub.models import GameEventChannel
 from src.game.models.time_update import GameTimeUpdateReason
 from src.net.core import WebSocketWrapper
@@ -17,18 +17,16 @@ from src.net.incoming import WebSocketHandlerCollection
 from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.net.sub_storage import SubscriberTag
 from src.net.utils.ws_error import WebSocketException
-from src.game.methods.cast import compose_state_refresh, construct_new_ply_time_update
-from src.game.methods.update import cancel_all_active_offers, end_game
+from src.game.methods.cast import compose_state_refresh
+from src.game.methods.update import end_game
 from src.game.methods.get import (
+    get_current_sip_and_ply_cnt,
     get_ply_history,
     is_offer_active,
     get_initial_time,
     get_last_ply_event,
-    get_latest_time_update,
-    has_occured_thrice,
-    is_stale,
 )
-from src.rules import DEFAULT_STARTING_SIP, HexCoordinates, PieceColor, Ply, Position, PositionFinalityGroup
+from src.rules import DEFAULT_STARTING_SIP, PieceColor, Position
 from src.game.datatypes import OfferAction, OfferKind, OutcomeKind
 from src.utils.async_orm_session import AsyncSession
 
@@ -36,84 +34,22 @@ from src.utils.async_orm_session import AsyncSession
 collection = WebSocketHandlerCollection()
 
 
-def get_current_sip_and_ply_cnt(game: Game, last_ply_event: GamePlyEvent | None) -> tuple[str, int]:
-    if last_ply_event:
-        return last_ply_event.sip_after, last_ply_event.ply_index + 1
-
-    return game.custom_starting_sip or DEFAULT_STARTING_SIP, 0
-
-
-# TODO: Split into reusable parts, remove duplicate code
 @collection.register(PlyIntentData)
 async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIntentData):
-    if not client:
-        raise WebSocketException("Authorization required. Please provide an auth token")
-
-    async with ws.app.get_db_session() as session:
-        game = await session.get(Game, payload.game_id)
-        if not game:
-            raise WebSocketException(f"Game {payload.game_id} does not exist")
-
-        if game.external_uploader_ref:
-            raise WebSocketException(f"Game {payload.game_id} is external; use REST endpoints instead")
-
-        if game.outcome:
-            raise WebSocketException(f"Game {payload.game_id} has already ended")
-
-        if client.reference == game.white_player_ref:
-            client_color = PieceColor.WHITE
-        elif client.reference == game.black_player_ref:
-            client_color = PieceColor.BLACK
-        else:
-            raise WebSocketException(f"You are not the player in game {payload.game_id}")
-
-        prev_ply_event = await get_last_ply_event(session, payload.game_id)
-        prev_sip, new_ply_index = get_current_sip_and_ply_cnt(game, prev_ply_event)
-        prev_position = Position.default_starting() if prev_sip == DEFAULT_STARTING_SIP else Position.from_sip(prev_sip)
-
-        if prev_position.color_to_move != client_color:
-            raise WebSocketException("It's not your turn!")
-
-        from_coords = HexCoordinates(payload.from_i, payload.from_j)
-        to_coords = HexCoordinates(payload.to_i, payload.to_j)
-        ply = Ply(from_coords, to_coords, payload.morph_into)
-
+    async with player_dependencies(ws, client, payload.game_id, ended=False) as deps:
         try:
-            if not prev_position.is_ply_possible(ply):
-                raise PlyInvalidException
-
-            perform_ply_result = prev_position.perform_ply_without_validation(ply)
-            new_sip = perform_ply_result.new_position.to_sip()
-            if payload.sip_after and new_sip != payload.sip_after:
-                raise PlyInvalidException
-        except PlyInvalidException:
-            await ws.send_event(
-                WebsocketOutgoingEventRegistry.REFRESH_GAME,
-                await compose_state_refresh(
-                    session=session,
-                    game_id=payload.game_id,
-                    game=game,
-                    reason='invalid_move',
-                    include_spectator_messages=False
-                ),
-                channel=None
-            )
-            return
-
-        ply_dt = datetime.now(UTC)
-
-        try:
-            new_time_update = await construct_new_ply_time_update(
-                session,
-                payload.game_id,
-                ply_dt,
-                new_ply_index,
-                color_to_move=perform_ply_result.new_position.color_to_move,
-                timeout_grace_ms=0
+            await append_ply_sink(
+                deps.session,
+                ws.app.mutable_state,
+                ws.app.secret_config,
+                payload,
+                deps.db_game,
+                None,
+                deps.client_color
             )
         except TimeoutReachedException as e:
             await end_game(
-                session,
+                deps.session,
                 ws.app.mutable_state,
                 ws.app.secret_config,
                 payload.game_id,
@@ -121,83 +57,39 @@ async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIn
                 e.winner,
                 e.reached_at
             )
-            return
-
-        await cancel_all_active_offers(session, ws.app.mutable_state, payload.game_id, ply_dt)
-
-        ply_event = GamePlyEvent(
-            occurred_at=ply_dt,
-            ply_index=new_ply_index,
-            from_i=ply.departure.i,
-            from_j=ply.departure.j,
-            to_i=ply.destination.i,
-            to_j=ply.destination.j,
-            morph_into=ply.morph_into,
-            game_id=payload.game_id,
-            kind=perform_ply_result.ply_kind,
-            moving_color=prev_position.color_to_move,
-            moved_piece=perform_ply_result.moving_piece.kind,
-            target_piece=perform_ply_result.target_piece.kind if perform_ply_result.target_piece else None,
-            sip_after=new_sip,
-            time_update=new_time_update
-        )
-        if new_time_update:
-            session.add(new_time_update)
-        session.add(ply_event)
-        await session.commit()
-
-        await ws.app.mutable_state.ws_subscribers.broadcast(
-            WebsocketOutgoingEventRegistry.NEW_PLY,
-            ply_event.to_broadcasted_data(),
-            GameEventChannel(game_id=payload.game_id)
-        )
-
-        match perform_ply_result.new_position.get_finality_group():
-            case PositionFinalityGroup.FATUM:
-                await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.FATUM, client_color, ply_dt)
-                return
-            case PositionFinalityGroup.BREAKTHROUGH:
-                await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.BREAKTHROUGH, client_color, ply_dt)
-                return
-
-        if has_occured_thrice(session, payload.game_id, new_sip):
-            await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.REPETITION, None, ply_dt)
-            return
-
-        if is_stale(session, payload.game_id, new_ply_index):
-            await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.NO_PROGRESS, None, ply_dt)
-            return
+        except PlyInvalidException:
+            await ws.send_event(
+                WebsocketOutgoingEventRegistry.REFRESH_GAME,
+                await compose_state_refresh(
+                    session=deps.session,
+                    game_id=payload.game_id,
+                    game=deps.db_game,
+                    reason='invalid_move',
+                    include_spectator_messages=False
+                ),
+                channel=None
+            )
 
 
 @collection.register(ChatMessageIntentData)
 async def send_chat_message(ws: WebSocketWrapper, client: UserReference | None, payload: ChatMessageIntentData):
-    if not client:
-        raise WebSocketException("Authorization required. Please provide an auth token")
-
-    async with ws.app.get_db_session() as session:
-        game = session.get(Game, payload.game_id)
-        if not game:
-            raise WebSocketException(f"Game {payload.game_id} does not exist")
-
-        if game.external_uploader_ref:
-            raise WebSocketException(f"Game {payload.game_id} is external; use REST endpoints instead")
-
-        is_spectator = game.outcome or client.reference not in (game.white_player_ref, game.black_player_ref)
+    async with any_user_dependencies(ws, client, payload.game_id, ended=False) as deps:
+        is_spectator = deps.db_game.outcome or deps.client.reference not in (deps.db_game.white_player_ref, deps.db_game.black_player_ref)
 
         db_event = GameChatMessageEvent(
-            author_ref=client.reference,
+            author_ref=deps.client.reference,
             text=payload.text[:500],
             game_id=payload.game_id,
             spectator=is_spectator
         )
-        session.add(db_event)
-        await session.commit()
+        deps.session.add(db_event)
+        await deps.session.commit()
 
         await ws.app.mutable_state.ws_subscribers.broadcast(
             event=WebsocketOutgoingEventRegistry.NEW_CHAT_MESSAGE,
             payload=ChatMessageBroadcastedData.cast(db_event),
             channel=GameEventChannel(game_id=payload.game_id),
-            tag_blacklist={SubscriberTag.PARTICIPATING_PLAYER} if not game.outcome and is_spectator else set()
+            tag_blacklist={SubscriberTag.PARTICIPATING_PLAYER} if not deps.db_game.outcome and is_spectator else set()
         )
 
 
@@ -365,125 +257,34 @@ async def create_offer(
 
 @collection.register(OfferActionIntentData)
 async def perform_offer_action(ws: WebSocketWrapper, client: UserReference | None, payload: OfferActionIntentData):
-    if not client:
-        raise WebSocketException("Authorization required. Please provide an auth token")
-
-    async with ws.app.get_db_session() as session:
-        game = await session.get(Game, payload.game_id)
-        if not game:
-            raise WebSocketException(f"Game {payload.game_id} does not exist")
-
-        if game.external_uploader_ref:
-            raise WebSocketException(f"Game {payload.game_id} is external; use REST endpoints instead")
-
-        if game.outcome:
-            raise WebSocketException(f"Game {payload.game_id} has already ended")
-
-        if client.reference == game.white_player_ref:
-            client_color = PieceColor.WHITE
-        elif client.reference == game.black_player_ref:
-            client_color = PieceColor.BLACK
-        else:
-            raise WebSocketException(f"You are not the player in game {payload.game_id}")
-
+    async with player_dependencies(ws, client, payload.game_id, ended=False) as deps:
         match payload.action_kind:
             case OfferAction.CREATE:
-                last_ply_event = await get_last_ply_event(session, payload.game_id)
-                current_sip, ply_cnt = get_current_sip_and_ply_cnt(game, last_ply_event)
-                await create_offer(session, ws, payload.game_id, Position.color_to_move_from_sip(current_sip), ply_cnt, payload.offer_kind, client_color)
+                last_ply_event = await get_last_ply_event(deps.session, payload.game_id)
+                current_sip, ply_cnt = get_current_sip_and_ply_cnt(deps.db_game, last_ply_event)
+                await create_offer(deps.session, ws, payload.game_id, Position.color_to_move_from_sip(current_sip), ply_cnt, payload.offer_kind, deps.client_color)
             case OfferAction.CANCEL:
-                await cancel_offer(session, ws, payload.game_id, payload.offer_kind, client_color)
+                await cancel_offer(deps.session, ws, payload.game_id, payload.offer_kind, deps.client_color)
             case OfferAction.DECLINE:
-                await decline_offer(session, ws, payload.game_id, payload.offer_kind, client_color.opposite())
+                await decline_offer(deps.session, ws, payload.game_id, payload.offer_kind, deps.client_color.opposite())
             case OfferAction.ACCEPT:
                 if payload.offer_kind == OfferKind.DRAW:
-                    await accept_draw(session, ws, payload.game_id, client_color.opposite(), skip_activity_check=False)
+                    await accept_draw(deps.session, ws, payload.game_id, deps.client_color.opposite(), skip_activity_check=False)
                 else:
-                    await accept_takeback(session, ws, payload.game_id, client_color.opposite(), game)
+                    await accept_takeback(deps.session, ws, payload.game_id, deps.client_color.opposite(), deps.db_game)
 
 
 @collection.register(AddTimeIntentData)
 async def add_time(ws: WebSocketWrapper, client: UserReference | None, payload: AddTimeIntentData):
-    if not client:
-        raise WebSocketException("Authorization required. Please provide an auth token")
-
-    async with ws.app.get_db_session() as session:
-        game = await session.get(Game, payload.game_id)
-        if not game:
-            raise WebSocketException(f"Game {payload.game_id} does not exist")
-
-        if game.external_uploader_ref:
-            raise WebSocketException(f"Game {payload.game_id} is external; use REST endpoints instead")
-
-        if game.outcome:
-            raise WebSocketException(f"Game {payload.game_id} has already ended")
-
-        latest_time_update = await get_latest_time_update(session, payload.game_id)
-
-        if not latest_time_update:
-            raise WebSocketException(f"Game {payload.game_id} is a correspondence game")
-
-        addition_dt = datetime.now(UTC)
-
-        secs_added = ws.app.main_config.rules.secs_added_manually
-        ms_added = secs_added * 1000
-
-        appended_time_update = latest_time_update.model_copy()
-        appended_time_update.updated_at = addition_dt
-        appended_time_update.reason = GameTimeUpdateReason.TIME_ADDED
-        if client.reference == game.white_player_ref:
-            receiver = PieceColor.BLACK
-            appended_time_update.black_ms += ms_added
-        elif client.reference == game.black_player_ref:
-            receiver = PieceColor.WHITE
-            appended_time_update.white_ms += ms_added
-        else:
-            raise WebSocketException(f"You are not the player in game {payload.game_id}")
-
-        time_added_event = GameTimeAddedEvent(
-            occurred_at=addition_dt,
-            amount_seconds=secs_added,
-            receiver=receiver,
-            game_id=payload.game_id,
-            time_update=appended_time_update
-        )
-
-        session.add(time_added_event)
-        session.add(appended_time_update)
-        await session.commit()
-
-        await ws.app.mutable_state.ws_subscribers.broadcast(
-            WebsocketOutgoingEventRegistry.TIME_ADDED,
-            time_added_event.to_broadcasted_data(),
-            GameEventChannel(game_id=payload.game_id)
-        )
+    async with player_dependencies(ws, client, payload.game_id, ended=False) as deps:
+        await add_time_sink(deps.session, ws.app.main_config, ws.app.mutable_state, payload, deps.client_color.opposite())
 
 
 @collection.register(GameId)
 async def resign(ws: WebSocketWrapper, client: UserReference | None, payload: GameId):
-    if not client:
-        raise WebSocketException("Authorization required. Please provide an auth token")
-
-    async with ws.app.get_db_session() as session:
-        game = await session.get(Game, payload.game_id)
-        if not game:
-            raise WebSocketException(f"Game {payload.game_id} does not exist")
-
-        if game.external_uploader_ref:
-            raise WebSocketException(f"Game {payload.game_id} is external; use REST endpoints instead")
-
-        if game.outcome:
-            raise WebSocketException(f"Game {payload.game_id} has already ended")
-
-        if client.reference == game.white_player_ref:
-            winner = PieceColor.BLACK
-        elif client.reference == game.black_player_ref:
-            winner = PieceColor.WHITE
-        else:
-            raise WebSocketException(f"You are not the player in game {payload.game_id}")
-
-        last_ply_event = await get_last_ply_event(session, payload.game_id)
+    async with player_dependencies(ws, client, payload.game_id, ended=False) as deps:
+        last_ply_event = await get_last_ply_event(deps.session, payload.game_id)
         if not last_ply_event or last_ply_event.ply_index < 1:
-            await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.ABORT, None)
+            await end_game(deps.session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.ABORT, None)
         else:
-            await end_game(session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.RESIGN, winner)
+            await end_game(deps.session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.RESIGN, deps.client_color.opposite())

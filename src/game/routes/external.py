@@ -8,16 +8,13 @@ from src.common.dependencies import (
     SecretConfigDependency,
     SessionDependency,
 )
-from src.common.user_ref import UserReference
-from src.game.datatypes import OutcomeKind
+from src.game.dependencies.rest import CLIENT_IS_UPLOADER_DEPENDENCY, GAME_EXISTS_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency
+from src.game.endpoint_sinks import add_time_sink, append_ply_sink
+from src.game.exceptions import PlyInvalidException, TimeoutReachedException
 from src.game.methods.create import create_external_game
 from src.game.methods.get import (
     get_initial_time,
-    get_last_ply_event,
-    get_latest_time_update,
     get_ply_history,
-    has_occured_thrice,
-    is_stale,
 )
 from src.game.methods.update import end_game
 from src.game.models.external import (
@@ -27,18 +24,14 @@ from src.game.models.external import (
     ExternalGameCreatePayload,
     ExternalGameEndPayload,
     ExternalGameRollbackPayload,
-    SimpleOutcome,
 )
-from src.game.models.main import Game, GamePublic
-from src.game.models.ply import GamePlyEvent, PlyBroadcastedData
+from src.game.models.main import GamePublic
 from src.game.models.rollback import GameRollbackEvent
-from src.game.models.time_added import GameTimeAddedEvent
-from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic, GameTimeUpdateReason
-from src.game.ws_handlers import get_current_sip_and_ply_cnt
+from src.game.models.time_update import GameTimeUpdateReason
 from src.net.base_router import LoggingRoute
 from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.pubsub.models import GameEventChannel
-from src.rules import DEFAULT_STARTING_SIP, HexCoordinates, PieceColor, Ply, Position, PositionFinalityGroup
+from src.rules import DEFAULT_STARTING_SIP, Position
 
 
 router = APIRouter(prefix="/game/external", route_class=LoggingRoute)
@@ -63,168 +56,64 @@ async def create(
     )
 
 
-@router.get("/append_ply", response_model=ExternalGameAppendPlyResponse)
+@router.get("/append_ply", response_model=ExternalGameAppendPlyResponse, dependencies=[
+    CLIENT_IS_UPLOADER_DEPENDENCY,
+    GAME_IS_ONGOING_DEPENDENCY,
+])
 async def append_ply(
     *,
     payload: ExternalGameAppendPlyPayload,
-    client: MandatoryUserDependency,
+    db_game: GameDependency,
     session: SessionDependency,
     state: MutableStateDependency,
     secret_config: SecretConfigDependency
 ):
-    db_game = await session.get(Game, payload.game_id)
-    if not db_game:
-        raise HTTPException(status_code=404, detail="Game not found")
-
-    if db_game.external_uploader_ref != client.reference:
-        if db_game.external_uploader_ref:
-            pretty_uploader_ref = UserReference(db_game.external_uploader_ref).pretty()
-            message = f"Only {pretty_uploader_ref} can modify this game"
-        else:
-            message = "Cannot modify internal game"
-        raise HTTPException(status_code=403, detail=message)
-
-    if db_game.outcome:
-        raise HTTPException(status_code=400, detail="Game has already ended")
-
-    prev_ply_event = await get_last_ply_event(session, payload.game_id)
-    prev_sip, new_ply_index = get_current_sip_and_ply_cnt(db_game, prev_ply_event)
-    prev_position = Position.default_starting() if prev_sip == DEFAULT_STARTING_SIP else Position.from_sip(prev_sip)
-
-    from_coords = HexCoordinates(payload.from_i, payload.from_j)
-    to_coords = HexCoordinates(payload.to_i, payload.to_j)
-    ply = Ply(from_coords, to_coords, payload.morph_into)
-
-    if not prev_position.is_ply_possible(ply):
-        raise HTTPException(status_code=400, detail=f"Impossible ply. Current SIP is {prev_sip}")
-
-    perform_ply_result = prev_position.perform_ply_without_validation(ply)
-    new_sip = perform_ply_result.new_position.to_sip()
-
-    ply_dt = datetime.now(UTC)
-
-    if db_game.fischer_time_control:
-        if not payload.white_ms_after_execution or not payload.black_ms_after_execution:
-            raise HTTPException(status_code=400, detail="Time remainders should be provided")
-
-        new_time_update = GameTimeUpdate(
-            updated_at=ply_dt,
-            white_ms=payload.white_ms_after_execution,
-            black_ms=payload.black_ms_after_execution,
-            ticking_side=prev_position.color_to_move.opposite() if new_ply_index >= 1 else None,
-            reason=GameTimeUpdateReason.PLY,
-            game_id=payload.game_id
+    try:
+        outcome = await append_ply_sink(
+            session,
+            state,
+            secret_config,
+            payload,
+            db_game,
+            payload.time_remainders
         )
-        session.add(new_time_update)
+    except TimeoutReachedException as e:
+        raise HTTPException(status_code=400, detail=(
+            "Server-side timeouts for external games are not implemented yet. "
+            "Please end the game explicitly via the respecitive HTTP route or provide time remainders"
+        ))
+    except PlyInvalidException as e:
+        raise HTTPException(status_code=400, detail=f"Impossible ply. Current SIP is {e.current_sip}")
     else:
-        new_time_update = None
-
-    ply_event = GamePlyEvent(
-        occurred_at=ply_dt,
-        ply_index=new_ply_index,
-        from_i=ply.departure.i,
-        from_j=ply.departure.j,
-        to_i=ply.destination.i,
-        to_j=ply.destination.j,
-        morph_into=ply.morph_into,
-        game_id=payload.game_id,
-        kind=perform_ply_result.ply_kind,
-        moving_color=prev_position.color_to_move,
-        moved_piece=perform_ply_result.moving_piece.kind,
-        target_piece=perform_ply_result.target_piece.kind if perform_ply_result.target_piece else None,
-        sip_after=new_sip,
-        time_update=new_time_update
-    )
-    session.add(ply_event)
-    await session.commit()
-
-    await state.ws_subscribers.broadcast(
-        WebsocketOutgoingEventRegistry.NEW_PLY,
-        PlyBroadcastedData(
-            occurred_at=ply_dt,
-            from_i=ply.departure.i,
-            from_j=ply.departure.j,
-            to_i=ply.destination.i,
-            to_j=ply.destination.j,
-            morph_into=ply.morph_into,
-            game_id=payload.game_id,
-            sip_after=new_sip,
-            time_update=GameTimeUpdatePublic.cast(new_time_update)
-        ),
-        GameEventChannel(game_id=payload.game_id)
-    )
-
-    match perform_ply_result.new_position.get_finality_group():
-        case PositionFinalityGroup.FATUM:
-            await end_game(session, state, secret_config, payload.game_id, OutcomeKind.FATUM, prev_position.color_to_move, ply_dt)
-            return ExternalGameAppendPlyResponse(outcome=SimpleOutcome(kind=OutcomeKind.FATUM, winner=prev_position.color_to_move))
-        case PositionFinalityGroup.BREAKTHROUGH:
-            await end_game(session, state, secret_config, payload.game_id, OutcomeKind.BREAKTHROUGH, prev_position.color_to_move, ply_dt)
-            return ExternalGameAppendPlyResponse(outcome=SimpleOutcome(kind=OutcomeKind.BREAKTHROUGH, winner=prev_position.color_to_move))
-
-    if has_occured_thrice(session, payload.game_id, new_sip):
-        await end_game(session, state, secret_config, payload.game_id, OutcomeKind.REPETITION, None, ply_dt)
-        return ExternalGameAppendPlyResponse(outcome=SimpleOutcome(kind=OutcomeKind.REPETITION, winner=None))
-
-    if is_stale(session, payload.game_id, new_ply_index):
-        await end_game(session, state, secret_config, payload.game_id, OutcomeKind.NO_PROGRESS, None, ply_dt)
-        return ExternalGameAppendPlyResponse(outcome=SimpleOutcome(kind=OutcomeKind.NO_PROGRESS, winner=None))
-
-    return ExternalGameAppendPlyResponse(outcome=None)
+        return ExternalGameAppendPlyResponse(outcome=outcome)
 
 
-@router.get("/end")
-async def end_external_game_route(
+@router.get("/end", dependencies=[
+    GAME_EXISTS_DEPENDENCY,
+    CLIENT_IS_UPLOADER_DEPENDENCY,
+    GAME_IS_ONGOING_DEPENDENCY,
+])
+async def end(
     *,
     payload: ExternalGameEndPayload,
-    client: MandatoryUserDependency,
     session: SessionDependency,
     state: MutableStateDependency,
     secret_config: SecretConfigDependency
 ):
-    if payload.outcome_kind == OutcomeKind.DRAW_AGREEMENT and payload.winner:
-        raise HTTPException(status_code=400, detail="This outcome kind cannot have a winner")
-    if payload.outcome_kind != OutcomeKind.DRAW_AGREEMENT and not payload.winner:
-        raise HTTPException(status_code=400, detail="This outcome kind should have a winner")
-
-    db_game = await session.get(Game, payload.game_id)
-    if not db_game:
-        raise HTTPException(status_code=404, detail="Game not found")
-
-    if db_game.external_uploader_ref != client.reference:
-        if db_game.external_uploader_ref:
-            pretty_uploader_ref = UserReference(db_game.external_uploader_ref).pretty()
-            message = f"Only {pretty_uploader_ref} can modify this game"
-        else:
-            message = "Cannot modify internal game"
-        raise HTTPException(status_code=403, detail=message)
-
-    await end_game(session, state, secret_config, payload.game_id, payload.outcome_kind, payload.winner)  # TODO: Ensure all of the necessary checks are present
+    await end_game(session, state, secret_config, payload.game_id, payload.outcome_kind, payload.winner)
 
 
-@router.get("/rollback")
-async def rollback_external_game_route(
+@router.get("/rollback", dependencies=[
+    CLIENT_IS_UPLOADER_DEPENDENCY,
+    GAME_IS_ONGOING_DEPENDENCY,
+])
+async def rollback(
     *,
     payload: ExternalGameRollbackPayload,
-    client: MandatoryUserDependency,
+    db_game: GameDependency,
     session: SessionDependency,
     state: MutableStateDependency
 ):
-    game = await session.get(Game, payload.game_id)
-    if not game:
-        raise HTTPException(status_code=404, detail="Game not found")
-
-    if game.external_uploader_ref != client.reference:
-        if game.external_uploader_ref:
-            pretty_uploader_ref = UserReference(game.external_uploader_ref).pretty()
-            message = f"Only {pretty_uploader_ref} can modify this game"
-        else:
-            message = "Cannot modify internal game"
-        raise HTTPException(status_code=403, detail=message)
-
-    if game.outcome:
-        raise HTTPException(status_code=400, detail="Game has already ended")
-
     ply_events = await get_ply_history(session, payload.game_id, reverse_order=True)
     last_ply_event = next(ply_events, None)
     if not last_ply_event:
@@ -258,7 +147,7 @@ async def rollback_external_game_route(
         current_sip = new_last_ply_event.sip_after
     else:
         time_update = await get_initial_time(session, payload.game_id)
-        current_sip = game.custom_starting_sip or DEFAULT_STARTING_SIP
+        current_sip = db_game.custom_starting_sip or DEFAULT_STARTING_SIP
 
     requested_by = Position.color_to_move_from_sip(current_sip)
 
@@ -287,62 +176,16 @@ async def rollback_external_game_route(
     )
 
 
-@router.get("/add_time")
-async def add_time_external_game_route(
+@router.get("/add_time", dependencies=[
+    GAME_EXISTS_DEPENDENCY,
+    CLIENT_IS_UPLOADER_DEPENDENCY,
+    GAME_IS_ONGOING_DEPENDENCY,
+])
+async def add_time(
     *,
     payload: ExternalGameAddTimePayload,
-    client: MandatoryUserDependency,
     session: SessionDependency,
     state: MutableStateDependency,
     main_config: MainConfigDependency
 ):
-    game = await session.get(Game, payload.game_id)
-    if not game:
-        raise HTTPException(status_code=404, detail="Game not found")
-
-    if game.external_uploader_ref != client.reference:
-        if game.external_uploader_ref:
-            pretty_uploader_ref = UserReference(game.external_uploader_ref).pretty()
-            message = f"Only {pretty_uploader_ref} can modify this game"
-        else:
-            message = "Cannot modify internal game"
-        raise HTTPException(status_code=403, detail=message)
-
-    if game.outcome:
-        raise HTTPException(status_code=400, detail="Game has already ended")
-
-    latest_time_update = await get_latest_time_update(session, payload.game_id)
-
-    if not latest_time_update:
-        raise HTTPException(status_code=400, detail=f"Game {payload.game_id} is a correspondence game")
-
-    addition_dt = datetime.now(UTC)
-
-    secs_added = main_config.rules.secs_added_manually
-    ms_added = secs_added * 1000
-
-    appended_time_update = latest_time_update.model_copy()
-    appended_time_update.updated_at = addition_dt
-    appended_time_update.reason = GameTimeUpdateReason.TIME_ADDED
-    if payload.receiver == PieceColor.WHITE:
-        appended_time_update.white_ms += ms_added
-    else:
-        appended_time_update.black_ms += ms_added
-
-    time_added_event = GameTimeAddedEvent(
-        occurred_at=addition_dt,
-        amount_seconds=secs_added,
-        receiver=payload.receiver,
-        game_id=payload.game_id,
-        time_update=appended_time_update
-    )
-
-    session.add(time_added_event)
-    session.add(appended_time_update)
-    await session.commit()
-
-    await state.ws_subscribers.broadcast(
-        WebsocketOutgoingEventRegistry.TIME_ADDED,
-        time_added_event.to_broadcasted_data(),
-        GameEventChannel(game_id=payload.game_id)
-    )
+    await add_time_sink(session, main_config, state, payload, payload.receiver)

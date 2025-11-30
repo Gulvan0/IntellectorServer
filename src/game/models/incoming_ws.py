@@ -11,7 +11,7 @@ class PlyIntentData(CustomModel):
     to_i: int
     to_j: int
     morph_into: PieceKind | None = None
-    sip_after: Sip | None = None
+    original_sip: Sip | None = None
 
 
 class ChatMessageIntentData(CustomModel):

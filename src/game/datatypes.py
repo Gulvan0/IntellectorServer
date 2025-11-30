@@ -2,6 +2,13 @@ from dataclasses import dataclass, field
 from enum import auto, StrEnum
 
 from src.common.time_control import TimeControlKind
+from src.rules import PieceColor
+from src.utils.custom_model import CustomModel
+
+
+class TimeRemainders(CustomModel):
+    white_ms: int
+    black_ms: int
 
 
 class OutcomeKind(StrEnum):
@@ -14,6 +21,15 @@ class OutcomeKind(StrEnum):
     REPETITION = auto()
     NO_PROGRESS = auto()
     ABORT = auto()
+
+    @property
+    def drawish(self) -> bool:
+        return self in (OutcomeKind.DRAW_AGREEMENT, OutcomeKind.REPETITION, OutcomeKind.NO_PROGRESS, OutcomeKind.ABORT)
+
+
+class SimpleOutcome(CustomModel):
+    kind: OutcomeKind
+    winner: PieceColor | None = None
 
 
 class OfferKind(StrEnum):

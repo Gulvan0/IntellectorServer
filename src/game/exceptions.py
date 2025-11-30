@@ -10,5 +10,11 @@ class TimeoutReachedException(Exception):
     reached_at: datetime
 
 
+@dataclass
 class PlyInvalidException(Exception):
-    pass
+    current_sip: str
+
+
+@dataclass
+class SinkException(Exception):
+    message: str

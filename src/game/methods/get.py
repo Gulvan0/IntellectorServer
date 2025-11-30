@@ -12,8 +12,15 @@ from src.game.models.outcome import GameOutcome
 from src.game.models.ply import GamePlyEvent
 from src.game.models.rest import GameFilter
 from src.game.models.time_update import GameTimeUpdate
-from src.rules import PieceColor, PieceKind, PlyKind
+from src.rules import DEFAULT_STARTING_SIP, PieceColor, PieceKind, PlyKind
 from src.utils.async_orm_session import AsyncSession
+
+
+def get_current_sip_and_ply_cnt(game: Game, last_ply_event: GamePlyEvent | None) -> tuple[str, int]:
+    if last_ply_event:
+        return last_ply_event.sip_after, last_ply_event.ply_index + 1
+
+    return game.custom_starting_sip or DEFAULT_STARTING_SIP, 0
 
 
 async def get_ply_history(session: AsyncSession, game_id: int, reverse_order: bool = False) -> ScalarResult[GamePlyEvent]:

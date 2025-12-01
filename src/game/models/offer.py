@@ -21,6 +21,9 @@ class GameOfferEvent(GameOfferEventBase, table=True):
 
     game: game_main_models.Game = Relationship(back_populates="offer_events")
 
+    def to_broadcasted_data(self) -> "OfferActionBroadcastedData":
+        return OfferActionBroadcastedData.cast(self)
+
 
 class GameOfferEventPublic(GameOfferEventBase):
     pass

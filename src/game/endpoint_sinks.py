@@ -4,16 +4,16 @@ from src.config.models import MainConfig, SecretConfig
 from src.game.datatypes import OutcomeKind, SimpleOutcome, TimeRemainders
 from src.game.exceptions import PlyInvalidException, SinkException
 from src.game.methods.cast import construct_new_ply_time_update
-from src.game.methods.get import get_current_sip_and_ply_cnt, get_last_ply_event, get_latest_time_update, has_occured_thrice, is_stale
+from src.game.methods.event import append_event, append_rollback_event
+from src.game.methods.get import get_current_sip_and_ply_cnt, get_initial_time, get_last_ply_event, get_latest_time_update, get_ply_history, has_occured_thrice, is_stale
 from src.game.methods.update import cancel_all_active_offers, end_game
 from src.game.models.main import Game
 from src.game.models.ply import GamePlyEvent
 from src.game.models.polymorphous import PayloadWithGameId, PlyPayload
+from src.game.models.rollback import GameRollbackEvent
 from src.game.models.time_added import GameTimeAddedEvent
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from src.net.core import MutableState
-from src.net.outgoing import WebsocketOutgoingEventRegistry
-from src.pubsub.models import GameEventChannel
 from src.rules import DEFAULT_STARTING_SIP, HexCoordinates, PieceColor, Ply, Position, PositionFinalityGroup
 from src.utils.async_orm_session import AsyncSession
 
@@ -97,7 +97,7 @@ async def append_ply_sink(
             timeout_grace_ms=0
         )
 
-    ply_event = GamePlyEvent(
+    event = GamePlyEvent(
         occurred_at=ply_dt,
         ply_index=new_ply_index,
         from_i=ply.departure.i,
@@ -113,14 +113,7 @@ async def append_ply_sink(
         sip_after=new_sip,
         time_update=new_time_update
     )
-    session.add(ply_event)
-    await session.commit()
-
-    await mutable_state.ws_subscribers.broadcast(
-        WebsocketOutgoingEventRegistry.NEW_PLY,
-        ply_event.to_broadcasted_data(),
-        GameEventChannel(game_id=payload.game_id)
-    )
+    await append_event(session, mutable_state, event, payload.game_id)
 
     outcome = _get_simple_outcome(session, payload.game_id, perform_ply_result.new_position, new_sip, new_ply_index)
     if outcome:
@@ -140,9 +133,57 @@ async def rollback_sink(
     session: AsyncSession,
     mutable_state: MutableState,
     payload: PayloadWithGameId,
-    new_last_ply_index: int
+    db_game: Game,
+    new_ply_cnt: int
 ) -> None:
-    ...
+    ply_events = await get_ply_history(session, payload.game_id, reverse_order=True)
+    last_ply_event = next(ply_events, None)
+    if not last_ply_event:
+        raise SinkException("Too early for a rollback")
+
+    old_ply_cnt = last_ply_event.ply_index + 1
+    if new_ply_cnt < 0:
+        new_ply_cnt += old_ply_cnt
+
+    if new_ply_cnt >= old_ply_cnt:
+        raise SinkException(
+            f"New ply count (got: {new_ply_cnt}) should be strictly less than current ply count ({old_ply_cnt})"
+        )
+
+    last_ply_event.is_cancelled = True  # At least one ply will be cancelled, we've already ensured that above
+    session.add(last_ply_event)
+    for _ in range(old_ply_cnt - new_ply_cnt - 1):
+        cancelled_ply_event = next(ply_events)
+        cancelled_ply_event.is_cancelled = True
+        session.add(cancelled_ply_event)
+
+    rollback_dt = datetime.now(UTC)
+
+    new_last_ply_event = next(ply_events, None)
+    if new_last_ply_event:
+        time_update = new_last_ply_event.time_update
+        current_sip = new_last_ply_event.sip_after
+    else:
+        time_update = await get_initial_time(session, payload.game_id)
+        current_sip = db_game.custom_starting_sip or DEFAULT_STARTING_SIP
+
+    requested_by = Position.color_to_move_from_sip(current_sip)
+    if time_update:
+        time_update = time_update.model_copy()
+        time_update.updated_at = rollback_dt
+        time_update.reason = GameTimeUpdateReason.ROLLBACK
+        time_update.ticking_side = requested_by if new_ply_cnt >= 2 else None
+        session.add(time_update)
+
+    event = GameRollbackEvent(
+        occurred_at=rollback_dt,
+        ply_cnt_before=old_ply_cnt,
+        ply_cnt_after=new_ply_cnt,
+        requested_by=requested_by,
+        game_id=payload.game_id,
+        time_update=time_update
+    )
+    await append_rollback_event(session, mutable_state, event, payload.game_id, current_sip)
 
 
 async def add_time_sink(
@@ -170,20 +211,11 @@ async def add_time_sink(
     else:
         appended_time_update.black_ms += ms_added
 
-    time_added_event = GameTimeAddedEvent(
+    event = GameTimeAddedEvent(
         occurred_at=addition_dt,
         amount_seconds=secs_added,
         receiver=receiver,
         game_id=payload.game_id,
         time_update=appended_time_update
     )
-
-    session.add(time_added_event)
-    session.add(appended_time_update)
-    await session.commit()
-
-    await mutable_state.ws_subscribers.broadcast(
-        WebsocketOutgoingEventRegistry.TIME_ADDED,
-        time_added_event.to_broadcasted_data(),
-        GameEventChannel(game_id=payload.game_id)
-    )
+    await append_event(session, mutable_state, event, payload.game_id)

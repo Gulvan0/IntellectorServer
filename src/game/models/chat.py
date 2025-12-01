@@ -19,6 +19,9 @@ class GameChatMessageEvent(GameChatMessageEventBase, table=True):
 
     game: game_main_models.Game = Relationship(back_populates="chat_message_events")
 
+    def to_broadcasted_data(self) -> "ChatMessageBroadcastedData":
+        return ChatMessageBroadcastedData.cast(self)
+
 
 class GameChatMessageEventPublic(GameChatMessageEventBase):
     pass

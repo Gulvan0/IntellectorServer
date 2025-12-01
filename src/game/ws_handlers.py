@@ -93,6 +93,7 @@ async def send_chat_message(ws: WebSocketWrapper, client: UserReference | None, 
         )
 
 
+# TODO: Move this and any other non-endpoint function from this module to `methods`
 async def submit_offer_action(
     session: AsyncSession,
     ws: WebSocketWrapper,
@@ -160,6 +161,7 @@ async def accept_draw(session: AsyncSession, ws: WebSocketWrapper, game_id: int,
     await end_game(session, ws.app.mutable_state, ws.app.secret_config, game_id, OutcomeKind.DRAW_AGREEMENT, None)
 
 
+# TODO: Use sink (offer action submission somehow needs to be fitted in-between, has to be thought about)
 async def accept_takeback(session: AsyncSession, ws: WebSocketWrapper, game_id: int, offer_author: PieceColor, game: Game) -> None:
     if not await is_offer_active(session, game_id, OfferKind.TAKEBACK, offer_author):
         raise WebSocketException("Offer is not active")

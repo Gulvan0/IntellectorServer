@@ -1,4 +1,5 @@
-from datetime import UTC, datetime
+from contextlib import contextmanager
+from typing import Generator
 from fastapi import APIRouter, HTTPException
 
 from src.common.dependencies import (
@@ -10,12 +11,8 @@ from src.common.dependencies import (
 )
 from src.game.dependencies.rest import CLIENT_IS_UPLOADER_DEPENDENCY, GAME_EXISTS_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency
 from src.game.endpoint_sinks import add_time_sink, append_ply_sink, rollback_sink
-from src.game.exceptions import PlyInvalidException, TimeoutReachedException
+from src.game.exceptions import PlyInvalidException, SinkException, TimeoutReachedException
 from src.game.methods.create import create_external_game
-from src.game.methods.get import (
-    get_initial_time,
-    get_ply_history,
-)
 from src.game.methods.update import end_game
 from src.game.models.external import (
     ExternalGameAddTimePayload,
@@ -26,15 +23,18 @@ from src.game.models.external import (
     ExternalGameRollbackPayload,
 )
 from src.game.models.main import GamePublic
-from src.game.models.rollback import GameRollbackEvent
-from src.game.models.time_update import GameTimeUpdateReason
 from src.net.base_router import LoggingRoute
-from src.net.outgoing import WebsocketOutgoingEventRegistry
-from src.pubsub.models import GameEventChannel
-from src.rules import DEFAULT_STARTING_SIP, Position
 
 
 router = APIRouter(prefix="/game/external", route_class=LoggingRoute)
+
+
+@contextmanager
+def sink_exception_wrapper() -> Generator[None, None, None]:
+    try:
+        yield
+    except SinkException as e:
+        raise HTTPException(e.status_code or 400, e.message)
 
 
 @router.get("/create", response_model=GamePublic)
@@ -69,14 +69,15 @@ async def append_ply(
     secret_config: SecretConfigDependency
 ):
     try:
-        outcome = await append_ply_sink(
-            session,
-            state,
-            secret_config,
-            payload,
-            db_game,
-            payload.time_remainders
-        )
+        with sink_exception_wrapper():
+            outcome = await append_ply_sink(
+                session,
+                state,
+                secret_config,
+                payload,
+                db_game,
+                payload.time_remainders
+            )
     except TimeoutReachedException as e:
         raise HTTPException(status_code=400, detail=(
             "Server-side timeouts for external games are not implemented yet. "
@@ -100,7 +101,8 @@ async def end(
     state: MutableStateDependency,
     secret_config: SecretConfigDependency
 ):
-    await end_game(session, state, secret_config, payload.game_id, payload.outcome_kind, payload.winner)
+    with sink_exception_wrapper():
+        await end_game(session, state, secret_config, payload.game_id, payload.outcome_kind, payload.winner)
 
 
 @router.get("/rollback", dependencies=[
@@ -114,7 +116,8 @@ async def rollback(
     session: SessionDependency,
     state: MutableStateDependency
 ):
-    await rollback_sink(session, state, payload, db_game, payload.new_ply_cnt)
+    with sink_exception_wrapper():
+        await rollback_sink(session, state, payload, db_game, payload.new_ply_cnt)
 
 
 @router.get("/add_time", dependencies=[
@@ -129,4 +132,5 @@ async def add_time(
     state: MutableStateDependency,
     main_config: MainConfigDependency
 ):
-    await add_time_sink(session, main_config, state, payload, payload.receiver)
+    with sink_exception_wrapper():
+        await add_time_sink(session, main_config, state, payload, payload.receiver)

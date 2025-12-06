@@ -34,65 +34,6 @@ from src.utils.async_orm_session import AsyncSession
 collection = WebSocketHandlerCollection()
 
 
-@collection.register(PlyIntentData)
-async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIntentData):
-    async with player_dependencies(ws, client, payload.game_id, ended=False) as deps:
-        try:
-            await append_ply_sink(
-                deps.session,
-                ws.app.mutable_state,
-                ws.app.secret_config,
-                payload,
-                deps.db_game,
-                None,
-                deps.client_color
-            )
-        except TimeoutReachedException as e:
-            await end_game(
-                deps.session,
-                ws.app.mutable_state,
-                ws.app.secret_config,
-                payload.game_id,
-                OutcomeKind.TIMEOUT,
-                e.winner,
-                e.reached_at
-            )
-        except PlyInvalidException:
-            await ws.send_event(
-                WebsocketOutgoingEventRegistry.REFRESH_GAME,
-                await compose_state_refresh(
-                    session=deps.session,
-                    game_id=payload.game_id,
-                    game=deps.db_game,
-                    reason='invalid_move',
-                    include_spectator_messages=False
-                ),
-                channel=None
-            )
-
-
-@collection.register(ChatMessageIntentData)
-async def send_chat_message(ws: WebSocketWrapper, client: UserReference | None, payload: ChatMessageIntentData):
-    async with any_user_dependencies(ws, client, payload.game_id, ended=False) as deps:
-        is_spectator = deps.db_game.outcome or deps.client.reference not in (deps.db_game.white_player_ref, deps.db_game.black_player_ref)
-
-        db_event = GameChatMessageEvent(
-            author_ref=deps.client.reference,
-            text=payload.text[:500],
-            game_id=payload.game_id,
-            spectator=is_spectator
-        )
-        deps.session.add(db_event)
-        await deps.session.commit()
-
-        await ws.app.mutable_state.ws_subscribers.broadcast(
-            event=WebsocketOutgoingEventRegistry.NEW_CHAT_MESSAGE,
-            payload=ChatMessageBroadcastedData.cast(db_event),
-            channel=GameEventChannel(game_id=payload.game_id),
-            tag_blacklist={SubscriberTag.PARTICIPATING_PLAYER} if not deps.db_game.outcome and is_spectator else set()
-        )
-
-
 # TODO: Move this and any other non-endpoint function from this module to `methods`
 async def submit_offer_action(
     session: AsyncSession,
@@ -255,6 +196,65 @@ async def create_offer(
         return
 
     await submit_offer_action(session, ws, OfferAction.CREATE, offer_kind, offer_author, game_id)
+
+
+@collection.register(PlyIntentData)
+async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIntentData):
+    async with player_dependencies(ws, client, payload.game_id, ended=False) as deps:
+        try:
+            await append_ply_sink(
+                deps.session,
+                ws.app.mutable_state,
+                ws.app.secret_config,
+                payload,
+                deps.db_game,
+                None,
+                deps.client_color
+            )
+        except TimeoutReachedException as e:
+            await end_game(
+                deps.session,
+                ws.app.mutable_state,
+                ws.app.secret_config,
+                payload.game_id,
+                OutcomeKind.TIMEOUT,
+                e.winner,
+                e.reached_at
+            )
+        except PlyInvalidException:
+            await ws.send_event(
+                WebsocketOutgoingEventRegistry.REFRESH_GAME,
+                await compose_state_refresh(
+                    session=deps.session,
+                    game_id=payload.game_id,
+                    game=deps.db_game,
+                    reason='invalid_move',
+                    include_spectator_messages=False
+                ),
+                channel=None
+            )
+
+
+@collection.register(ChatMessageIntentData)
+async def send_chat_message(ws: WebSocketWrapper, client: UserReference | None, payload: ChatMessageIntentData):
+    async with any_user_dependencies(ws, client, payload.game_id, ended=False) as deps:
+        is_spectator = deps.db_game.outcome or deps.client.reference not in (deps.db_game.white_player_ref, deps.db_game.black_player_ref)
+
+        db_event = GameChatMessageEvent(
+            author_ref=deps.client.reference,
+            text=payload.text[:500],
+            game_id=payload.game_id,
+            spectator=is_spectator
+        )
+        deps.session.add(db_event)
+        await deps.session.commit()
+
+        await ws.app.mutable_state.ws_subscribers.broadcast(
+            event=WebsocketOutgoingEventRegistry.NEW_CHAT_MESSAGE,
+            payload=ChatMessageBroadcastedData.cast(db_event),
+            channel=GameEventChannel(game_id=payload.game_id),
+            tag_blacklist={SubscriberTag.PARTICIPATING_PLAYER} if not deps.db_game.outcome and is_spectator else set()
+        )
 
 
 @collection.register(OfferActionIntentData)

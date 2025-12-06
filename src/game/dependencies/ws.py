@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import AsyncGenerator
 
 from src.common.user_ref import UserReference
+from src.game.exceptions import SinkException
 from src.game.models.main import Game
 from src.net.core import WebSocketWrapper
 from src.net.utils.ws_error import WebSocketException
@@ -55,7 +56,10 @@ async def player_dependencies(
         else:
             raise WebSocketException(f"You are not the player in game {game_id}")
 
-        yield PlayerGameDependencies(session, db_game, client_color)
+        try:
+            yield PlayerGameDependencies(session, db_game, client_color)
+        except SinkException as e:
+            raise WebSocketException(e.message)
 
 
 @asynccontextmanager
@@ -82,4 +86,7 @@ async def any_user_dependencies(
         if ended is False and db_game.outcome:
             raise WebSocketException(f"Game {game_id} has already ended")
 
-        yield AnyUserGameDependencies(session, db_game, client)
+        try:
+            yield AnyUserGameDependencies(session, db_game, client)
+        except SinkException as e:
+            raise WebSocketException(e.message)

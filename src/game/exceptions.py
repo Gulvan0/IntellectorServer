@@ -18,3 +18,4 @@ class PlyInvalidException(Exception):
 @dataclass
 class SinkException(Exception):
     message: str
+    status_code: int | None = None

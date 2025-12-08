@@ -6,7 +6,7 @@ from src.player import routes as player_routes
 from src.other import routes as other_routes
 from src.study import routes as study_routes
 
-from src.game import ws_handlers as ws_game
+from src.game.ws import handlers as ws_game
 
 from src.net.core import App
 

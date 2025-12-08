@@ -1,3 +1,4 @@
+from src.game.datatypes import OfferAction, OfferKind
 from src.game.models.chat import GameChatMessageEvent
 from src.game.models.offer import GameOfferEvent
 from src.game.models.ply import GamePlyEvent
@@ -6,6 +7,7 @@ from src.game.models.time_added import GameTimeAddedEvent
 from src.net.core import MutableState
 from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.pubsub.models import GameEventChannel
+from src.rules import PieceColor
 from src.utils.async_orm_session import AsyncSession
 
 
@@ -36,6 +38,29 @@ async def append_event(
         ws_event,
         event.to_broadcasted_data(),
         GameEventChannel(game_id=game_id)
+    )
+
+
+async def append_offer_event(
+    session: AsyncSession,
+    mutable_state: MutableState,
+    action: OfferAction,
+    offer_kind: OfferKind,
+    offer_author: PieceColor,
+    game_id: int,
+    commit: bool = True
+) -> None:
+    await append_event(
+        session=session,
+        mutable_state=mutable_state,
+        event=GameOfferEvent(
+            action=action,
+            offer_kind=offer_kind,
+            offer_author=offer_author,
+            game_id=game_id
+        ),
+        game_id=game_id,
+        commit=commit
     )
 
 

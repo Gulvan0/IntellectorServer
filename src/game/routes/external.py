@@ -10,7 +10,7 @@ from src.common.dependencies import (
     SessionDependency,
 )
 from src.game.dependencies.rest import CLIENT_IS_UPLOADER_DEPENDENCY, GAME_EXISTS_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency
-from src.game.endpoint_sinks import add_time_sink, append_ply_sink, rollback_sink
+from src.game.endpoint_sinks import RollbackPlyCountInput, add_time_sink, append_ply_sink, perform_rollback, validate_rollback
 from src.game.exceptions import PlyInvalidException, SinkException, TimeoutReachedException
 from src.game.methods.create import create_external_game
 from src.game.methods.update import end_game
@@ -117,7 +117,8 @@ async def rollback(
     state: MutableStateDependency
 ):
     with sink_exception_wrapper():
-        await rollback_sink(session, state, payload, db_game, payload.new_ply_cnt)
+        validation_results = await validate_rollback(session, payload.game_id, RollbackPlyCountInput(payload.new_ply_cnt))
+        await perform_rollback(session, state, payload.game_id, db_game, validation_results)
 
 
 @router.get("/add_time", dependencies=[

@@ -6,7 +6,7 @@ from src.game.models.rollback import GameRollbackEvent
 from src.game.models.time_added import GameTimeAddedEvent
 from src.net.core import MutableState
 from src.net.outgoing import WebsocketOutgoingEventRegistry
-from src.pubsub.models import GameEventChannel
+from src.pubsub.models.channel import GameEventChannel
 from src.rules import PieceColor
 from src.utils.async_orm_session import AsyncSession
 

@@ -12,7 +12,7 @@ from src.common.models import Id
 from src.net.base_router import LoggingRoute
 from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.net.utils.early_response import supports_early_responses
-from src.pubsub.models import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
+from src.pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
 
 import src.notification.methods as notification_methods
 import src.game.methods.cast as game_cast_methods

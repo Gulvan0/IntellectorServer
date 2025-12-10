@@ -8,7 +8,7 @@ from src.game.methods.get import get_active_offers, get_latest_time_update, get_
 from src.game.datatypes import OfferAction, OutcomeKind
 from src.net.core import MutableState
 from src.net.outgoing import WebsocketOutgoingEventRegistry
-from src.pubsub.models import GameEventChannel
+from src.pubsub.models.channel import GameEventChannel
 from src.rules import PieceColor
 from src.utils.async_orm_session import AsyncSession
 

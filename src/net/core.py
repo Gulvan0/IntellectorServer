@@ -13,7 +13,7 @@ from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from src.common.user_ref import UserReference
-from src.pubsub.models import EventChannel, EveryoneEventChannel
+from src.pubsub.models.channel import EventChannel, EveryoneEventChannel
 from src.config.models import MainConfig, SecretConfig
 from src.log.models import ServerLaunch, WSLog
 from src.net.incoming import WebSocketHandlerCollection
@@ -47,7 +47,7 @@ from src.net.models import *  # noqa: F401, F403
 from src.notification.models import *  # noqa: F401, F403
 from src.other.models import *  # noqa: F401, F403
 from src.player.models import *  # noqa: F401, F403
-from src.pubsub.models import *  # noqa: F401, F403
+from src.pubsub.models.channel import *  # noqa: F401, F403
 from src.study.models import *  # noqa: F401, F403
 
 import time

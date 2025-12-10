@@ -7,7 +7,7 @@ from src.game.ws.offer import accept_draw, accept_takeback, cancel_offer, create
 from src.game.models.chat import ChatMessageBroadcastedData, GameChatMessageEvent
 from src.game.models.incoming_ws import AddTimeIntentData, ChatMessageIntentData, OfferActionIntentData, PlyIntentData
 from src.game.models.other import GameId
-from src.pubsub.models import GameEventChannel
+from src.pubsub.models.channel import GameEventChannel
 from src.net.core import WebSocketWrapper
 from src.net.incoming import WebSocketHandlerCollection
 from src.net.outgoing import WebsocketOutgoingEventRegistry

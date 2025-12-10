@@ -6,7 +6,7 @@ from src.config.models import SecretConfig
 from src.game.methods.cast import to_public_game
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from src.net.outgoing import WebsocketOutgoingEventRegistry
-from src.pubsub.models import GameListEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
+from src.pubsub.models.channel import GameListEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
 from src.game.models.main import Game, GamePublic, GameStartedBroadcastedData
 from src.game.models.time_control import GameFischerTimeControl
 from src.net.core import MutableState

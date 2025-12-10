@@ -24,7 +24,7 @@ from src.player.models import (
 
 import src.game.methods.get as game_get_methods
 import src.study.methods as study_methods
-import src.pubsub.models as pubsub_models
+import src.pubsub.models.channel as pubsub_models
 
 
 router = APIRouter(prefix="/player", route_class=LoggingRoute)

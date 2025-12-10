@@ -7,7 +7,7 @@ from src.net.core import MutableState
 
 from src.net.outgoing import WebsocketOutgoingEventRegistry
 import src.notification.methods as notification_methods
-from src.pubsub.models import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
+from src.pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
 from src.utils.async_orm_session import AsyncSession
 
 

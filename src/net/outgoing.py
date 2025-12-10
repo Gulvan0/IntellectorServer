@@ -16,7 +16,7 @@ from src.game.models.ply import PlyBroadcastedData
 from src.game.models.rollback import RollbackBroadcastedData
 from src.game.models.time_added import TimeAddedBroadcastedData
 from src.player.models import StartedPlayerGamesStateRefresh
-from src.pubsub.models import (
+from src.pubsub.models.channel import (
     EventChannel,
     EveryoneEventChannel,
     GameEventChannel,
@@ -26,6 +26,9 @@ from src.pubsub.models import (
     PublicChallengeListEventChannel,
     StartedPlayerGamesEventChannel,
 )
+
+
+# TODO: Remove this module and use pubsub module in every reference
 
 
 @dataclass(frozen=True)
@@ -38,7 +41,6 @@ class WebsocketOutgoingEvent[T: BaseModel, C: EventChannel]:
     description: str | None = None
 
 
-# TODO: New subscriber / subscriber left
 class WebsocketOutgoingEventRegistry(WebsocketOutgoingEvent, Enum):
     SERVER_SHUTDOWN = (
         "server_shutdown",

@@ -110,4 +110,4 @@ class RestrictionBatchRemovalPayload(CustomModel):
 
 class StartedPlayerGamesStateRefresh(CustomModel):
     player_ref: str
-    current_game: main_game_models.Game | None
+    current_games: list[main_game_models.Game]

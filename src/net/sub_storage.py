@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from src.common.user_ref import UserReference
-from src.pubsub.models import EventChannel, EveryoneEventChannel
+from src.pubsub.models.channel import EventChannel, EveryoneEventChannel
 from src.player.datatypes import UserStatus
 from src.utils.bijective_map import BijectiveMap
 

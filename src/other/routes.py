@@ -8,7 +8,7 @@ from src.net.outgoing import WebsocketOutgoingEventRegistry
 
 import src.challenge.methods.update as challenge_update_methods
 import src.game.methods.get as game_get_methods
-from src.pubsub.models import EveryoneEventChannel
+from src.pubsub.models.channel import EveryoneEventChannel
 
 
 router = APIRouter(prefix="", route_class=LoggingRoute)

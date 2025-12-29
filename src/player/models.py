@@ -64,8 +64,6 @@ class PlayerFollowedPlayer(CustomSQLModel, table=True):
     followed_login: str = Field(primary_key=True, foreign_key="player.login")
     follows_since: CurrentDatetime
 
-    followed: Player = Relationship(sa_relationship_kwargs=dict(foreign_keys="PlayerFollowedPlayer.followed_login"))
-
 
 class PlayerEloProgress(CustomSQLModel, table=True):  # Used for: current elo retrieval, elo history plotting, antifraud checks
     id: int | None = Field(default=None, primary_key=True)
@@ -84,7 +82,6 @@ class PlayerPublic(PlayerBase):
     per_time_control_stats: dict[TimeControlKind, GameStats]
     total_stats: GameStats
     studies_cnt: int
-    followed_players: list[UserRefWithNickname]
     roles: list[PlayerRolePublic]
     restrictions: list[PlayerRestrictionPublic]
 

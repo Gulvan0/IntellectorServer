@@ -1,12 +1,13 @@
 from datetime import datetime, UTC
-from fastapi import APIRouter, HTTPException, UploadFile, Depends
+from fastapi import APIRouter, HTTPException, Query, UploadFile, Depends
 from sqlalchemy import update
 from sqlmodel import col
 
+from src.common.models import UserRefWithNickname
 from src.player.dependencies import DBPlayerDependency
 from src.net.base_router import LoggingRoute
 from src.common.user_ref import UserReference
-from src.player.methods import get_followed_players, get_overall_game_stats, get_restrictions, get_roles, is_player_following_player
+from src.player.methods import get_followed_players, get_followers, get_overall_game_stats, get_restrictions, get_roles, is_player_following_player
 from src.player.datatypes import GameStats
 from src.common.dependencies import MainConfigDependency, MandatoryPlayerLoginDependency, MutableStateDependency, OptionalPlayerLoginDependency, SessionDependency, verify_admin
 from src.common.field_types import PlayerLogin
@@ -28,6 +29,28 @@ import src.pubsub.models.channel as pubsub_models
 
 
 router = APIRouter(prefix="/player", route_class=LoggingRoute)
+
+
+@router.get("/{login}/followers", response_model=list[UserRefWithNickname])
+async def get_player_followers(
+    *,
+    session: SessionDependency,
+    login: PlayerLogin,
+    offset: int = 0,
+    limit: int = Query(default=50, le=100)
+):
+    await get_followers(session, login, limit, offset)
+
+
+@router.get("/{login}/followed", response_model=list[UserRefWithNickname])
+async def get_player_followed_players(
+    *,
+    session: SessionDependency,
+    login: PlayerLogin,
+    offset: int = 0,
+    limit: int = Query(default=50, le=100)
+):
+    await get_followed_players(session, login, limit, offset)
 
 
 @router.get("/{login}", response_model=PlayerPublic)
@@ -53,7 +76,6 @@ async def get_player(
         per_time_control_stats=game_stats.by_time_control,
         total_stats=GameStats(elo=game_stats.best.elo, is_elo_provisional=game_stats.best.is_elo_provisional, games_cnt=game_counts.total),
         studies_cnt=await study_methods.get_player_studies_cnt(session, login, client_login == login),
-        followed_players=await get_followed_players(session, login),  # TODO: Move to separate models/routes, support pagination
         roles=await get_roles(session, login, db_player.preferred_role),
         restrictions=await get_restrictions(session, login)
     )

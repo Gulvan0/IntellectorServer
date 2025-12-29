@@ -62,22 +62,46 @@ async def is_player_following_player(session: AsyncSession, follower: str | None
     return False
 
 
-async def get_followed_players(session: AsyncSession, follower: str) -> list[UserRefWithNickname]:
-    player_follow_facts = await session.exec(select(
-        PlayerFollowedPlayer
+async def get_followers(session: AsyncSession, followed_login: str, limit: int, offset: int) -> list[UserRefWithNickname]:
+    followers = await session.exec(select(
+        PlayerFollowedPlayer.follower_login,
+        Player.nickname
+    ).join(
+        Player,
+        PlayerFollowedPlayer.follower_login == Player.login,
+        isouter=True
     ).where(
-        PlayerFollowedPlayer.follower_login == follower
-    ))
+        PlayerFollowedPlayer.followed_login == followed_login
+    ).limit(limit).offset(offset))
 
-    result = []
-    for i, player_follow_fact in enumerate(player_follow_facts):  # TODO: Optimize (DB-side join, remove relationship)
-        if i >= 100:
-            return result
-        result.append(UserRefWithNickname(
-            user_ref=player_follow_fact.followed_login,
-            nickname=player_follow_fact.followed.nickname
-        ))
-    return result
+    return [
+        UserRefWithNickname(
+            user_ref=login,
+            nickname=nickname
+        )
+        for login, nickname in followers
+    ]
+
+
+async def get_followed_players(session: AsyncSession, follower_login: str, limit: int, offset: int) -> list[UserRefWithNickname]:
+    followed_players = await session.exec(select(
+        PlayerFollowedPlayer.followed_login,
+        Player.nickname
+    ).join(
+        Player,
+        PlayerFollowedPlayer.followed_login == Player.login,
+        isouter=True
+    ).where(
+        PlayerFollowedPlayer.follower_login == follower_login
+    ).limit(limit).offset(offset))
+
+    return [
+        UserRefWithNickname(
+            user_ref=login,
+            nickname=nickname
+        )
+        for login, nickname in followed_players
+    ]
 
 
 async def get_roles(session: AsyncSession, role_owner_login: str, preferred_role: UserRole | None) -> list[PlayerRolePublic]:

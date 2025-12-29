@@ -2,6 +2,7 @@ from typing import Literal, Optional
 from sqlmodel import Field, Relationship
 
 from src.common.field_types import CurrentDatetime, OptionalSip, PlayerRef, OptionalPlayerRef
+from src.common.models import UserRefWithNickname
 from src.common.time_control import TimeControlKind
 from src.game.models.time_control import GameFischerTimeControl, GameFischerTimeControlPublic
 from src.game.models.outcome import GameOutcome, GameOutcomePublic
@@ -20,8 +21,6 @@ GenericEventList = list[GamePlyEventPublic | GameChatMessageEventPublic | GameOf
 class GameBase(CustomSQLModel):
     started_at: CurrentDatetime
 
-    white_player_ref: PlayerRef
-    black_player_ref: PlayerRef
     time_control_kind: TimeControlKind
     rated: bool
     custom_starting_sip: OptionalSip
@@ -30,6 +29,8 @@ class GameBase(CustomSQLModel):
 
 class Game(GameBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
+    white_player_ref: PlayerRef
+    black_player_ref: PlayerRef
 
     fischer_time_control: Optional[GameFischerTimeControl] = Relationship(back_populates="game", cascade_delete=True)
     outcome: Optional[GameOutcome] = Relationship(back_populates="game", cascade_delete=True)
@@ -42,6 +43,8 @@ class Game(GameBase, table=True):
 
 class GamePublic(GameBase):
     id: int
+    white_player: UserRefWithNickname
+    black_player: UserRefWithNickname
 
     fischer_time_control: Optional[GameFischerTimeControlPublic]
     outcome: Optional[GameOutcomePublic]
@@ -51,6 +54,9 @@ class GamePublic(GameBase):
 
 class GameStartedBroadcastedData(GameBase):
     id: int
+    white_player: UserRefWithNickname
+    black_player: UserRefWithNickname
+
     fischer_time_control: GameFischerTimeControlPublic | None
 
 

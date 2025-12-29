@@ -19,7 +19,7 @@ async def create_study(*, session: SessionDependency, client_login: MandatoryPla
     await session.commit()
 
     await session.refresh(db_study)
-    return db_study
+    return await db_study.to_public(session)
 
 
 @router.get("/list", response_model=list[StudyPublic])
@@ -45,7 +45,7 @@ async def list_studies(
 
     query = query.offset(offset).limit(limit)
     result = await session.exec(query)
-    return result.all()
+    return [await db_study.to_public(session) for db_study in result]
 
 
 @router.get("/{study_id}", response_model=StudyPublic)
@@ -58,7 +58,7 @@ async def get_study(*, session: SessionDependency, study_id: int, client_login: 
     if db_study.publicity == StudyPublicity.PRIVATE and client_login != db_study.author_login:
         raise HTTPException(status_code=403, detail="Access restricted")
 
-    return db_study
+    return await db_study.to_public(session)
 
 
 @router.patch("/{study_id}", response_model=StudyPublic)
@@ -79,7 +79,7 @@ async def update_study(*, session: SessionDependency, client_login: MandatoryPla
     await session.commit()
 
     await session.refresh(db_study)
-    return db_study
+    return await db_study.to_public(session)
 
 
 @router.delete("/{study_id}")

@@ -4,13 +4,12 @@ from src.game.dependencies.ws import any_user_dependencies, player_dependencies
 from src.game.endpoint_sinks import add_time_sink, append_ply_sink
 from src.game.exceptions import PlyInvalidException, TimeoutReachedException
 from src.game.ws.offer import accept_draw, accept_takeback, cancel_offer, create_offer, decline_offer
-from src.game.models.chat import ChatMessageBroadcastedData, GameChatMessageEvent
+from src.game.models.chat import GameChatMessageEvent
 from src.game.models.incoming_ws import AddTimeIntentData, ChatMessageIntentData, OfferActionIntentData, PlyIntentData
 from src.game.models.other import GameId
 from src.pubsub.models.channel import GameEventChannel
 from src.net.core import WebSocketWrapper
 from src.net.incoming import WebSocketHandlerCollection
-from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.net.sub_storage import SubscriberTag
 from src.game.methods.cast import compose_state_refresh
 from src.game.methods.update import end_game
@@ -18,6 +17,8 @@ from src.game.methods.get import (
     get_current_sip_and_ply_cnt,
     get_last_ply_event,
 )
+from src.pubsub.outgoing_event.refresh import GameRefresh
+from src.pubsub.outgoing_event.update import NewChatMessage
 from src.rules import Position
 from src.game.datatypes import OfferAction, OfferKind, OutcomeKind
 
@@ -49,17 +50,14 @@ async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIn
                 e.reached_at
             )
         except PlyInvalidException:
-            await ws.send_event(
-                WebsocketOutgoingEventRegistry.REFRESH_GAME,
-                await compose_state_refresh(
-                    session=deps.session,
-                    game_id=payload.game_id,
-                    game=deps.db_game,
-                    reason='invalid_move',
-                    include_spectator_messages=False
-                ),
-                channel=None
+            refresh_payload = await compose_state_refresh(
+                session=deps.session,
+                game_id=payload.game_id,
+                game=deps.db_game,
+                reason='invalid_move',
+                include_spectator_messages=False
             )
+            await ws.send_event(GameRefresh(refresh_payload))
 
 
 @collection.register(ChatMessageIntentData)
@@ -76,12 +74,11 @@ async def send_chat_message(ws: WebSocketWrapper, client: UserReference | None, 
         deps.session.add(db_event)
         await deps.session.commit()
 
-        await ws.app.mutable_state.ws_subscribers.broadcast(
-            event=WebsocketOutgoingEventRegistry.NEW_CHAT_MESSAGE,
-            payload=ChatMessageBroadcastedData.cast(db_event),
-            channel=GameEventChannel(game_id=payload.game_id),
-            tag_blacklist={SubscriberTag.PARTICIPATING_PLAYER} if not deps.db_game.outcome and is_spectator else set()
-        )
+        event = NewChatMessage(await db_event.to_broadcasted_data(deps.session), GameEventChannel(game_id=payload.game_id))
+        tag_blacklist = set()
+        if not deps.db_game.outcome and is_spectator:
+            tag_blacklist = {SubscriberTag.PARTICIPATING_PLAYER}
+        await ws.app.mutable_state.ws_subscribers.broadcast(event, tag_blacklist)
 
 
 @collection.register(OfferActionIntentData)

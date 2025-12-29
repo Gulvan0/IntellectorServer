@@ -2,13 +2,12 @@ from fastapi import APIRouter, Depends, Response
 
 from src.net.base_router import LoggingRoute
 from src.other.models import CompatibilityCheckPayload, CompatibilityResolution, CompatibilityResponse
-from src.common.models import EmptyModel
 from src.common.dependencies import MainConfigDependency, MutableStateDependency, SecretConfigDependency, SessionDependency, verify_admin
-from src.net.outgoing import WebsocketOutgoingEventRegistry
 
 import src.challenge.methods.update as challenge_update_methods
 import src.game.methods.get as game_get_methods
 from src.pubsub.models.channel import EveryoneEventChannel
+from src.pubsub.outgoing_event.update import ServerShutdown
 
 
 router = APIRouter(prefix="", route_class=LoggingRoute)
@@ -43,14 +42,12 @@ async def shutdown(
 
     state.shutdown_activated = True
     await challenge_update_methods.cancel_all_challenges(session, state, secret_config)
-    await state.ws_subscribers.broadcast(
-        WebsocketOutgoingEventRegistry.SERVER_SHUTDOWN,
-        EmptyModel(),
-        EveryoneEventChannel()
-    )
+
+    event = ServerShutdown(None, EveryoneEventChannel())
+    await state.ws_subscribers.broadcast(event)
 
     if not game_get_methods.get_ongoing_finite_game(session):
-        raise KeyboardInterrupt
+        raise KeyboardInterrupt  # A hack to break out of the FastAPI jail
 
 
 @router.get("/mutable_state", dependencies=[Depends(verify_admin)])

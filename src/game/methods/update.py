@@ -7,8 +7,8 @@ from src.game.models.outcome import GameOutcome
 from src.game.methods.get import get_active_offers, get_latest_time_update, get_ongoing_finite_game
 from src.game.datatypes import OfferAction, OutcomeKind
 from src.net.core import MutableState
-from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.pubsub.models.channel import GameEventChannel
+from src.pubsub.outgoing_event.update import OfferActionPerformed
 from src.rules import PieceColor
 from src.utils.async_orm_session import AsyncSession
 
@@ -87,9 +87,6 @@ async def cancel_all_active_offers(session: AsyncSession, state: MutableState, g
         )
         session.add(cancel_event)
 
-        await state.ws_subscribers.broadcast(
-            WebsocketOutgoingEventRegistry.OFFER_ACTION_PERFORMED,
-            OfferActionBroadcastedData.cast(cancel_event),
-            GameEventChannel(game_id=game_id)
-        )
+        broadcasted_event = OfferActionPerformed(OfferActionBroadcastedData.cast(cancel_event), GameEventChannel(game_id=game_id))
+        await state.ws_subscribers.broadcast(broadcasted_event)
     await session.commit()

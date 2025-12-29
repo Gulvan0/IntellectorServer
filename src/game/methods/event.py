@@ -5,8 +5,9 @@ from src.game.models.ply import GamePlyEvent
 from src.game.models.rollback import GameRollbackEvent
 from src.game.models.time_added import GameTimeAddedEvent
 from src.net.core import MutableState
-from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.pubsub.models.channel import GameEventChannel
+from src.pubsub.outgoing_event.base import OutgoingEvent
+from src.pubsub.outgoing_event.update import NewChatMessage, NewPly, OfferActionPerformed, Rollback, TimeAdded
 from src.rules import PieceColor
 from src.utils.async_orm_session import AsyncSession
 
@@ -22,23 +23,18 @@ async def append_event(
     if commit:
         await session.commit()
 
+    target_channel = GameEventChannel(game_id=game_id)
     match event:
         case GamePlyEvent():
-            ws_event = WebsocketOutgoingEventRegistry.NEW_PLY
+            ws_event: OutgoingEvent = NewPly(event.to_broadcasted_data(), target_channel)
         case GameChatMessageEvent():
-            ws_event = WebsocketOutgoingEventRegistry.NEW_CHAT_MESSAGE
+            ws_event = NewChatMessage(await event.to_broadcasted_data(session), target_channel)
         case GameOfferEvent():
-            ws_event = WebsocketOutgoingEventRegistry.OFFER_ACTION_PERFORMED
+            ws_event = OfferActionPerformed(event.to_broadcasted_data(), target_channel)
         case GameTimeAddedEvent():
-            ws_event = WebsocketOutgoingEventRegistry.TIME_ADDED
-        case GameRollbackEvent():
-            ws_event = WebsocketOutgoingEventRegistry.ROLLBACK
+            ws_event = TimeAdded(event.to_broadcasted_data(), target_channel)
 
-    await mutable_state.ws_subscribers.broadcast(
-        ws_event,
-        event.to_broadcasted_data(),
-        GameEventChannel(game_id=game_id)
-    )
+    await mutable_state.ws_subscribers.broadcast(ws_event)
 
 
 async def append_offer_event(
@@ -76,8 +72,5 @@ async def append_rollback_event(
     if commit:
         await session.commit()
 
-    await mutable_state.ws_subscribers.broadcast(
-        WebsocketOutgoingEventRegistry.ROLLBACK,
-        event.to_broadcasted_data(updated_sip),
-        GameEventChannel(game_id=game_id)
-    )
+    ws_event = Rollback(event.to_broadcasted_data(updated_sip), GameEventChannel(game_id=game_id))
+    await mutable_state.ws_subscribers.broadcast(ws_event)

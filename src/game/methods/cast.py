@@ -3,13 +3,14 @@ from typing import Literal
 
 from src.game.exceptions import TimeoutReachedException
 from src.game.models.offer import GameOfferEventPublic
-from src.game.models.chat import GameChatMessageEventPublic
 from src.game.models.main import Game, GamePublic, GameStateRefresh, GenericEventList
 from src.game.models.time_control import GameFischerTimeControlPublic
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic, GameTimeUpdateReason
 from src.game.methods.get import get_ply_history, get_latest_time_update
 from src.rules import PieceColor
 from src.utils.async_orm_session import AsyncSession
+
+import src.player.methods as player_methods
 
 
 async def collect_game_events(
@@ -24,7 +25,7 @@ async def collect_game_events(
         events.append(ply_event.to_public())
     for chat_event in game.chat_message_events:
         if include_spectator_messages or not chat_event.spectator:
-            events.append(GameChatMessageEventPublic.cast(chat_event))
+            events.append(await chat_event.to_public(session))
     for offer_event in game.offer_events:
         events.append(GameOfferEventPublic.cast(offer_event))
     for time_added_event in game.time_added_events:
@@ -42,8 +43,8 @@ async def to_public_game(
     assert game.id
     return GamePublic(
         started_at=game.started_at,
-        white_player_ref=game.white_player_ref,
-        black_player_ref=game.black_player_ref,
+        white_player=player_methods.get_user_ref_with_nickname(session, game.white_player_ref),
+        black_player=player_methods.get_user_ref_with_nickname(session, game.black_player_ref),
         time_control_kind=game.time_control_kind,
         rated=game.rated,
         custom_starting_sip=game.custom_starting_sip,

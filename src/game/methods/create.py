@@ -5,12 +5,12 @@ from src.common.user_ref import UserReference
 from src.config.models import SecretConfig
 from src.game.methods.cast import to_public_game
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
-from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.pubsub.models.channel import GameListEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
 from src.game.models.main import Game, GamePublic, GameStartedBroadcastedData
 from src.game.models.time_control import GameFischerTimeControl
 from src.net.core import MutableState
 from src.common.time_control import FischerTimeControlEntity, TimeControlKind
+from src.pubsub.outgoing_event.update import GameStarted, NewActiveGame, OutgoingChallengeAccepted, PublicChallengeFulfilled
 from src.utils.async_orm_session import AsyncSession
 
 import random
@@ -84,16 +84,11 @@ async def create_game(
     public_game = await to_public_game(session, db_game)
 
     for player_ref in [white_player_ref, black_player_ref]:
-        await state.ws_subscribers.broadcast(
-            WebsocketOutgoingEventRegistry.GAME_STARTED,
-            public_game,
-            StartedPlayerGamesEventChannel(watched_ref=player_ref)
-        )
-    await state.ws_subscribers.broadcast(
-        WebsocketOutgoingEventRegistry.NEW_ACTIVE_GAME,
-        GameStartedBroadcastedData.cast(public_game),
-        GameListEventChannel()
-    )
+        game_started_event = GameStarted(public_game, StartedPlayerGamesEventChannel(watched_ref=player_ref))
+        await state.ws_subscribers.broadcast(game_started_event)
+
+    new_game_event = NewActiveGame(GameStartedBroadcastedData.cast(public_game), GameListEventChannel())
+    await state.ws_subscribers.broadcast(new_game_event)
 
     return public_game
 
@@ -127,20 +122,14 @@ async def create_internal_game(
         vk_token=secret_config.integrations.vk.token
     )
 
-    challenge_id = Id(id=challenge.id)
+    event_payload = Id(id=challenge.id)
 
     if challenge.kind == challenge_datatypes.ChallengeKind.PUBLIC:
-        await state.ws_subscribers.broadcast(
-            WebsocketOutgoingEventRegistry.PUBLIC_CHALLENGE_FULFILLED,
-            challenge_id,
-            PublicChallengeListEventChannel()
-        )
+        fulfill_event = PublicChallengeFulfilled(event_payload, PublicChallengeListEventChannel())
+        await state.ws_subscribers.broadcast(fulfill_event)
 
-    await state.ws_subscribers.broadcast(
-        WebsocketOutgoingEventRegistry.OUTGOING_CHALLENGE_ACCEPTED,
-        challenge_id,
-        OutgoingChallengesEventChannel(user_ref=challenge.caller_ref)
-    )
+    accept_event = OutgoingChallengeAccepted(event_payload, OutgoingChallengesEventChannel(user_ref=challenge.caller_ref))
+    await state.ws_subscribers.broadcast(accept_event)
 
     await notification_methods.send_game_started_notifications(
         white_player_ref,

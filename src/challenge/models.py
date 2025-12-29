@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Literal, Optional
 from sqlmodel import Field, Relationship
 
 from src.challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
+from src.common.models import UserRefWithNickname
 from src.common.time_control import FischerTimeControlEntity, TimeControlKind
 from src.common.field_types import CurrentDatetime, PlayerRef, OptionalSip, OptionalPlayerRef
 from src.utils.custom_model import CustomModel, CustomSQLModel
@@ -28,22 +29,6 @@ class Challenge(ChallengeBase, table=True):
 
     resulting_game: game_models.Game | None = Relationship()
     fischer_time_control: Optional["ChallengeFischerTimeControl"] = Relationship(back_populates="challenge", cascade_delete=True)
-
-    def to_public(self, resulting_game: game_models.GamePublic | None) -> "ChallengePublic":
-        return ChallengePublic(
-            acceptor_color=self.acceptor_color,
-            custom_starting_sip=self.custom_starting_sip,
-            rated=self.rated,
-            id=self.id,
-            created_at=self.created_at,
-            caller_ref=self.caller_ref,
-            callee_ref=self.callee_ref,
-            kind=self.kind,
-            time_control_kind=self.time_control_kind,
-            active=self.active,
-            fischer_time_control=ChallengeFischerTimeControlPublic.cast(self.fischer_time_control),
-            resulting_game=resulting_game
-        )
 
 
 class ChallengeFischerTimeControlBase(CustomSQLModel):
@@ -107,8 +92,8 @@ class ChallengeCreateDirect(ChallengeBase):
 class ChallengePublic(ChallengeBase):
     id: int
     created_at: datetime
-    caller_ref: PlayerRef
-    callee_ref: OptionalPlayerRef
+    caller: UserRefWithNickname
+    callee: UserRefWithNickname | None
     kind: ChallengeKind
     time_control_kind: TimeControlKind
     active: bool
@@ -124,8 +109,4 @@ class ChallengeCreateResponse(CustomModel):
 
 
 class ChallengeListStateRefresh(CustomModel):
-    challenges: list[Challenge]
-
-
-class SpecificUserChallengeListStateRefresh(ChallengeListStateRefresh):
-    user_ref: str
+    challenges: list[ChallengePublic]

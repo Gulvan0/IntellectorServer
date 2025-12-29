@@ -11,6 +11,7 @@ from src.utils.string import camel_to_snake
 @dataclass
 class OutgoingEvent[PayloadType: BaseModel | None, TargetChannelType: EventChannel | None]:
     payload: PayloadType
+    target_channel: TargetChannelType
 
     @classmethod
     def name(cls) -> str:
@@ -65,15 +66,18 @@ class OutgoingEvent[PayloadType: BaseModel | None, TargetChannelType: EventChann
             return None
         return payload_example.model_dump()
 
-    def to_dict(self, channel: TargetChannelType) -> dict:
+    def to_dict(self) -> dict:
         return dict(
             event=self.name(),
-            channel=channel.model_dump() if not isinstance(channel, NoneType) else None,
+            channel=self.target_channel.model_dump() if not isinstance(self.target_channel, NoneType) else None,
             body=self.payload.model_dump() if not isinstance(self.payload, NoneType) else None
         )
 
 
 class RefreshEvent[PayloadType: BaseModel, RefreshedChannelType: EventChannel](OutgoingEvent[PayloadType, None]):
+    def __init__(self, payload: PayloadType) -> None:
+        super().__init__(payload, None)
+
     @classmethod
     def name(cls) -> str:
         refreshed_channel: type[RefreshedChannelType] = cls._type_variables()[1]

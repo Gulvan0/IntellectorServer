@@ -6,7 +6,7 @@ from sqlmodel import col
 from src.player.dependencies import DBPlayerDependency
 from src.net.base_router import LoggingRoute
 from src.common.user_ref import UserReference
-from src.player.methods import get_followed_player_logins, get_overall_game_stats, get_restrictions, get_roles, is_player_following_player
+from src.player.methods import get_followed_players, get_overall_game_stats, get_restrictions, get_roles, is_player_following_player
 from src.player.datatypes import GameStats
 from src.common.dependencies import MainConfigDependency, MandatoryPlayerLoginDependency, MutableStateDependency, OptionalPlayerLoginDependency, SessionDependency, verify_admin
 from src.common.field_types import PlayerLogin
@@ -53,7 +53,7 @@ async def get_player(
         per_time_control_stats=game_stats.by_time_control,
         total_stats=GameStats(elo=game_stats.best.elo, is_elo_provisional=game_stats.best.is_elo_provisional, games_cnt=game_counts.total),
         studies_cnt=await study_methods.get_player_studies_cnt(session, login, client_login == login),
-        followed_players=await get_followed_player_logins(session, login),
+        followed_players=await get_followed_players(session, login),  # TODO: Move to separate models/routes, support pagination
         roles=await get_roles(session, login, db_player.preferred_role),
         restrictions=await get_restrictions(session, login)
     )
@@ -74,8 +74,14 @@ async def update_player(
         raise HTTPException(status_code=403, detail="Forbidden")
 
     if player.nickname:
-        if player.nickname.lower() != login:
-            raise HTTPException(status_code=400, detail="Only capitalization may be changed")
+        if player.nickname.strip() != player.nickname:
+            raise HTTPException(status_code=400, detail="The nickname cannot start and/or end with a space")
+
+        if "  " in player.nickname:
+            raise HTTPException(status_code=400, detail="The nickname cannot have two or more subsequent spaces")
+
+        if player.nickname.lower().replace(" ", "") != login:
+            raise HTTPException(status_code=400, detail="The nickname should match the login with the only exceptions being different capitalizaion and extra spaces")
         db_player.nickname = player.nickname
 
     if player.preferred_role:

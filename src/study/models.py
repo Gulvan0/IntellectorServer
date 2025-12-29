@@ -2,12 +2,15 @@ from datetime import datetime
 from typing import Any
 from sqlmodel import Field, Relationship
 
+from src.common.models import UserRefWithNickname
 from src.rules import PieceKind
 from src.common.field_types import CurrentDatetime, Sip
 from src.study.datatypes import StudyPublicity
+from src.utils.async_orm_session import AsyncSession
 from src.utils.custom_model import CustomModel, CustomSQLModel
 
 import src.player.models as player_models
+import src.player.methods as player_methods
 
 
 class ApiHexCoords(CustomModel):
@@ -26,26 +29,6 @@ class ApiVariationNode(CustomModel):
     ply: ApiPly
 
 
-class StudyBase(CustomSQLModel):
-    name: str = Field(max_length=64)
-    description: str = Field(max_length=2000)
-    publicity: StudyPublicity
-    starting_sip: Sip
-    key_sip: Sip
-
-
-class Study(StudyBase, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    created_at: CurrentDatetime
-    modified_at: CurrentDatetime
-    author_login: str = Field(foreign_key="player.login")
-    deleted: bool = False
-
-    author: player_models.Player = Relationship(back_populates="studies")
-    tags: list["StudyTag"] = Relationship(back_populates="study", cascade_delete=True)
-    nodes: list["StudyVariationNode"] = Relationship(back_populates="study", cascade_delete=True)
-
-
 class StudyTagBase(CustomSQLModel):
     tag: str = Field(primary_key=True, max_length=16)
 
@@ -53,7 +36,7 @@ class StudyTagBase(CustomSQLModel):
 class StudyTag(StudyTagBase, table=True):
     study_id: int | None = Field(default=None, primary_key=True, foreign_key="study.id")
 
-    study: Study = Relationship(back_populates="tags")
+    study: "Study" = Relationship(back_populates="tags")
 
 
 class StudyTagPublic(StudyTagBase):
@@ -72,7 +55,7 @@ class StudyVariationNodeBase(CustomSQLModel):
 class StudyVariationNode(StudyVariationNodeBase, table=True):
     study_id: int | None = Field(default=None, primary_key=True, foreign_key="study.id")
 
-    study: Study = Relationship(back_populates="nodes")
+    study: "Study" = Relationship(back_populates="nodes")
 
     @classmethod
     def from_api_model(cls, node: ApiVariationNode) -> "StudyVariationNode":
@@ -88,6 +71,42 @@ class StudyVariationNode(StudyVariationNodeBase, table=True):
 
 class StudyVariationNodePublic(StudyVariationNodeBase):
     pass
+
+
+class StudyBase(CustomSQLModel):
+    name: str = Field(max_length=64)
+    description: str = Field(max_length=2000)
+    publicity: StudyPublicity
+    starting_sip: Sip
+    key_sip: Sip
+
+
+class Study(StudyBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    created_at: CurrentDatetime
+    modified_at: CurrentDatetime
+    author_login: str = Field(foreign_key="player.login")
+    deleted: bool = False
+
+    author: player_models.Player = Relationship(back_populates="studies")
+    tags: list[StudyTag] = Relationship(back_populates="study", cascade_delete=True)
+    nodes: list[StudyVariationNode] = Relationship(back_populates="study", cascade_delete=True)
+
+    async def to_public(self, session: AsyncSession) -> "StudyPublic":
+        return StudyPublic(
+            name=self.name,
+            description=self.description,
+            publicity=self.publicity,
+            starting_sip=self.starting_sip,
+            key_sip=self.key_sip,
+            id=self.id,
+            created_at=self.created_at,
+            modified_at=self.modified_at,
+            author=await player_methods.get_user_ref_with_nickname(session, self.author_login),
+            deleted=self.deleted,
+            tags=[StudyTagPublic.cast(tag) for tag in self.tags],
+            nodes=[StudyVariationNodePublic.cast(node) for node in self.nodes]
+        )
 
 
 class StudyCreate(StudyBase):
@@ -142,7 +161,7 @@ class StudyPublic(StudyBase):
     id: int
     created_at: datetime
     modified_at: datetime
-    author_login: str
+    author: UserRefWithNickname
     deleted: bool
     tags: list[StudyTagPublic]
     nodes: list[StudyVariationNodePublic]

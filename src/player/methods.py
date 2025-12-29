@@ -1,4 +1,5 @@
 from sqlmodel import desc, select, func
+from src.common.models import UserRefWithNickname
 from src.common.sql import exists, not_expired
 from src.common.user_ref import UserReference
 from src.player.models import Player, PlayerEloProgress, PlayerFollowedPlayer, PlayerRestriction, PlayerRestrictionPublic, PlayerRole, PlayerRolePublic
@@ -8,17 +9,34 @@ from src.utils.async_orm_session import AsyncSession
 import src.game.datatypes as game_datatypes
 
 
-async def prettify_player_reference(player_ref: UserReference, session: AsyncSession) -> str:
-    if player_ref.is_guest():
-        return f"Guest {player_ref.guest_id}"
-    elif player_ref.is_bot():
-        return f"{player_ref.bot_name} (bot)"
+async def prettify_player_reference(user_ref: UserReference, session: AsyncSession) -> str:
+    if user_ref.is_guest():
+        return f"Guest {user_ref.guest_id}"
+    elif user_ref.is_bot():
+        return f"{user_ref.bot_name} (bot)"
     else:
-        player = await session.get(Player, player_ref.login)
-        return player.nickname if player else player_ref.login
+        player = await session.get(Player, user_ref.login)
+        return player.nickname if player else user_ref.login
 
 
-async def create_player(session: AsyncSession, login: str, nickname: str, commit: bool = True):
+async def get_user_ref_with_nickname(session: AsyncSession, user_ref: UserReference | str) -> UserRefWithNickname:
+    match user_ref:
+        case UserReference():
+            object_user_ref = user_ref
+            str_user_ref = user_ref.reference
+        case str():
+            object_user_ref = UserReference(user_ref)
+            str_user_ref = user_ref
+
+    nickname = await prettify_player_reference(object_user_ref, session)
+    return UserRefWithNickname(user_ref=str_user_ref, nickname=nickname)
+
+
+async def get_optional_user_ref_with_nickname(session: AsyncSession, user_ref: UserReference | str | None) -> UserRefWithNickname | None:
+    return await get_user_ref_with_nickname(session, user_ref) if user_ref else None
+
+
+async def create_player(session: AsyncSession, login: str, nickname: str, commit: bool = True) -> None:
     player = Player(
         login=login,
         nickname=nickname,
@@ -44,13 +62,22 @@ async def is_player_following_player(session: AsyncSession, follower: str | None
     return False
 
 
-async def get_followed_player_logins(session: AsyncSession, follower: str) -> list[str]:
-    result = await session.exec(select(
-        PlayerFollowedPlayer.followed_login
+async def get_followed_players(session: AsyncSession, follower: str) -> list[UserRefWithNickname]:
+    player_follow_facts = await session.exec(select(
+        PlayerFollowedPlayer
     ).where(
         PlayerFollowedPlayer.follower_login == follower
     ))
-    return list(result)
+
+    result = []
+    for i, player_follow_fact in enumerate(player_follow_facts):  # TODO: Optimize (DB-side join, remove relationship)
+        if i >= 100:
+            return result
+        result.append(UserRefWithNickname(
+            user_ref=player_follow_fact.followed_login,
+            nickname=player_follow_fact.followed.nickname
+        ))
+    return result
 
 
 async def get_roles(session: AsyncSession, role_owner_login: str, preferred_role: UserRole | None) -> list[PlayerRolePublic]:

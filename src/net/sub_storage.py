@@ -10,11 +10,11 @@ from pydantic import BaseModel
 from src.common.user_ref import UserReference
 from src.pubsub.models.channel import EventChannel, EveryoneEventChannel
 from src.player.datatypes import UserStatus
+from src.pubsub.outgoing_event.base import OutgoingEvent
 from src.utils.bijective_map import BijectiveMap
 
 import asyncio
 import src.net.core as core
-import src.net.outgoing as outgoing
 
 
 class SubscriberTag(Enum):
@@ -96,19 +96,17 @@ class SubscriberStorage:
 
         return most_active_status_over_connections
 
-    async def broadcast[T: BaseModel, C: EventChannel](
+    async def broadcast[T: BaseModel | None, C: EventChannel](
         self,
-        event: outgoing.WebsocketOutgoingEvent[T, C],
-        payload: T,
-        channel: C,
+        event_instance: OutgoingEvent[T, C],
         tag_whitelist: set[SubscriberTag] | None = None,
         tag_blacklist: set[SubscriberTag] | None = None
     ) -> None:
         sending_coroutines = []
-        for subscriber in self.get_subscribers(channel):
+        for subscriber in self.get_subscribers(event_instance.target_channel):
             if tag_whitelist and tag_whitelist.difference(subscriber.tags):
                 continue
             if tag_blacklist and subscriber.tags.intersection(tag_blacklist):
                 continue
-            sending_coroutines.append(subscriber.ws.send_event(event, payload, channel))
+            sending_coroutines.append(subscriber.ws.send_event(event_instance))
         await asyncio.gather(*sending_coroutines)

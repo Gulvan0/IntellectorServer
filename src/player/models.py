@@ -2,6 +2,7 @@ from datetime import datetime
 from sqlmodel import Field, Relationship
 
 from src.common.field_types import CurrentDatetime
+from src.common.models import UserRefWithNickname
 from src.player.datatypes import GameStats, UserRestrictionKind, UserRole, UserStatus
 from src.common.time_control import TimeControlKind
 from src.utils.custom_model import CustomModel, CustomSQLModel
@@ -63,6 +64,8 @@ class PlayerFollowedPlayer(CustomSQLModel, table=True):
     followed_login: str = Field(primary_key=True, foreign_key="player.login")
     follows_since: CurrentDatetime
 
+    followed: Player = Relationship(sa_relationship_kwargs=dict(foreign_keys="PlayerFollowedPlayer.followed_login"))
+
 
 class PlayerEloProgress(CustomSQLModel, table=True):  # Used for: current elo retrieval, elo history plotting, antifraud checks
     id: int | None = Field(default=None, primary_key=True)
@@ -81,7 +84,7 @@ class PlayerPublic(PlayerBase):
     per_time_control_stats: dict[TimeControlKind, GameStats]
     total_stats: GameStats
     studies_cnt: int
-    followed_players: list[str]
+    followed_players: list[UserRefWithNickname]
     roles: list[PlayerRolePublic]
     restrictions: list[PlayerRestrictionPublic]
 
@@ -110,4 +113,4 @@ class RestrictionBatchRemovalPayload(CustomModel):
 
 class StartedPlayerGamesStateRefresh(CustomModel):
     player_ref: str
-    current_games: list[main_game_models.Game]
+    current_games: list[main_game_models.GamePublic]

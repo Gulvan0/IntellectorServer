@@ -17,11 +17,11 @@ from src.pubsub.models.channel import EventChannel, EveryoneEventChannel
 from src.config.models import MainConfig, SecretConfig
 from src.log.models import ServerLaunch, WSLog
 from src.net.incoming import WebSocketHandlerCollection
-from src.net.outgoing import WebsocketOutgoingEvent, WebsocketOutgoingEventRegistry
 from src.net.sub_storage import SubscriberStorage
 from src.net.utils.ws_error import ErrorKind
 from src.config.loader import load
 from src.player.datatypes import UserStatus
+from src.pubsub.outgoing_event.base import OutgoingEvent
 from src.utils.bijective_map import BijectiveMap
 from src.utils.async_orm_session import AsyncSession
 
@@ -89,12 +89,8 @@ class WebSocketWrapper:
 
         await self.ws.send_json(payload)
 
-    async def send_event[T: BaseModel, C: EventChannel](self, event: WebsocketOutgoingEvent[T, C], payload: T, channel: C) -> None:
-        await self._send_logged_json(dict(
-            event=event.event_name,
-            channel=channel.model_dump() if channel else None,
-            body=payload.model_dump()
-        ))
+    async def send_event[T: BaseModel | None, C: EventChannel | None](self, event_instance: OutgoingEvent[T, C]) -> None:
+        await self._send_logged_json(event_instance.to_dict())
 
     async def send_pong(self) -> None:
         await self.ws.send_text("pong")
@@ -175,34 +171,13 @@ class App(FastAPI):
 
         self.ws_handlers: WebSocketHandlerCollection = WebSocketHandlerCollection.union(ws_collections)
 
-        self.regenerate_asyncapi_docs()
+        # self.regenerate_asyncapi_docs()  # TODO: Write v2 implementation and delegate to a separate module
 
         self.add_api_route("/ws_docs", self.websocket_docs_endpoint, response_class=HTMLResponse)
         self.add_websocket_route("/ws", self.websocket_endpoint)
 
-    def regenerate_asyncapi_docs(self) -> None:
-        incoming_spec = self.ws_handlers.generate_asyncapi_specification()
-        outgoing_spec = WebsocketOutgoingEventRegistry.generate_asyncapi_specification()
-
-        resource_dir = Path('./resources/asyncapi')
-        document_base = resource_dir / 'document_base.yaml'
-        page_template = resource_dir / 'docs_page_template.html'
-        output_file = resource_dir / 'docs_page.html'
-        output_spec = resource_dir / 'asyncapi_spec.json'
-
-        document = yaml.safe_load(document_base.read_text())
-        document.update(outgoing_spec)
-        document["channels"].update(incoming_spec["channels"])
-        document["operations"].update(incoming_spec["operations"])
-        document["components"]["messages"].update(incoming_spec["components"]["messages"])
-        document["info"]["description"] = document["info"]["description"].replace('\n', '\\n').replace('"', '\\"')
-
-        output_spec.write_text(json.dumps(document, indent=4, ensure_ascii=False))
-        result = Template(page_template.read_text()).render(schema=document)
-        output_file.write_text(result)
-
     async def websocket_docs_endpoint(self):
-        return HTMLResponse(content=Path('./resources/asyncapi/docs_page.html').read_text())
+        return HTMLResponse(content=Path('./resources/ws_api_docs/docs_page.html').read_text())
 
     async def websocket_endpoint(self, websocket: WebSocket):
         await websocket.accept()

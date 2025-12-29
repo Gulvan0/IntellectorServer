@@ -10,14 +10,13 @@ from src.challenge.methods.cast import to_public_challenge
 from src.common.dependencies import MainConfigDependency, MandatoryUserDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
 from src.common.models import Id
 from src.net.base_router import LoggingRoute
-from src.net.outgoing import WebsocketOutgoingEventRegistry
 from src.net.utils.early_response import supports_early_responses
 from src.pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
 
 import src.notification.methods as notification_methods
-import src.game.methods.cast as game_cast_methods
 import src.game.methods.create as game_create_methods
 import src.game.models.main as game_models
+from src.pubsub.outgoing_event.update import IncomingChallengeReceived, NewPublicChallenge, OutgoingChallengeRejected
 
 
 router = APIRouter(prefix="/challenge", route_class=LoggingRoute)
@@ -41,17 +40,13 @@ async def create_open_challenge(
     session.add(db_challenge)
     await session.commit()
 
-    public_challenge = db_challenge.to_public(None)
+    public_challenge = await to_public_challenge(session, db_challenge)
 
     if not challenge.link_only:
-        await state.ws_subscribers.broadcast(
-            WebsocketOutgoingEventRegistry.NEW_PUBLIC_CHALLENGE,
-            public_challenge,
-            PublicChallengeListEventChannel()
-        )
+        event = NewPublicChallenge(public_challenge, PublicChallengeListEventChannel())
+        await state.ws_subscribers.broadcast(event)
 
         await notification_methods.send_new_public_challenge_notifications(
-            caller=caller,
             public_challenge=public_challenge,
             integrations_config=secret_config.integrations,
             session=session
@@ -82,12 +77,11 @@ async def create_direct_challenge(
     session.add(db_challenge)
     await session.commit()
 
-    public_challenge = db_challenge.to_public(None)
-    await state.ws_subscribers.broadcast(
-        WebsocketOutgoingEventRegistry.INCOMING_CHALLENGE_RECEIVED,
-        public_challenge,
-        IncomingChallengesEventChannel(user_ref=challenge.callee_ref)
-    )
+    public_challenge = await to_public_challenge(session, db_challenge)
+
+    event = IncomingChallengeReceived(public_challenge, IncomingChallengesEventChannel(user_ref=challenge.callee_ref))
+    await state.ws_subscribers.broadcast(event)
+
     return ChallengeCreateResponse(result="created", challenge=public_challenge, callee_online=callee_online)
 
 
@@ -121,11 +115,7 @@ async def get_challenge(*, session: SessionDependency, id: int):
     if not db_challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
 
-    resulting_game = None
-    if db_challenge.resulting_game:
-        resulting_game = await game_cast_methods.to_public_game(session, db_challenge.resulting_game)
-
-    return db_challenge.to_public(resulting_game)
+    return await to_public_challenge(session, db_challenge)
 
 
 @router.delete("/{id}")
@@ -216,8 +206,5 @@ async def decline_challenge(
 
     await session.commit()
 
-    await state.ws_subscribers.broadcast(
-        WebsocketOutgoingEventRegistry.OUTGOING_CHALLENGE_REJECTED,
-        Id(id=challenge_id),
-        OutgoingChallengesEventChannel(user_ref=db_challenge.caller_ref)
-    )
+    event = OutgoingChallengeRejected(Id(id=challenge_id), OutgoingChallengesEventChannel(user_ref=db_challenge.caller_ref))
+    await state.ws_subscribers.broadcast(event)

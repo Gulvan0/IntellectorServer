@@ -548,7 +548,7 @@ class Position:
                         else:
                             _require(ply.destination.j == ply.departure.j)
                     if ply.destination.is_final_row_for(moving_piece.color):
-                        _require(ply.morph_into in PieceKind.promotion_options())
+                        _require((target_piece and target_piece.kind == PieceKind.INTELLECTOR) or ply.morph_into in PieceKind.promotion_options())
                     else:
                         _require(not ply.morph_into)
                 case PieceKind.DEFENSOR:
@@ -624,13 +624,21 @@ class Position:
                         if delta_i < 0:
                             if delta_j < 0:
                                 direction = PieceMovementDirection.FORWARD_LEFT
-                            else:
+                            elif delta_j > 0:
                                 direction = PieceMovementDirection.BACK_LEFT
+                            elif ply.departure.i % 2 == 0:
+                                direction = PieceMovementDirection.BACK_LEFT
+                            else:
+                                direction = PieceMovementDirection.FORWARD_LEFT
                         else:
                             if delta_j < 0:
                                 direction = PieceMovementDirection.FORWARD_RIGHT
-                            else:
+                            elif delta_j > 0:
                                 direction = PieceMovementDirection.BACK_RIGHT
+                            elif ply.departure.i % 2 == 0:
+                                direction = PieceMovementDirection.BACK_RIGHT
+                            else:
+                                direction = PieceMovementDirection.FORWARD_RIGHT
                         currently_iterated_hex_coords = ply.departure.step(direction)
                         assert currently_iterated_hex_coords
                         while currently_iterated_hex_coords.i != ply.destination.i:

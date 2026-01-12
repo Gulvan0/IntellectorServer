@@ -1,10 +1,10 @@
 from PIL import Image, ImageDraw, ImageFont
 from PIL.ImageFile import ImageFile
 
-from random import randint, random
+from random import random
 from math import sqrt
 
-from src.rules import HexCoordinates, Piece, PieceColor, PieceKind, Position
+from rules import HexCoordinates, Piece, PieceColor, PieceKind, Position
 
 SQRT3 = sqrt(3)
 
@@ -21,7 +21,7 @@ Y_OFFSET = (DIMENSIONS[1] - HEIGHT * 7) / 2
 PIECES: dict[Piece, ImageFile] = {}
 for kind in PieceKind:
     for color in PieceColor:
-        PIECES[Piece(kind, color)] = Image.open(f'pieces/{kind.get_letter()}{color.get_letter()}.png')
+        PIECES[Piece(kind, color)] = Image.open(f'resources/pieces/{kind.get_letter()}{color.get_letter()}.png')
 
 
 def get_hex_center(coords: HexCoordinates) -> tuple[float, float]:
@@ -51,7 +51,8 @@ for i in range(0, 9):
     for j in range(0, 7):
         if j == 6 and i % 2 == 1:
             continue
-        vertices = get_hex_vertices(HexCoordinates(i, j))
+        coords = HexCoordinates(i, j)
+        vertices = get_hex_vertices(coords)
         draw.polygon(xy=vertices, fill="#d18b47" if j % 3 == i % 2 else "#ffcf9f", outline="#664126", width=6)
         draw.text(xy=vertices[1], text=f"i{i};j{j}", fill=(0, 0, 0), font=ImageFont.load_default(size=HEIGHT / 3))
 

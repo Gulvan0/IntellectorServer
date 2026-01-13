@@ -8,7 +8,7 @@ from src.net.core import MutableState
 from src.pubsub.models.channel import GameEventChannel
 from src.pubsub.outgoing_event.base import OutgoingEvent
 from src.pubsub.outgoing_event.update import NewChatMessage, NewPly, OfferActionPerformed, Rollback, TimeAdded
-from src.rules import PieceColor
+from src.rules.piece import PieceColor
 from src.utils.async_orm_session import AsyncSession
 
 

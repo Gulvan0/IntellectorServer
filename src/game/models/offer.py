@@ -1,6 +1,6 @@
 from sqlmodel import Field, Relationship
 
-from src.rules import PieceColor
+from src.rules.piece import PieceColor
 from src.common.field_types import CurrentDatetime
 from src.game.datatypes import OfferAction, OfferKind
 from src.utils.custom_model import CustomSQLModel

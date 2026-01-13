@@ -1,4 +1,4 @@
-from src.rules import PieceKind
+from src.rules.piece import PieceKind
 from src.common.field_types import Sip
 from src.game.datatypes import OfferAction, OfferKind
 from src.utils.custom_model import CustomModel

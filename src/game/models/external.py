@@ -1,7 +1,7 @@
 from typing import Literal, Self
 from pydantic import Field as PydanticField, model_validator
 
-from src.rules import PieceColor, PieceKind
+from src.rules.piece import PieceColor, PieceKind
 from src.common.field_types import OptionalSip, PlayerRef
 from src.game.datatypes import OutcomeKind, SimpleOutcome, TimeRemainders
 from src.game.models.time_control import GameFischerTimeControlCreate

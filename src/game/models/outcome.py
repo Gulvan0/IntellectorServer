@@ -1,6 +1,6 @@
 from sqlmodel import Field, Relationship
 
-from src.rules import PieceColor
+from src.rules.piece import PieceColor
 from src.common.field_types import CurrentDatetime
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from src.game.datatypes import OutcomeKind

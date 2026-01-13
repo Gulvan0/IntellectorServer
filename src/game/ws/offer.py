@@ -9,7 +9,7 @@ from src.game.methods.update import end_game
 from src.game.methods.get import (
     is_offer_active,
 )
-from src.rules import PieceColor
+from src.rules.piece import PieceColor
 from src.game.datatypes import OfferAction, OfferKind, OutcomeKind
 from src.utils.async_orm_session import AsyncSession
 

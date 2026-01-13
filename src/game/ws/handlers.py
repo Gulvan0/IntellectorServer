@@ -19,7 +19,7 @@ from src.game.methods.get import (
 )
 from src.pubsub.outgoing_event.refresh import GameRefresh
 from src.pubsub.outgoing_event.update import NewChatMessage
-from src.rules import Position
+from src.rules.deserializers.sip import color_to_move_from_sip
 from src.game.datatypes import OfferAction, OfferKind, OutcomeKind
 
 
@@ -88,7 +88,7 @@ async def perform_offer_action(ws: WebSocketWrapper, client: UserReference | Non
             case OfferAction.CREATE:
                 last_ply_event = await get_last_ply_event(deps.session, payload.game_id)
                 current_sip, ply_cnt = get_current_sip_and_ply_cnt(deps.db_game, last_ply_event)
-                await create_offer(deps.session, ws, payload.game_id, Position.color_to_move_from_sip(current_sip), ply_cnt, payload.offer_kind, deps.client_color)
+                await create_offer(deps.session, ws, payload.game_id, color_to_move_from_sip(current_sip), ply_cnt, payload.offer_kind, deps.client_color)
             case OfferAction.CANCEL:
                 await cancel_offer(deps.session, ws, payload.game_id, payload.offer_kind, deps.client_color)
             case OfferAction.DECLINE:

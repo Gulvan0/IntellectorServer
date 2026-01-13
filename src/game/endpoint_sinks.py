@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import chain
 from typing import Iterable
+
 from src.config.models import MainConfig, SecretConfig
 from src.game.datatypes import OutcomeKind, SimpleOutcome, TimeRemainders
 from src.game.exceptions import PlyInvalidException, SinkException
@@ -16,7 +17,13 @@ from src.game.models.rollback import GameRollbackEvent
 from src.game.models.time_added import GameTimeAddedEvent
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from src.net.core import MutableState
-from src.rules import DEFAULT_STARTING_SIP, HexCoordinates, PieceColor, Ply, Position, PositionFinalityGroup
+from src.rules.constants.sip import DEFAULT_STARTING_SIP
+from src.rules.coords import HexCoordinates
+from src.rules.deserializers.sip import color_to_move_from_sip, position_from_sip
+from src.rules.piece import PieceColor
+from src.rules.ply import Ply
+from src.rules.position import Position, PositionFinalityGroup
+from src.rules.serializers.sip import get_sip
 from src.utils.async_orm_session import AsyncSession
 
 
@@ -71,7 +78,7 @@ async def append_ply_sink(
 ) -> SimpleOutcome | None:
     prev_ply_event = await get_last_ply_event(session, payload.game_id)
     prev_sip, new_ply_index = get_current_sip_and_ply_cnt(db_game, prev_ply_event)
-    prev_position = Position.default_starting() if prev_sip == DEFAULT_STARTING_SIP else Position.from_sip(prev_sip)
+    prev_position = Position.default_starting() if prev_sip == DEFAULT_STARTING_SIP else position_from_sip(prev_sip)
 
     if assumed_moving_color and prev_position.color_to_move != assumed_moving_color:
         raise SinkException(f"It's not your turn. Current SIP is {prev_sip}")
@@ -86,8 +93,8 @@ async def append_ply_sink(
     if not prev_position.is_ply_possible(ply):
         raise PlyInvalidException(prev_sip)
 
-    perform_ply_result = prev_position.perform_ply_without_validation(ply)
-    new_sip = perform_ply_result.new_position.to_sip()
+    perform_ply_result = prev_position.perform_ply(ply)
+    new_sip = get_sip(perform_ply_result.new_position)
 
     ply_dt = datetime.now(UTC)
 
@@ -126,10 +133,10 @@ async def append_ply_sink(
         to_j=ply.destination.j,
         morph_into=ply.morph_into,
         game_id=payload.game_id,
-        kind=perform_ply_result.ply_kind,
+        kind=perform_ply_result.properties.ply_kind,
         moving_color=prev_position.color_to_move,
-        moved_piece=perform_ply_result.moving_piece.kind,
-        target_piece=perform_ply_result.target_piece.kind if perform_ply_result.target_piece else None,
+        moved_piece=perform_ply_result.properties.moving_piece.kind,
+        target_piece=perform_ply_result.properties.target_piece.kind if perform_ply_result.properties.target_piece else None,
         sip_after=new_sip,
         time_update=new_time_update
     )
@@ -159,7 +166,7 @@ async def validate_rollback(
     if not last_ply_event:
         raise SinkException("Too early for a rollback")
 
-    old_color_to_move = Position.color_to_move_from_sip(last_ply_event.sip_after)
+    old_color_to_move = color_to_move_from_sip(last_ply_event.sip_after)
     old_ply_cnt = last_ply_event.ply_index + 1
 
     match input:

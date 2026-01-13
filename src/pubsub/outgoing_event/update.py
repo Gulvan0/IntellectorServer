@@ -25,7 +25,7 @@ from src.pubsub.models.channel import (
     SubscriberListEventChannel,
 )
 from src.pubsub.outgoing_event.base import OutgoingEvent
-from src.rules import PieceColor, PieceKind
+from src.rules.piece import PieceColor, PieceKind
 
 
 # TODO: Make foreign imports absolute (after examples are moved) - in every new module

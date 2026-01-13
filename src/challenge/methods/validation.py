@@ -1,15 +1,16 @@
 from fastapi import HTTPException
+
 from src.challenge.datatypes import ChallengeAcceptorColor
 from src.challenge.methods.get import get_active_challenge_cnt_by_players, get_identical_challenge, get_total_active_challenges_by_caller
 from src.challenge.models import ChallengeCreateDirect, ChallengeCreateOpen
-
+from src.rules.constants.sip import DEFAULT_STARTING_SIP
+from src.rules.deserializers.sip import position_from_sip
+from src.utils.async_orm_session import AsyncSession
 from src.common.user_ref import UserReference
 from src.config.models import LimitParams
-from src.rules import DEFAULT_STARTING_SIP, Position
 
 import src.player.methods as player_methods
 import src.player.models as player_models
-from src.utils.async_orm_session import AsyncSession
 
 
 async def validate_bracket(challenge: ChallengeCreateOpen | ChallengeCreateDirect, session: AsyncSession, caller: UserReference) -> None:
@@ -27,7 +28,7 @@ def validate_startpos(challenge: ChallengeCreateOpen | ChallengeCreateDirect) ->
     if challenge.custom_starting_sip:
         if challenge.custom_starting_sip == DEFAULT_STARTING_SIP:
             challenge.custom_starting_sip = None
-        elif not Position.from_sip(challenge.custom_starting_sip).is_valid_starting():
+        elif not position_from_sip(challenge.custom_starting_sip).is_valid_starting():
             raise HTTPException(status_code=400, detail="Invalid starting situation")
 
 

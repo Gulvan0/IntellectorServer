@@ -3,7 +3,7 @@ from typing import Any
 from sqlmodel import Field, Relationship
 
 from src.common.models import UserRefWithNickname
-from src.rules import PieceKind
+from src.rules.piece import PieceKind
 from src.common.field_types import CurrentDatetime, Sip
 from src.study.datatypes import StudyPublicity
 from src.utils.async_orm_session import AsyncSession

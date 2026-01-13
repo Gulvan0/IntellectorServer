@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import auto, StrEnum
 
 from src.common.time_control import TimeControlKind
-from src.rules import PieceColor
+from src.rules.piece import PieceColor
 from src.utils.custom_model import CustomModel
 
 

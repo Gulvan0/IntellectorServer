@@ -4,7 +4,11 @@ from PIL.ImageFile import ImageFile
 from random import random
 from math import sqrt
 
-from rules import HexCoordinates, Piece, PieceColor, PieceKind, Position
+from rules.coords import HexCoordinates
+from rules.piece import Piece, PieceColor, PieceKind
+from src.rules.position import Position
+from src.rules.serializers.sip import piece_letter, color_letter
+
 
 SQRT3 = sqrt(3)
 
@@ -21,7 +25,7 @@ Y_OFFSET = (DIMENSIONS[1] - HEIGHT * 7) / 2
 PIECES: dict[Piece, ImageFile] = {}
 for kind in PieceKind:
     for color in PieceColor:
-        PIECES[Piece(kind, color)] = Image.open(f'resources/pieces/{kind.get_letter()}{color.get_letter()}.png')
+        PIECES[Piece(kind, color)] = Image.open(f'resources/pieces/{piece_letter(kind)}{color_letter(color)}.png')
 
 
 def get_hex_center(coords: HexCoordinates) -> tuple[float, float]:

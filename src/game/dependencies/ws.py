@@ -7,7 +7,7 @@ from src.game.exceptions import SinkException
 from src.game.models.main import Game
 from src.net.core import WebSocketWrapper
 from src.net.utils.ws_error import WebSocketException
-from src.rules import PieceColor
+from src.rules.piece import PieceColor
 from src.utils.async_orm_session import AsyncSession
 
 

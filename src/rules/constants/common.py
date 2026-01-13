@@ -1,0 +1,1 @@
+BOARD_HEX_COUNT = 59

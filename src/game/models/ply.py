@@ -1,8 +1,9 @@
 from sqlmodel import Field, Relationship
 
-from src.rules import PieceColor, PieceKind, PlyKind
+from src.rules.piece import PieceColor, PieceKind
 from src.common.field_types import CurrentDatetime, Sip
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
+from src.rules.ply import PlyKind
 from src.utils.custom_model import CustomSQLModel
 
 import src.game.models.main as game_main_models

@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from enum import StrEnum, auto
 from sqlmodel import Field, Relationship
 
-from src.rules import PieceColor
+from src.rules.piece import PieceColor
 from src.game.models.main import Game
 from src.utils.custom_model import CustomSQLModel
 

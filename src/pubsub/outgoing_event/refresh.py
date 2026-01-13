@@ -17,7 +17,7 @@ from src.pubsub.models.channel import (
 )
 from src.pubsub.models.state import SubscriberListEventChannelState
 from src.pubsub.outgoing_event.base import RefreshEvent
-from src.rules import PieceColor
+from src.rules.piece import PieceColor
 
 
 class StartedPlayerGamesRefresh(RefreshEvent[StartedPlayerGamesStateRefresh, StartedPlayerGamesEventChannel]):

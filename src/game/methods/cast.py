@@ -7,7 +7,7 @@ from src.game.models.main import Game, GamePublic, GameStateRefresh, GenericEven
 from src.game.models.time_control import GameFischerTimeControlPublic
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic, GameTimeUpdateReason
 from src.game.methods.get import get_ply_history, get_latest_time_update
-from src.rules import PieceColor
+from src.rules.piece import PieceColor
 from src.utils.async_orm_session import AsyncSession
 
 import src.player.methods as player_methods

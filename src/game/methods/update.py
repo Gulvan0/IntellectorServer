@@ -9,7 +9,7 @@ from src.game.datatypes import OfferAction, OutcomeKind
 from src.net.core import MutableState
 from src.pubsub.models.channel import GameEventChannel
 from src.pubsub.outgoing_event.update import OfferActionPerformed
-from src.rules import PieceColor
+from src.rules.piece import PieceColor
 from src.utils.async_orm_session import AsyncSession
 
 import time

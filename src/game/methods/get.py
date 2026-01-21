@@ -12,9 +12,9 @@ from src.game.models.outcome import GameOutcome
 from src.game.models.ply import GamePlyEvent
 from src.game.models.rest import GameFilter
 from src.game.models.time_update import GameTimeUpdate
-from src.rules.constants.sip import DEFAULT_STARTING_SIP
-from src.rules.piece import PieceColor, PieceKind
-from src.rules.ply import PlyKind
+from src.board.constants.sip import DEFAULT_STARTING_SIP
+from src.board.piece import PieceColor, PieceKind
+from src.board.ply import PlyKind
 from src.utils.async_orm_session import AsyncSession
 
 

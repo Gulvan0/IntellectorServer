@@ -17,13 +17,13 @@ from src.game.models.rollback import GameRollbackEvent
 from src.game.models.time_added import GameTimeAddedEvent
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from src.net.core import MutableState
-from src.rules.constants.sip import DEFAULT_STARTING_SIP
-from src.rules.coords import HexCoordinates
-from src.rules.deserializers.sip import color_to_move_from_sip, position_from_sip
-from src.rules.piece import PieceColor
-from src.rules.ply import Ply
-from src.rules.position import Position, PositionFinalityGroup
-from src.rules.serializers.sip import get_sip
+from src.board.constants.sip import DEFAULT_STARTING_SIP
+from src.board.coords import HexCoordinates
+from src.board.deserializers.sip import color_to_move_from_sip, position_from_sip
+from src.board.piece import PieceColor
+from src.board.ply import Ply
+from src.board.position import Position, PositionFinalityGroup
+from src.board.serializers.sip import get_sip
 from src.utils.async_orm_session import AsyncSession
 
 

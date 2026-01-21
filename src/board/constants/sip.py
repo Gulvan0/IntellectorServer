@@ -1,5 +1,5 @@
-from src.rules.position import Position
-from src.rules.serializers.sip import get_sip, get_v1_sip
+from src.board.position import Position
+from src.board.serializers.sip import get_sip, get_v1_sip
 
 
 DEFAULT_STARTING_SIP = get_sip(Position.default_starting())

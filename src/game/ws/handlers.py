@@ -19,7 +19,7 @@ from src.game.methods.get import (
 )
 from src.pubsub.outgoing_event.refresh import GameRefresh
 from src.pubsub.outgoing_event.update import NewChatMessage
-from src.rules.deserializers.sip import color_to_move_from_sip
+from src.board.deserializers.sip import color_to_move_from_sip
 from src.game.datatypes import OfferAction, OfferKind, OutcomeKind
 
 

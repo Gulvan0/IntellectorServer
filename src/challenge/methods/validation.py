@@ -3,8 +3,8 @@ from fastapi import HTTPException
 from src.challenge.datatypes import ChallengeAcceptorColor
 from src.challenge.methods.get import get_active_challenge_cnt_by_players, get_identical_challenge, get_total_active_challenges_by_caller
 from src.challenge.models import ChallengeCreateDirect, ChallengeCreateOpen
-from src.rules.constants.sip import DEFAULT_STARTING_SIP
-from src.rules.deserializers.sip import position_from_sip
+from src.board.constants.sip import DEFAULT_STARTING_SIP
+from src.board.deserializers.sip import position_from_sip
 from src.utils.async_orm_session import AsyncSession
 from src.common.user_ref import UserReference
 from src.config.models import LimitParams

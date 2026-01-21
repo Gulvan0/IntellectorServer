@@ -3,11 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 
-from src.rules.coords import HexCoordinates
-from src.rules.piece import Piece, PieceColor, PieceKind
-from src.rules.piece_movement import PieceMovementDirection
-from src.rules.ply import DerivedPlyProperties, Ply, PlyKind
-from src.rules.ply_validation import (
+from src.board.coords import HexCoordinates
+from src.board.piece import Piece, PieceColor, PieceKind
+from src.board.piece_movement import PieceMovementDirection
+from src.board.ply import DerivedPlyProperties, Ply, PlyKind
+from src.board.ply_validation import (
     PlyImpossibleException,
     validate_aggressor_ply,
     validate_defensor_ply,

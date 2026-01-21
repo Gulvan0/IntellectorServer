@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from src.rules.piece import PieceColor
+from src.board.piece import PieceColor
 
 
 @dataclass

@@ -1,12 +1,12 @@
 from typing import TYPE_CHECKING
-from src.rules.coords import HexCoordinates
-from src.rules.piece import Piece, PieceColor, PieceKind
-from src.rules.piece_movement import PieceMovementDirection
-from src.rules.ply import DerivedPlyProperties, Ply, PlyKind
+from src.board.coords import HexCoordinates
+from src.board.piece import Piece, PieceColor, PieceKind
+from src.board.piece_movement import PieceMovementDirection
+from src.board.ply import DerivedPlyProperties, Ply, PlyKind
 
 
 if TYPE_CHECKING:
-    from src.rules.position import Position
+    from src.board.position import Position
 
 
 class PlyImpossibleException(Exception):

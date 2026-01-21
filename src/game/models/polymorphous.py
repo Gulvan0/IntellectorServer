@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from src.rules.piece import PieceKind
+from src.board.piece import PieceKind
 
 
 class PayloadWithGameId(Protocol):

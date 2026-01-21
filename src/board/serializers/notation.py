@@ -1,7 +1,7 @@
-from src.rules.coords import HexCoordinates
-from src.rules.piece import Piece, PieceKind
-from src.rules.ply import DerivedPlyProperties, Ply, PlyKind
-from src.rules.position import Position
+from src.board.coords import HexCoordinates
+from src.board.piece import Piece, PieceKind
+from src.board.ply import DerivedPlyProperties, Ply, PlyKind
+from src.board.position import Position
 
 
 def piece_kind_mark(piece_kind: PieceKind) -> str:

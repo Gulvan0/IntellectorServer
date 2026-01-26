@@ -15,8 +15,3 @@ class NewSubscriberBroadcastedData(CustomModel):
 
 class SubscriberLeftBroadcastedData(CustomModel):
     user_ref: str | None
-
-
-class SubscriberListChannelStateRefresh(CustomModel):
-    current_subscriber_user_refs: list[str]
-    unauthenticated_subs_count: int

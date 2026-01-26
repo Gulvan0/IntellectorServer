@@ -23,7 +23,7 @@ from src.common.samples import (
 from src.common.time_control import TimeControlKind
 from src.game.datatypes import OfferAction, OfferKind, OutcomeKind
 from src.game.models.chat import ChatMessageBroadcastedData, GameChatMessageEventPublic
-from src.game.models.main import GamePublic, GameStartedBroadcastedData, GameStateRefresh, GenericEventList
+from src.game.models.main import GamePublic, GameStartedBroadcastedData, GenericEventList
 from src.board.samples import non_default_starting_position, piece_color, playthrough, valid_non_final_sip
 from src.board.piece import PieceColor
 from src.game.models.offer import GameOfferEventPublic, OfferActionBroadcastedData
@@ -33,6 +33,7 @@ from src.game.models.rollback import RollbackBroadcastedData
 from src.game.models.time_added import GameTimeAddedEventPublic, TimeAddedBroadcastedData
 from src.game.models.time_control import GameFischerTimeControlPublic
 from src.game.models.time_update import GameTimeUpdatePublic, GameTimeUpdateReason
+from src.pubsub.models.state import GameStateRefresh
 
 
 @dataclass

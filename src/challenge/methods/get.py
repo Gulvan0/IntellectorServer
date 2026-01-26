@@ -1,8 +1,9 @@
 from typing import Iterable
-from sqlmodel import and_, or_, select, func, col
+from sqlmodel import and_, desc, or_, select, func, col
 
 from src.challenge.datatypes import ChallengeKind
-from src.challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen
+from src.challenge.methods.cast import to_public_challenge
+from src.challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic
 from src.challenge.sql import time_control_equality_conditions
 from src.common.user_ref import UserReference
 from src.utils.async_orm_session import AsyncSession
@@ -110,5 +111,23 @@ async def get_direct_challenges(
     ).where(
         Challenge.active == True,  # noqa
         or_(*user_filters)
+    ).order_by(
+        desc(Challenge.created_at)
     ))
     return result.all()
+
+
+async def get_active_public_challenges(session: AsyncSession) -> list[ChallengePublic]:
+    result = await session.exec(select(
+        Challenge
+    ).where(
+        Challenge.active == True,  # noqa
+        Challenge.kind == ChallengeKind.PUBLIC,
+    ).order_by(
+        desc(Challenge.created_at)
+    ))
+
+    return [
+        await to_public_challenge(session, db_challenge)
+        for db_challenge in result
+    ]

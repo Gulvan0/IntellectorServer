@@ -3,11 +3,12 @@ from typing import Literal
 
 from src.game.exceptions import TimeoutReachedException
 from src.game.models.offer import GameOfferEventPublic
-from src.game.models.main import Game, GamePublic, GameStateRefresh, GenericEventList
+from src.game.models.main import Game, GamePublic, GenericEventList
 from src.game.models.time_control import GameFischerTimeControlPublic
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic, GameTimeUpdateReason
 from src.game.methods.get import get_ply_history, get_latest_time_update
 from src.board.piece import PieceColor
+from src.pubsub.models.state import GameStateRefresh
 from src.utils.async_orm_session import AsyncSession
 
 import src.player.methods as player_methods

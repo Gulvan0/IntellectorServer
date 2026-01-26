@@ -1,10 +1,6 @@
-from src.challenge.models import ChallengeListStateRefresh
 from src.challenge.samples import active_public_challenges, incoming_challenges, outgoing_challenges
 from src.common.samples import underscore_str, user_ref_with_nickname, user_ref_with_nickname_list
-from src.game.models.main import GameStateRefresh
-from src.game.models.other import GameListChannelsStateRefresh
 from src.game.samples import game_state_refreshes, minimal_representative_games
-from src.player.models import StartedPlayerGamesStateRefresh
 from src.pubsub.models.channel import (
     GameEventChannel,
     GameListEventChannel,
@@ -14,7 +10,13 @@ from src.pubsub.models.channel import (
     StartedPlayerGamesEventChannel,
     SubscriberListEventChannel,
 )
-from src.pubsub.models.state import SubscriberListEventChannelState
+from src.pubsub.models.state import (
+    ChallengeListStateRefresh,
+    GameListChannelsStateRefresh,
+    GameStateRefresh,
+    StartedPlayerGamesStateRefresh,
+    SubscriberListChannelStateRefresh,
+)
 from src.pubsub.outgoing_event.base import RefreshEvent
 
 
@@ -80,11 +82,11 @@ class GameRefresh(RefreshEvent[GameStateRefresh, GameEventChannel]):
         return game_state_refreshes()
 
 
-class SubscriberListRefresh(RefreshEvent[SubscriberListEventChannelState, SubscriberListEventChannel]):
+class SubscriberListRefresh(RefreshEvent[SubscriberListChannelStateRefresh, SubscriberListEventChannel]):
     @classmethod
-    def payload_examples(cls) -> list[SubscriberListEventChannelState]:
+    def payload_examples(cls) -> list[SubscriberListChannelStateRefresh]:
         return [
-            SubscriberListEventChannelState(subscribers=user_ref_with_nickname_list(3)),
-            SubscriberListEventChannelState(subscribers=user_ref_with_nickname_list(1)),
-            SubscriberListEventChannelState(subscribers=[]),
+            SubscriberListChannelStateRefresh(subscribers=user_ref_with_nickname_list(3), unauthenticated_subs_count=1),
+            SubscriberListChannelStateRefresh(subscribers=user_ref_with_nickname_list(1), unauthenticated_subs_count=0),
+            SubscriberListChannelStateRefresh(subscribers=[], unauthenticated_subs_count=6),
         ]

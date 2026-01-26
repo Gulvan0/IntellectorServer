@@ -106,7 +106,3 @@ class ChallengeCreateResponse(CustomModel):
     challenge: ChallengePublic | None = None
     callee_online: bool | None = None
     game: game_models.GamePublic | None = None
-
-
-class ChallengeListStateRefresh(CustomModel):
-    challenges: list[ChallengePublic]

@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Optional
 from sqlmodel import Field, Relationship
 
 from src.common.field_types import CurrentDatetime, OptionalSip, PlayerRef, OptionalPlayerRef
@@ -12,7 +12,7 @@ from src.game.models.offer import GameOfferEvent, GameOfferEventPublic
 from src.game.models.rollback import GameRollbackEvent, GameRollbackEventPublic
 from src.game.models.time_added import GameTimeAddedEvent, GameTimeAddedEventPublic
 from src.game.models.time_update import GameTimeUpdatePublic
-from src.utils.custom_model import CustomModel, CustomSQLModel
+from src.utils.custom_model import CustomSQLModel
 
 
 GenericEventList = list[GamePlyEventPublic | GameChatMessageEventPublic | GameOfferEventPublic | GameTimeAddedEventPublic | GameRollbackEventPublic]
@@ -58,11 +58,3 @@ class GameStartedBroadcastedData(GameBase):
     black_player: UserRefWithNickname
 
     fischer_time_control: GameFischerTimeControlPublic | None
-
-
-class GameStateRefresh(CustomModel):
-    game_id: int
-    refresh_reason: Literal['sub', 'invalid_move']
-    outcome: GameOutcomePublic | None
-    events: GenericEventList
-    latest_time_update: GameTimeUpdatePublic | None

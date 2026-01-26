@@ -98,12 +98,17 @@ async def get_overall_player_game_counts(session: AsyncSession, player_login: st
     return game_counts
 
 
-async def get_current_games(session: AsyncSession, game_filter: GameFilter, offset: int = 0, limit: int = 10) -> Iterable[Game]:
+async def get_current_games(session: AsyncSession, game_filter: GameFilter | None = None, offset: int = 0, limit: int = 10) -> Iterable[Game]:
+    if not game_filter:
+        game_filter = GameFilter()
+
     result = await session.exec(select(
         Game
     ).where(
         Game.outcome == None,  # noqa
         *game_filter.construct_conditions()
+    ).order_by(
+        desc(Game.started_at)
     ).offset(
         offset
     ).limit(
@@ -112,7 +117,10 @@ async def get_current_games(session: AsyncSession, game_filter: GameFilter, offs
     return result.all()
 
 
-async def get_recent_games(session: AsyncSession, game_filter: GameFilter, offset: int = 0, limit: int = 10) -> Iterable[Game]:
+async def get_recent_games(session: AsyncSession, game_filter: GameFilter | None = None, offset: int = 0, limit: int = 10) -> Iterable[Game]:
+    if not game_filter:
+        game_filter = GameFilter()
+
     result = await session.exec(select(
         Game
     ).where(

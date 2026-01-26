@@ -7,7 +7,6 @@ from src.player.datatypes import GameStats, UserRestrictionKind, UserRole, UserS
 from src.common.time_control import TimeControlKind
 from src.utils.custom_model import CustomModel, CustomSQLModel
 
-import src.game.models.main as main_game_models
 import src.study.models as study_models
 
 
@@ -106,8 +105,3 @@ class RestrictionRemovalPayload(CustomModel):
 
 class RestrictionBatchRemovalPayload(CustomModel):
     restriction: UserRestrictionKind | None = None
-
-
-class StartedPlayerGamesStateRefresh(CustomModel):
-    player_ref: str
-    current_games: list[main_game_models.GamePublic]

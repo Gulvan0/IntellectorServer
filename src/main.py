@@ -7,6 +7,7 @@ from src.other import routes as other_routes
 from src.study import routes as study_routes
 
 from src.game.ws import handlers as ws_game
+from src.pubsub import ws_handlers as ws_pubsub
 
 from src.net.core import App
 
@@ -23,5 +24,6 @@ app = App(
     ],
     ws_collections=[
         ws_game.collection,
+        ws_pubsub.collection,
     ]
 )

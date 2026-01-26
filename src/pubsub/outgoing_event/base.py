@@ -4,6 +4,8 @@ from types import NoneType
 from typing import get_args
 from pydantic import BaseModel
 
+from src.common.models import Id, IdList
+from src.common.samples import id_lists, ids
 from src.pubsub.models.channel import EventChannel
 from src.utils.string import camel_to_snake
 
@@ -26,8 +28,8 @@ class OutgoingEvent[PayloadType: BaseModel | None, TargetChannelType: EventChann
         return "Not yet documented"
 
     @classmethod
-    def payload_example(cls) -> PayloadType | None:
-        return None
+    def payload_examples(cls) -> list[PayloadType]:
+        return []
 
     @classmethod
     def _type_variables(cls) -> tuple[type, ...]:
@@ -60,11 +62,22 @@ class OutgoingEvent[PayloadType: BaseModel | None, TargetChannelType: EventChann
         return None
 
     @classmethod
-    def payload_example_json(cls) -> dict | None:
-        payload_example = cls.payload_example()
-        if payload_example is None:
-            return None
-        return payload_example.model_dump()
+    def payload_examples_json(cls) -> list[dict | None]:
+        payload_type: type[BaseModel] | None = cls.payload_type()  # type: ignore
+        if payload_type:
+            if payload_type is Id:
+                payload_examples: list = ids()
+            elif payload_type is IdList:
+                payload_examples = id_lists()
+            else:
+                payload_examples = cls.payload_examples()
+
+            return [
+                example.model_dump() if example is not None else None
+                for example in payload_examples
+            ]
+        else:
+            return [None]
 
     def to_dict(self) -> dict:
         return dict(

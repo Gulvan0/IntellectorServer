@@ -41,7 +41,7 @@ class UserReference:
     @property
     def bot_name(self) -> str:
         assert self.is_bot()
-        return self.reference[1:]
+        return self.reference[1:].title()
 
     def __str__(self) -> str:
         return self.reference

@@ -19,6 +19,27 @@ class TimeControlKind(StrEnum):
     CORRESPONDENCE = auto()
 
     @classmethod
+    def non_correspondence_kinds(cls) -> list[TimeControlKind]:
+        return [
+            TimeControlKind.HYPERBULLET,
+            TimeControlKind.BULLET,
+            TimeControlKind.BLITZ,
+            TimeControlKind.RAPID,
+            TimeControlKind.CLASSIC,
+        ]
+
+    @classmethod
+    def all_kinds(cls) -> list[TimeControlKind]:
+        return [
+            TimeControlKind.HYPERBULLET,
+            TimeControlKind.BULLET,
+            TimeControlKind.BLITZ,
+            TimeControlKind.RAPID,
+            TimeControlKind.CLASSIC,
+            TimeControlKind.CORRESPONDENCE,
+        ]
+
+    @classmethod
     def of(cls, entity: FischerTimeControlEntity | None) -> TimeControlKind:
         match entity:
             case FischerTimeControlEntity():  # Adding another time control type => adding new Protocol and a separate case for it

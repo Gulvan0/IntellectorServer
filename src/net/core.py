@@ -95,6 +95,9 @@ class WebSocketWrapper:
     async def send_pong(self) -> None:
         await self.ws.send_text("pong")
 
+    async def send_unsubscribed(self) -> None:
+        await self.ws.send_text("unsubscribed")
+
     async def send_error(self, error: ErrorKind, details: Any) -> None:
         await self._send_logged_json(dict(
             error=error.value,

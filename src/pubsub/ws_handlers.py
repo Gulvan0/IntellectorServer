@@ -99,3 +99,15 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
         sub_storage.subscribe(ws, payload.channel, tags)
 
     await ws.send_event(refresh_event)
+
+
+@collection.register(SubUnsubPayload)
+async def unsub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUnsubPayload):
+    sub_storage = ws.app.mutable_state.ws_subscribers
+
+    if not sub_storage.has_ws_subscriber(ws, payload.channel):
+        raise WebSocketException(f"Failed to unsubscribe from channel {payload.channel.model_dump_json()}: you're not subscribed to it!")
+
+    sub_storage.unsubscribe(ws, payload.channel)
+
+    await ws.send_unsubscribed()

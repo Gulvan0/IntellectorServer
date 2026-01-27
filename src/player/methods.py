@@ -1,7 +1,9 @@
 from sqlmodel import desc, select, func
 from src.common.models import UserRefWithNickname
 from src.common.sql import exists, not_expired
+from src.common.time_control import TimeControlKind
 from src.common.user_ref import UserReference
+from src.config.models import MainConfig
 from src.player.models import Player, PlayerEloProgress, PlayerFollowedPlayer, PlayerRestriction, PlayerRestrictionPublic, PlayerRole, PlayerRolePublic
 from src.player.datatypes import GameStats, OverallGameStats, UserRestrictionKind, UserRole
 from src.utils.async_orm_session import AsyncSession
@@ -142,9 +144,9 @@ async def get_restrictions(session: AsyncSession, restriction_owner_login: str) 
 
 async def get_overall_game_stats(
     session: AsyncSession,
+    main_config: MainConfig,
     player_login: str,
     overall_counts: game_datatypes.OverallGameCounts,
-    required_calibration_games_cnt: int
 ) -> OverallGameStats:
     db_elo_entries = await session.exec(select(
         PlayerEloProgress
@@ -160,7 +162,33 @@ async def get_overall_game_stats(
     for db_elo_entry in db_elo_entries:
         full_stats.extend_with(db_elo_entry.time_control_kind, GameStats(
             elo=db_elo_entry.elo,
-            is_elo_provisional=db_elo_entry.ranked_games_played >= required_calibration_games_cnt,
+            is_elo_provisional=db_elo_entry.ranked_games_played < main_config.elo.calibration_games,
             games_cnt=overall_counts.by_time_control[db_elo_entry.time_control_kind]
         ))
     return full_stats
+
+
+async def get_stats_for_time_control(
+    session: AsyncSession,
+    main_config: MainConfig,
+    player_login: str,
+    time_control_kind: TimeControlKind,
+) -> GameStats:
+    entries = await session.exec(select(
+        PlayerEloProgress
+    ).where(
+        PlayerEloProgress.login == player_login,
+        PlayerEloProgress.time_control_kind == time_control_kind
+    ).order_by(
+        desc(PlayerEloProgress.ts)
+    ))
+    last_entry = entries.first()
+
+    if not last_entry:
+        return GameStats(elo=None, is_elo_provisional=True, games_cnt=0)
+
+    return GameStats(
+        elo=last_entry.elo,
+        is_elo_provisional=last_entry.ranked_games_played < main_config.elo.calibration_games,
+        games_cnt=last_entry.ranked_games_played
+    )

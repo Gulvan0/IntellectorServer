@@ -69,7 +69,17 @@ async def check_timeout(
     if timeout_delta_ms <= timeout_delta_threshold:
         timeout_dt = now_dt + timedelta(milliseconds=timeout_delta_ms)
         winner = latest_time_update.ticking_side.opposite()
-        await end_game(session, state, secret_config, game_id, OutcomeKind.TIMEOUT, winner, timeout_dt)
+        await end_game(
+            session,
+            state,
+            secret_config,
+            game_id,
+            OutcomeKind.TIMEOUT,
+            winner,
+            timeout_dt,
+            pre_retrieved_db_game=game,
+            pre_retrieved_latest_time_update=latest_time_update
+        )
         return True
     else:
         await __delay_timeout_check((timeout_delta_ms - timeout_delta_threshold) / 1000 + 0.01, game_id)

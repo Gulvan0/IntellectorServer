@@ -154,7 +154,9 @@ async def append_ply_sink(
             payload.game_id,
             outcome.kind,
             outcome.winner,
-            ply_dt
+            ply_dt,
+            pre_retrieved_db_game=db_game,
+            pre_retrieved_latest_time_update=new_time_update
         )
     elif new_time_update:
         await plan_timeout_check(new_time_update, payload.game_id)

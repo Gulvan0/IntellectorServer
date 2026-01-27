@@ -47,7 +47,8 @@ async def ply(ws: WebSocketWrapper, client: UserReference | None, payload: PlyIn
                 payload.game_id,
                 OutcomeKind.TIMEOUT,
                 e.winner,
-                e.reached_at
+                e.reached_at,
+                pre_retrieved_db_game=deps.db_game,
             )
         except PlyInvalidException:
             refresh_payload = await compose_state_refresh(
@@ -111,6 +112,6 @@ async def resign(ws: WebSocketWrapper, client: UserReference | None, payload: Ga
     async with player_dependencies(ws, client, payload.game_id, ended=False) as deps:
         last_ply_event = await get_last_ply_event(deps.session, payload.game_id)
         if not last_ply_event or last_ply_event.ply_index < 1:
-            await end_game(deps.session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.ABORT, None)
+            await end_game(deps.session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.ABORT, None, pre_retrieved_db_game=deps.db_game)
         else:
-            await end_game(deps.session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.RESIGN, deps.client_color.opposite())
+            await end_game(deps.session, ws.app.mutable_state, ws.app.secret_config, payload.game_id, OutcomeKind.RESIGN, deps.client_color.opposite(), pre_retrieved_db_game=deps.db_game)

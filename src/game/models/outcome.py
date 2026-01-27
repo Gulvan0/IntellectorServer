@@ -4,7 +4,7 @@ from src.board.piece import PieceColor
 from src.common.field_types import CurrentDatetime
 from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from src.game.datatypes import OutcomeKind
-from src.utils.custom_model import CustomSQLModel
+from src.utils.custom_model import CustomModel, CustomSQLModel
 
 import src.game.models.main as game_main_models
 
@@ -13,6 +13,16 @@ class GameOutcomeBase(CustomSQLModel):
     game_ended_at: CurrentDatetime
     kind: OutcomeKind
     winner: PieceColor | None = None
+
+
+class GameEndedEloUpdate(CustomModel):
+    new_value: int
+    delta: int
+
+
+class GameEndedEloUpdates(CustomModel):
+    white: GameEndedEloUpdate
+    black: GameEndedEloUpdate
 
 
 class GameOutcome(GameOutcomeBase, table=True):
@@ -31,13 +41,14 @@ class GameOutcome(GameOutcomeBase, table=True):
             time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
 
-    def to_broadcasted_data(self) -> "GameEndedBroadcastedData":
+    def to_broadcasted_data(self, elo_updates: GameEndedEloUpdates | None) -> "GameEndedBroadcastedData":
         return GameEndedBroadcastedData(
             game_ended_at=self.game_ended_at,
             kind=self.kind,
             winner=self.winner,
             game_id=self.game_id,
-            time_update=GameTimeUpdatePublic.cast(self.time_update)
+            time_update=GameTimeUpdatePublic.cast(self.time_update),
+            elo=elo_updates
         )
 
 
@@ -48,3 +59,4 @@ class GameOutcomePublic(GameOutcomeBase):
 class GameEndedBroadcastedData(GameOutcomeBase):
     game_id: int
     time_update: GameTimeUpdatePublic | None
+    elo: GameEndedEloUpdates | None

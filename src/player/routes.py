@@ -64,7 +64,7 @@ async def get_player(
     main_config: MainConfigDependency
 ):
     game_counts = await game_get_methods.get_overall_player_game_counts(session, login)
-    game_stats = await get_overall_game_stats(session, login, game_counts, main_config.elo.calibration_games)
+    game_stats = await get_overall_game_stats(session, main_config, login, game_counts)
 
     user_ref = UserReference.logged(login)
     player = PlayerPublic(

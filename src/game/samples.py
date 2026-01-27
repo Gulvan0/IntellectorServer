@@ -27,7 +27,7 @@ from src.game.models.main import GamePublic, GameStartedBroadcastedData, Generic
 from src.board.samples import non_default_starting_position, piece_color, playthrough, valid_non_final_sip
 from src.board.piece import PieceColor
 from src.game.models.offer import GameOfferEventPublic, OfferActionBroadcastedData
-from src.game.models.outcome import GameEndedBroadcastedData, GameOutcomePublic
+from src.game.models.outcome import GameEndedBroadcastedData, GameEndedEloUpdate, GameEndedEloUpdates, GameOutcomePublic
 from src.game.models.ply import GamePlyEventPublic, PlyBroadcastedData
 from src.game.models.rollback import RollbackBroadcastedData
 from src.game.models.time_added import GameTimeAddedEventPublic, TimeAddedBroadcastedData
@@ -444,13 +444,17 @@ def game_started_data_samples() -> list[GameStartedBroadcastedData]:
 def game_ended_data_samples(count: int = 3) -> list[GameEndedBroadcastedData]:
     result = []
 
-    for _ in range(count):
+    for i in range(count):
         outcome_kind = OutcomeKind(choice(list(OutcomeKind)))
         result.append(GameEndedBroadcastedData(
             kind=outcome_kind,
             winner=None if outcome_kind.drawish else choice([PieceColor.WHITE, PieceColor.BLACK]),
             game_id=uint(),
-            time_update=sample_time_update(GameTimeUpdateReason.GAME_ENDED)
+            time_update=sample_time_update(GameTimeUpdateReason.GAME_ENDED),
+            elo=GameEndedEloUpdates(
+                white=GameEndedEloUpdate(new_value=randint(100, 2500), delta=randint(-50, 50)),
+                black=GameEndedEloUpdate(new_value=randint(100, 2500), delta=randint(-50, 50)),
+            ) if i != 1 else None
         ))
 
     return result

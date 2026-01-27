@@ -15,6 +15,34 @@ from src.utils.async_orm_session import AsyncSession
 import time
 
 
+async def __delay_timeout_check(
+    delay_secs: float,
+    game_id: int,
+    outcome_abscence_checked: bool = False
+) -> None:
+    from src.main import app
+
+    existing_timer_handle = app.mutable_state.game_timeout_check_timers.get(game_id)
+    if existing_timer_handle:
+        existing_timer_handle.cancel()
+
+    loop = asyncio.get_running_loop()
+
+    async def task():
+        app.mutable_state.game_timeout_check_timers.pop(game_id, None)
+
+        async with app.get_db_session() as session:
+            return await check_timeout(
+                session=session,
+                state=app.mutable_state,
+                secret_config=app.secret_config,
+                game_id=game_id,
+                outcome_abscence_checked=outcome_abscence_checked,
+            )
+
+    app.mutable_state.game_timeout_check_timers[game_id] = loop.call_later(delay_secs, lambda: asyncio.create_task(task()))
+
+
 async def check_timeout(
     *,
     session: AsyncSession,
@@ -43,6 +71,8 @@ async def check_timeout(
         winner = latest_time_update.ticking_side.opposite()
         await end_game(session, state, secret_config, game_id, OutcomeKind.TIMEOUT, winner, timeout_dt)
         return True
+    else:
+        await __delay_timeout_check((timeout_delta_ms - timeout_delta_threshold) / 1000 + 0.01, game_id)
 
     return False
 
@@ -51,33 +81,15 @@ async def plan_timeout_check(
     *,
     triggering_time_update: GameTimeUpdate,
     game_id: int,
+    is_external: bool,
     outcome_abscence_checked: bool = False,
 ) -> None:
-    from src.main import app
-
-    existing_timer_handle = app.mutable_state.game_timeout_check_timers.get(game_id)
-    if existing_timer_handle:
-        existing_timer_handle.cancel()
-
     if not triggering_time_update.ticking_side:
         return
 
-    loop = asyncio.get_running_loop()
-
     remainder_ms = triggering_time_update.white_ms if triggering_time_update.ticking_side == PieceColor.WHITE else triggering_time_update.black_ms
     passed_secs = time.time() - triggering_time_update.updated_at.timestamp()
-    delay_secs = remainder_ms / 1000 - passed_secs + 0.01
+    grace_period_secs = 60 if is_external else 0
+    delay_secs = remainder_ms / 1000 - passed_secs + grace_period_secs + 0.01
 
-    async def task():
-        app.mutable_state.game_timeout_check_timers.pop(game_id, None)
-
-        async with app.get_db_session() as session:
-            return await check_timeout(
-                session=session,
-                state=app.mutable_state,
-                secret_config=app.secret_config,
-                game_id=game_id,
-                outcome_abscence_checked=outcome_abscence_checked,
-            )
-
-    app.mutable_state.game_timeout_check_timers[game_id] = loop.call_later(delay_secs, lambda: asyncio.create_task(task()))
+    await __delay_timeout_check(delay_secs, game_id, outcome_abscence_checked)

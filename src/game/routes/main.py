@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Query
 from src.common.dependencies import MutableStateDependency, SecretConfigDependency, SessionDependency
 from src.game.methods.cast import to_public_game
 from src.game.methods.get import get_current_games, get_recent_games
-from src.game.methods.update import check_timeout
+from src.game.methods.timeout import check_timeout
 from src.game.models.main import Game, GamePublic
 from src.game.models.rest import GameFilter
 from src.net.base_router import LoggingRoute

@@ -1,6 +1,8 @@
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import chain
+from time import time
 from typing import Iterable
 
 from src.config.models import MainConfig, SecretConfig
@@ -9,6 +11,7 @@ from src.game.exceptions import PlyInvalidException, SinkException
 from src.game.methods.cast import construct_new_ply_time_update
 from src.game.methods.event import append_event, append_rollback_event
 from src.game.methods.get import get_current_sip_and_ply_cnt, get_initial_time, get_last_ply_event, get_latest_time_update, get_ply_history, has_occured_thrice, is_stale
+from src.game.methods.timeout import plan_timeout_check
 from src.game.methods.update import cancel_all_active_offers, end_game
 from src.game.models.main import Game
 from src.game.models.ply import GamePlyEvent
@@ -153,6 +156,8 @@ async def append_ply_sink(
             outcome.winner,
             ply_dt
         )
+    elif new_time_update:
+        await plan_timeout_check(new_time_update, payload.game_id)
     return outcome
 
 
@@ -239,6 +244,9 @@ async def perform_rollback(
     )
     await append_rollback_event(session, mutable_state, event, game_id, current_sip)
 
+    if time_update:
+        await plan_timeout_check(time_update, game_id)
+
 
 async def add_time_sink(
     session: AsyncSession,
@@ -273,3 +281,5 @@ async def add_time_sink(
         time_update=appended_time_update
     )
     await append_event(session, mutable_state, event, payload.game_id)
+
+    await plan_timeout_check(appended_time_update, payload.game_id)

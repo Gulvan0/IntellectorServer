@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from asyncio import TimerHandle
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -122,7 +123,7 @@ class MutableState:
     token_to_user: BijectiveMap[str, UserReference] = field(default_factory=BijectiveMap)
     ws_subscribers: SubscriberStorage = field(default_factory=SubscriberStorage)
     last_guest_id: int = 0
-    game_timeout_not_earlier_than: dict[int, float] = field(default_factory=dict)
+    game_timeout_check_timers: dict[int, TimerHandle] = field(default_factory=dict)
 
     def add_guest(self, token: str) -> int:
         self.last_guest_id += 1

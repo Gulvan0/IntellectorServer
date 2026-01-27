@@ -23,6 +23,7 @@ from src.pubsub.models.other import SubUnsubPayload
 from src.pubsub.models.state import ChallengeListStateRefresh, GameListChannelsStateRefresh, SubscriberListChannelStateRefresh
 from src.pubsub.outgoing_event.base import OutgoingEvent
 from src.pubsub.outgoing_event.refresh import GameListRefresh, IncomingChallengesRefresh, OutgoingChallengesRefresh, PublicChallengeListRefresh, SubscriberListRefresh
+from src.pubsub.outgoing_event.update import NewSubscriber, SubscriberLeft
 
 
 collection = WebSocketHandlerCollection()
@@ -95,10 +96,20 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
                     unauthenticated_subs_count=unauthenticated_subs_count
                 ))
 
-    if not sub_storage.has_ws_subscriber(ws, payload.channel):
-        sub_storage.subscribe(ws, payload.channel, tags)
+        perform_actual_subscription = not sub_storage.has_ws_subscriber(ws, payload.channel)
+        if perform_actual_subscription:
+            sub_storage.subscribe(ws, payload.channel, tags)
 
-    await ws.send_event(refresh_event)
+        await ws.send_event(refresh_event)
+
+        if perform_actual_subscription and not isinstance(payload.channel, SubscriberListEventChannel):
+            subscriber_ref_with_nickname = None
+            if client:
+                subscriber_ref_with_nickname = await get_user_ref_with_nickname(session, client)
+
+            await sub_storage.broadcast(
+                NewSubscriber(subscriber_ref_with_nickname, SubscriberListEventChannel(channel=payload.channel))
+            )
 
 
 @collection.register(SubUnsubPayload)
@@ -111,3 +122,13 @@ async def unsub(ws: WebSocketWrapper, client: UserReference | None, payload: Sub
     sub_storage.unsubscribe(ws, payload.channel)
 
     await ws.send_unsubscribed()
+
+    if not isinstance(payload.channel, SubscriberListEventChannel):
+        subscriber_ref_with_nickname = None
+        if client:
+            async with ws.app.get_db_session() as session:
+                subscriber_ref_with_nickname = await get_user_ref_with_nickname(session, client)
+
+        await sub_storage.broadcast(
+            SubscriberLeft(subscriber_ref_with_nickname, SubscriberListEventChannel(channel=payload.channel))
+        )

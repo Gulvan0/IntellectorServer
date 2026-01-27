@@ -247,21 +247,27 @@ class GameEnded(OutgoingEvent[GameEndedBroadcastedData, GameEventChannel]):
         return game_ended_data_samples()
 
 
-class NewSubscriber(OutgoingEvent[UserRefWithNickname, SubscriberListEventChannel]):
+class NewSubscriber(OutgoingEvent[UserRefWithNickname | None, SubscriberListEventChannel]):
     @classmethod
     def description(cls) -> str:
-        return "Broadcasted whenever a new user subscribes to a respective channel"
+        return (
+            "Broadcasted whenever a new user subscribes to a respective channel. "
+            "Payload will be null for unauthenticated users, otherwise will contain subscriber's reference and nickname"
+        )
 
     @classmethod
-    def payload_examples(cls) -> list[UserRefWithNickname]:
-        return [user_ref_with_nickname() for _ in range(3)]
+    def payload_examples(cls) -> list[UserRefWithNickname | None]:
+        return [user_ref_with_nickname() if i != 1 else None for i in range(3)]
 
 
-class SubscriberLeft(OutgoingEvent[UserRefWithNickname, SubscriberListEventChannel]):
+class SubscriberLeft(OutgoingEvent[UserRefWithNickname | None, SubscriberListEventChannel]):
     @classmethod
     def description(cls) -> str:
-        return "Broadcasted whenever a new user unsubscribes from a respective channel"
+        return (
+            "Broadcasted whenever a new user unsubscribes from a respective channel. "
+            "Payload will be null for unauthenticated users, otherwise will contain subscriber's reference and nickname"
+        )
 
     @classmethod
-    def payload_examples(cls) -> list[UserRefWithNickname]:
-        return [user_ref_with_nickname() for _ in range(3)]
+    def payload_examples(cls) -> list[UserRefWithNickname | None]:
+        return [user_ref_with_nickname() if i != 1 else None for i in range(3)]

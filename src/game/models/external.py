@@ -48,8 +48,3 @@ class ExternalGameEndPayload(CustomModel):
 class ExternalGameRollbackPayload(CustomModel):
     game_id: int
     new_ply_cnt: int = PydanticField(ge=0)
-
-
-class ExternalGameAddTimePayload(CustomModel):
-    game_id: int
-    receiver: PieceColor

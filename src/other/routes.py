@@ -30,7 +30,7 @@ async def check_compatibility(*, payload: CompatibilityCheckPayload, response: R
     )
 
 
-@router.get("/shutdown", dependencies=[Depends(verify_admin)])
+@router.post("/shutdown", dependencies=[Depends(verify_admin)])
 async def shutdown(
     *,
     session: SessionDependency,

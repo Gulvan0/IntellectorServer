@@ -29,7 +29,7 @@ def validate_startpos(challenge: ChallengeCreateOpen | ChallengeCreateDirect) ->
         if challenge.custom_starting_sip == DEFAULT_STARTING_SIP:
             challenge.custom_starting_sip = None
         elif not position_from_sip(challenge.custom_starting_sip).is_valid_starting():
-            raise HTTPException(status_code=400, detail="Invalid starting situation")
+            raise HTTPException(status_code=422, detail="Invalid starting situation")
 
 
 async def validate_spam_limits(
@@ -41,7 +41,7 @@ async def validate_spam_limits(
     total_active_challenges = await get_total_active_challenges_by_caller(session, caller)
     max_total = limits.max_total_active_challenges
     if total_active_challenges >= max_total:
-        raise HTTPException(status_code=400, detail=f"Too many active challenges (present {total_active_challenges}, max {max_total})")
+        raise HTTPException(status_code=422, detail=f"Too many active challenges (present {total_active_challenges}, max {max_total})")
 
     if isinstance(challenge, ChallengeCreateDirect):
         same_callee_active_challenges = await get_active_challenge_cnt_by_players(session, caller, challenge.callee_ref)
@@ -60,7 +60,7 @@ async def validate_uniqueness(
 ) -> None:
     identical_challenge = await get_identical_challenge(session, caller, challenge)
     if identical_challenge:
-        raise HTTPException(status_code=400, detail=f"Challenge already exists ({identical_challenge.id})")
+        raise HTTPException(status_code=422, detail=f"Challenge already exists ({identical_challenge.id})")
 
 
 async def perform_common_validations(
@@ -86,7 +86,7 @@ async def validate_direct_callee(
     session: AsyncSession
 ) -> UserReference:
     if challenge.callee_ref == caller.reference:
-        raise HTTPException(status_code=400, detail="Callee and caller cannot be the same user")
+        raise HTTPException(status_code=422, detail="Callee and caller cannot be the same user")
 
     callee = UserReference(challenge.callee_ref)
     if callee.is_guest() and callee.guest_id > last_guest_id:

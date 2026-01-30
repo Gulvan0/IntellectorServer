@@ -3,7 +3,7 @@ from sqlmodel import Field, Relationship
 from common.field_types import CurrentDatetime, PlayerRef
 from common.models import UserRefWithNickname
 from utils.async_orm_session import AsyncSession
-from utils.custom_model import CustomSQLModel
+from utils.custom_model import CustomModel, CustomSQLModel
 
 import game.models.main as game_main_models
 import player.methods as player_methods
@@ -47,3 +47,8 @@ class GameChatMessageEventPublic(GameChatMessageEventBase):
 class ChatMessageBroadcastedData(GameChatMessageEventBase):
     author: UserRefWithNickname
     game_id: int
+
+
+class GameSendChatMessagePayload(CustomModel):
+    game_id: int
+    text: str

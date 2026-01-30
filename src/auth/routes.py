@@ -48,7 +48,7 @@ async def register(*, credentials: AuthCredentials, session: SessionDependency, 
 
     password_data = await session.get(PlayerPassword, login)
     if password_data:
-        raise HTTPException(status_code=400, detail="User already exists")
+        raise HTTPException(status_code=422, detail="User already exists")
 
     await player_methods.create_player(
         session=session,

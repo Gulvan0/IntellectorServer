@@ -73,10 +73,14 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
                 if not db_game:
                     raise WebSocketException(f"Game {game_id} does not exist")
 
-                is_spectator = not client or client.reference not in (db_game.white_player_ref, db_game.black_player_ref)
-
-                if not is_spectator:
-                    tags.add(SubscriberTag.PARTICIPATING_PLAYER)
+                is_spectator = True
+                if client:
+                    if client.reference == db_game.white_player_ref:
+                        tags.add(SubscriberTag.WHITE_PLAYER)
+                        is_spectator = False
+                    elif client.reference == db_game.black_player_ref:
+                        tags.add(SubscriberTag.BLACK_PLAYER)
+                        is_spectator = False
 
                 await compose_state_refresh(session, game_id, db_game, 'sub', include_spectator_messages=is_spectator)
             case StartedPlayerGamesEventChannel(watched_ref=watched_ref):

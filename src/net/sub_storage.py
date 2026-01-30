@@ -18,7 +18,8 @@ import net.core as core
 
 
 class SubscriberTag(Enum):
-    PARTICIPATING_PLAYER = auto()
+    WHITE_PLAYER = auto()
+    BLACK_PLAYER = auto()
 
 
 @dataclass

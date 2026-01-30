@@ -2,7 +2,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 from config.models import MainConfig, SecretConfig
-from game.methods.update import end_game
+from game.methods.end import end_game
 from game.models.main import Game
 from game.models.outcome import GameOutcome
 from game.methods.get import get_latest_time_update

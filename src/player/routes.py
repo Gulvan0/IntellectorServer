@@ -97,18 +97,18 @@ async def update_player(
 
     if player.nickname:
         if player.nickname.strip() != player.nickname:
-            raise HTTPException(status_code=400, detail="The nickname cannot start and/or end with a space")
+            raise HTTPException(status_code=422, detail="The nickname cannot start and/or end with a space")
 
         if "  " in player.nickname:
-            raise HTTPException(status_code=400, detail="The nickname cannot have two or more subsequent spaces")
+            raise HTTPException(status_code=422, detail="The nickname cannot have two or more subsequent spaces")
 
         if player.nickname.lower().replace(" ", "") != login:
-            raise HTTPException(status_code=400, detail="The nickname should match the login with the only exceptions being different capitalizaion and extra spaces")
+            raise HTTPException(status_code=422, detail="The nickname should match the login with the only exceptions being different capitalizaion and extra spaces")
         db_player.nickname = player.nickname
 
     if player.preferred_role:
         if not await session.get(PlayerRole, (player.preferred_role, login)):
-            raise HTTPException(status_code=400, detail="The player does not have the role selected to be set as preferred")
+            raise HTTPException(status_code=422, detail="The player does not have the role selected to be set as preferred")
         db_player.preferred_role = player.preferred_role
 
     session.add(db_player)
@@ -118,10 +118,10 @@ async def update_player(
 @router.post("/{login}/follow")
 async def follow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency, _: DBPlayerDependency):
     if client_login == login:
-        raise HTTPException(status_code=400, detail="Cannot follow self")
+        raise HTTPException(status_code=422, detail="Cannot follow self")
 
     if await session.get(PlayerFollowedPlayer, (client_login, login)):
-        raise HTTPException(status_code=400, detail="Already followed")
+        raise HTTPException(status_code=422, detail="Already followed")
 
     db_player_followed_player = PlayerFollowedPlayer(
         follower_login=client_login,
@@ -134,7 +134,7 @@ async def follow(*, session: SessionDependency, login: PlayerLogin, client_login
 @router.post("/{login}/unfollow")
 async def unfollow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency):
     if client_login == login:
-        raise HTTPException(status_code=400, detail="Cannot unfollow self")
+        raise HTTPException(status_code=422, detail="Cannot unfollow self")
 
     db_player_followed_player = await session.get(PlayerFollowedPlayer, (client_login, login))
     if not db_player_followed_player:
@@ -147,7 +147,7 @@ async def unfollow(*, session: SessionDependency, login: PlayerLogin, client_log
 @router.post("/{login}/role/add", dependencies=[Depends(verify_admin)])
 async def add_role(*, session: SessionDependency, login: PlayerLogin, payload: RoleOperationPayload, _: DBPlayerDependency):
     if await session.get(PlayerRole, (payload.role, login)):
-        raise HTTPException(status_code=400, detail="Role is already present")
+        raise HTTPException(status_code=422, detail="Role is already present")
 
     db_role = PlayerRole(
         role=payload.role,

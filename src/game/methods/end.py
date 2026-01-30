@@ -3,16 +3,15 @@ from datetime import UTC, datetime
 from common.user_ref import UserReference
 from config.models import MainConfig, SecretConfig
 from game.models.main import Game
-from game.models.offer import GameOfferEvent, OfferActionBroadcastedData
-from game.methods.get import get_active_offers, get_latest_time_update, get_ongoing_finite_game
-from game.datatypes import OfferAction, OutcomeKind
+from game.methods.get import get_latest_time_update, get_ongoing_finite_game
+from game.datatypes import OutcomeKind
 from game.models.outcome import GameEndedEloUpdate, GameEndedEloUpdates, GameOutcome
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from net.core import MutableState
 from player.methods import get_stats_for_time_control
 from player.models import PlayerEloProgress
 from pubsub.models.channel import GameEventChannel, GameListEventChannel
-from pubsub.outgoing_event.update import GameEnded, NewRecentGame, OfferActionPerformed
+from pubsub.outgoing_event.update import GameEnded, NewRecentGame
 from board.piece import PieceColor
 from utils.async_orm_session import AsyncSession
 
@@ -129,19 +128,3 @@ async def end_game(
 
     if state.shutdown_activated and not get_ongoing_finite_game(session):
         raise KeyboardInterrupt
-
-
-async def cancel_all_active_offers(session: AsyncSession, state: MutableState, game_id: int, ply_dt: datetime) -> None:
-    for offer_event in await get_active_offers(session, game_id):
-        cancel_event = GameOfferEvent(
-            occurred_at=ply_dt,
-            action=OfferAction.CANCEL,
-            offer_kind=offer_event.offer_kind,
-            offer_author=offer_event.offer_author,
-            game_id=game_id
-        )
-        session.add(cancel_event)
-
-        broadcasted_event = OfferActionPerformed(OfferActionBroadcastedData.cast(cancel_event), GameEventChannel(game_id=game_id))
-        await state.ws_subscribers.broadcast(broadcasted_event)
-    await session.commit()

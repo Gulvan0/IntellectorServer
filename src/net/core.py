@@ -34,7 +34,7 @@ from common.models import *  # noqa: F401, F403
 from config.models import *  # noqa: F401, F403
 from game.models.chat import *  # noqa: F401, F403
 from game.models.external import *  # noqa: F401, F403
-from game.models.incoming_ws import *  # noqa: F401, F403
+from game.models.internal import *  # noqa: F401, F403
 from game.models.main import *  # noqa: F401, F403
 from game.models.offer import *  # noqa: F401, F403
 from game.models.other import *  # noqa: F401, F403

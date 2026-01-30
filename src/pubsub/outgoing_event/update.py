@@ -33,9 +33,6 @@ from pubsub.models.channel import (
 from pubsub.outgoing_event.base import OutgoingEvent
 
 
-# TODO: Make foreign imports absolute (after examples are moved) - in every new module
-
-
 class ServerShutdown(OutgoingEvent[None, EveryoneEventChannel]):
     @classmethod
     def description(cls) -> str:

@@ -3,7 +3,7 @@ from sqlmodel import Field, Relationship
 from board.piece import PieceColor
 from common.field_types import CurrentDatetime
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
-from utils.custom_model import CustomSQLModel
+from utils.custom_model import CustomModel, CustomSQLModel
 
 import game.models.main as game_main_models
 
@@ -48,3 +48,8 @@ class GameTimeAddedEventPublic(GameTimeAddedEventBase):
 class TimeAddedBroadcastedData(GameTimeAddedEventBase):
     game_id: int
     time_update: GameTimeUpdatePublic
+
+
+class GameAddTimePayload(CustomModel):
+    game_id: int
+    receiver: PieceColor | None = None

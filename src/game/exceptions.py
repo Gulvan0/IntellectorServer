@@ -13,9 +13,3 @@ class TimeoutReachedException(Exception):
 @dataclass
 class PlyInvalidException(Exception):
     current_sip: str
-
-
-@dataclass
-class SinkException(Exception):
-    message: str
-    status_code: int | None = None

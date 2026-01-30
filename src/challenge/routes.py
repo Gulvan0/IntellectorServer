@@ -133,7 +133,7 @@ async def cancel_challenge(
         raise HTTPException(status_code=404, detail="Challenge not found")
 
     if not db_challenge.active:
-        raise HTTPException(status_code=400, detail="Challenge is already inactive (i.e. cancelled, accepted or rejected)")
+        raise HTTPException(status_code=422, detail="Challenge is already inactive (i.e. cancelled, accepted or rejected)")
 
     if db_challenge.caller_ref != client.reference:
         raise HTTPException(status_code=403, detail="Only the author of this challenge may cancel it")
@@ -158,14 +158,14 @@ async def accept_challenge(
         raise HTTPException(status_code=404, detail="Challenge not found")
 
     if not db_challenge.active:
-        raise HTTPException(status_code=400, detail="Challenge is inactive (i.e. cancelled, accepted or rejected)")
+        raise HTTPException(status_code=422, detail="Challenge is inactive (i.e. cancelled, accepted or rejected)")
 
     if db_challenge.kind == ChallengeKind.DIRECT:
         if db_challenge.callee_ref != client.reference:
             raise HTTPException(status_code=403, detail="You are not the recepient of this challenge")
     else:
         if db_challenge.caller_ref == client.reference:
-            raise HTTPException(status_code=400, detail="Cannot accept own challenge")
+            raise HTTPException(status_code=422, detail="Cannot accept own challenge")
 
     db_game = await game_create_methods.create_internal_game(db_challenge, client, session, state, secret_config)
 
@@ -187,10 +187,10 @@ async def decline_challenge(
         raise HTTPException(status_code=404, detail="Challenge not found")
 
     if not db_challenge.active:
-        raise HTTPException(status_code=400, detail="Challenge is inactive (i.e. cancelled, accepted or rejected)")
+        raise HTTPException(status_code=422, detail="Challenge is inactive (i.e. cancelled, accepted or rejected)")
 
     if db_challenge.kind != ChallengeKind.DIRECT:
-        raise HTTPException(status_code=400, detail="Cannot decline an open challenge")
+        raise HTTPException(status_code=422, detail="Cannot decline an open challenge")
 
     if db_challenge.callee_ref != client.reference:
         raise HTTPException(status_code=403, detail="You are not the recepient of this challenge")

@@ -1,4 +1,5 @@
 aiohttp
+aiomysql
 depcycle
 fastapi
 Jinja2
@@ -9,6 +10,7 @@ pandas-stubs
 pillow
 py-bcrypt
 pydantic
+python-multipart
 PyYAML
 rstr
 SQLAlchemy

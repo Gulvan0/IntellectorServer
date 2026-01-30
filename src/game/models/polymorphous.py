@@ -3,10 +3,6 @@ from typing import Protocol
 from board.piece import PieceKind
 
 
-class PayloadWithGameId(Protocol):
-    game_id: int
-
-
 class PlyPayload(Protocol):
     game_id: int
     original_sip: str | None

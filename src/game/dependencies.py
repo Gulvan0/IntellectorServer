@@ -1,15 +1,19 @@
 from typing import Annotated
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 
 from board.piece import PieceColor
 from common.dependencies import MandatoryUserDependency, SessionDependency
 from common.user_ref import UserReference
 from game.models.main import Game
-from game.models.polymorphous import PayloadWithGameId
 
 
-async def get_game(session: SessionDependency, payload: PayloadWithGameId) -> Game:
-    db_game = await session.get(Game, payload.game_id)
+async def get_game(session: SessionDependency, request: Request) -> Game:
+    payload = await request.json()
+    game_id = payload.get('game_id')
+    if game_id is None:
+        raise HTTPException(500, 'Game dependencies require payloads with game_id field')
+
+    db_game = await session.get(Game, game_id)
     if not db_game:
         raise HTTPException(status_code=404, detail="Game not found")
     return db_game

@@ -5,7 +5,7 @@ from pydantic import BaseModel, ValidationError
 
 from common.user_ref import UserReference
 from log.models import WSLog
-from net.core import WebSocketWrapper
+from net.ws_wrapper import WebSocketWrapper
 from net.models import WebsocketIncomingMessage
 from net.utils.ws_error import ErrorKind, WebSocketException
 from utils.bijective_map import BijectiveMap

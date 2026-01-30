@@ -30,9 +30,9 @@ class GameTimeUpdateBase(CustomSQLModel):
 class GameTimeUpdate(GameTimeUpdateBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
-    game_id: int | None = Field(default=None, foreign_key="game.id")
+    game_id: int = Field(default=None, foreign_key="game.id")
 
-    game: Optional["Game"] = Relationship()
+    game: Game = Relationship()
 
     def get_actual_time_remainders(self, reference_ts: datetime | None = None) -> dict[PieceColor, int]:
         remainders = {

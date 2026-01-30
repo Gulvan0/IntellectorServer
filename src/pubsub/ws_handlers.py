@@ -6,7 +6,7 @@ from game.methods.cast import compose_state_refresh, to_public_game
 from game.methods.get import get_current_games
 from game.models.main import Game
 from game.models.rest.common import GameFilter
-from net.core import WebSocketWrapper
+from net.ws_wrapper import WebSocketWrapper
 from net.incoming import WebSocketHandlerCollection
 from net.sub_storage import SubscriberTag
 from net.utils.ws_error import WebSocketException

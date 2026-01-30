@@ -1,11 +1,15 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 from sqlmodel import Field, Relationship
 
 from common.field_types import CurrentDatetime
 from player.datatypes import GameStats, UserRestrictionKind, UserRole, UserStatus
 from common.time_control import TimeControlKind
-from study.models import Study
 from utils.custom_model import CustomModel, CustomSQLModel
+
+
+if TYPE_CHECKING:
+    from study.models import Study
 
 
 class PlayerBase(CustomSQLModel):
@@ -18,9 +22,9 @@ class Player(PlayerBase, table=True):
     preferred_role: UserRole | None = None  # Don't trust that this role exists! It could have been revoked since then!
     # avatar: bytes | None = Field(sa_column=Column(LargeBinary), default=None)
 
-    roles: list["PlayerRole"] = Relationship(back_populates="player", cascade_delete=True)
-    restrictions: list["PlayerRestriction"] = Relationship(back_populates="player", cascade_delete=True)
-    followed_players: list["PlayerFollowedPlayer"] = Relationship(cascade_delete=True, sa_relationship_kwargs=dict(foreign_keys="PlayerFollowedPlayer.follower_login"))
+    roles: list[PlayerRole] = Relationship(back_populates="player", cascade_delete=True)
+    restrictions: list[PlayerRestriction] = Relationship(back_populates="player", cascade_delete=True)
+    followed_players: list[PlayerFollowedPlayer] = Relationship(cascade_delete=True, sa_relationship_kwargs=dict(foreign_keys="PlayerFollowedPlayer.follower_login"))
     studies: list[Study] = Relationship(back_populates="author", cascade_delete=True)
 
 

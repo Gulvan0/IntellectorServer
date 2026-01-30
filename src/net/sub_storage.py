@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from common.user_ref import UserReference
-from net.core import WebSocketWrapper
+from net.ws_wrapper import WebSocketWrapper
 from pubsub.models.channel import EventChannel, EveryoneEventChannel
 from player.datatypes import UserStatus
 from pubsub.outgoing_event.base import OutgoingEvent

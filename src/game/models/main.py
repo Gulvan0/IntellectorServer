@@ -32,8 +32,8 @@ class Game(GameBase, table=True):
     white_player_ref: PlayerRef
     black_player_ref: PlayerRef
 
-    fischer_time_control: Optional[GameFischerTimeControl] = Relationship(back_populates="game", cascade_delete=True)
-    outcome: Optional[GameOutcome] = Relationship(back_populates="game", cascade_delete=True)
+    fischer_time_control: GameFischerTimeControl | None = Relationship(back_populates="game", cascade_delete=True)
+    outcome: GameOutcome | None = Relationship(back_populates="game", cascade_delete=True)
     ply_events: list[GamePlyEvent] = Relationship(back_populates="game", cascade_delete=True)
     chat_message_events: list[GameChatMessageEvent] = Relationship(back_populates="game", cascade_delete=True)
     offer_events: list[GameOfferEvent] = Relationship(back_populates="game", cascade_delete=True)
@@ -46,8 +46,8 @@ class GamePublic(GameBase):
     white_player: UserRefWithNickname
     black_player: UserRefWithNickname
 
-    fischer_time_control: Optional[GameFischerTimeControlPublic]
-    outcome: Optional[GameOutcomePublic]
+    fischer_time_control: GameFischerTimeControlPublic | None
+    outcome: GameOutcomePublic | None
     events: GenericEventList
     latest_time_update: GameTimeUpdatePublic | None
 

@@ -1,3 +1,4 @@
+import asyncio
 from auth import routes as auth_routes
 from challenge import routes as challenge_routes
 from game.routes import common as main_game_routes
@@ -11,7 +12,7 @@ from pubsub import ws_handlers as ws_pubsub
 
 from net.core import App
 
-from uvicorn import run
+from uvicorn import Config, Server
 
 
 app = App(
@@ -25,15 +26,20 @@ app = App(
         other_routes.router,
         study_routes.router,
     ],
-    ws_collections=[
-        ws_pubsub.collection,
-    ]
+    ws_collection=ws_pubsub.collection
 )
 
 
-ssl_config = app.secret_config.ssl
-run(
-    "main:app",
-    ssl_keyfile=ssl_config.key_path if ssl_config else None,
-    ssl_certfile=ssl_config.cert_path if ssl_config else None
-)
+async def run_server() -> None:
+    ssl_config = app.secret_config.ssl
+    config = Config(
+        app,
+        ssl_keyfile=ssl_config.key_path if ssl_config else None,
+        ssl_certfile=ssl_config.cert_path if ssl_config else None
+    )
+    server = Server(config)
+    await server.serve()
+
+
+if __name__ == "__main__":
+    asyncio.run(run_server())

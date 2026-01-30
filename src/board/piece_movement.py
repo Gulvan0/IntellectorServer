@@ -48,4 +48,4 @@ class PieceMovementRule:
     allowed_distances: list[int] | UnlimitedPieceMovementDistance
     can_capture: bool = True
     can_jump: bool = False
-    swappable_with: list["PieceKind"] = field(default_factory=list)
+    swappable_with: list[PieceKind] = field(default_factory=list)

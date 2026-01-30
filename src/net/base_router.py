@@ -1,12 +1,11 @@
 from fastapi import BackgroundTasks, Response, Request
 from fastapi.datastructures import Headers
-from sqlmodel import Session
 from starlette.background import BackgroundTask
 from starlette.responses import StreamingResponse
 from fastapi.routing import APIRoute
 from typing import Callable
 
-from log.models import RESTResponseLog
+from log.models import RESTRequestLog, RESTResponseLog
 from net.core import App
 from common.constants import USER_TOKEN_HEADER
 

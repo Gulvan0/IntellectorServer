@@ -1,18 +1,19 @@
 from typing import Hashable
 
 
-class BijectionError(Exception):
-    pass
-
-
 class BijectiveMap[L:Hashable, R:Hashable]:
     def __init__(self) -> None:
         self.straight: dict[L, R] = {}
         self.inverse: dict[R, L] = {}
 
-    def add(self, left: L, right: R) -> None:
-        if right in self.inverse:
-            raise BijectionError()
+    def update(self, left: L, right: R) -> None:
+        old_left = self.inverse.get(right)
+        if old_left:
+            self.straight.pop(old_left, None)
+
+        old_right = self.straight.get(left)
+        if old_right:
+            self.inverse.pop(old_right, None)
 
         self.straight[left] = right
         self.inverse[right] = left

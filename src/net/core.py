@@ -70,11 +70,12 @@ class MutableState:
 
     def add_guest(self, token: str) -> int:
         self.last_guest_id += 1
-        self.token_to_user.add(token, UserReference.guest(self.last_guest_id))
+        self.token_to_user.update(token, UserReference.guest(self.last_guest_id))
         return self.last_guest_id
 
     def add_logged(self, token: str, login: str) -> None:
-        self.token_to_user.add(token, UserReference.logged(login))  # TODO: Update case
+        user = UserReference.logged(login)
+        self.token_to_user.update(token, user)
 
     def has_user_subscriber(self, user_ref: UserReference, channel: EventChannel = EveryoneEventChannel()) -> bool:
         return self.ws_subscribers.has_user_subscriber(self.token_to_user, user_ref, channel)

@@ -1,10 +1,14 @@
+from typing import TYPE_CHECKING
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
 from common.field_types import CurrentDatetime, Sip
-from game.models.main import Game
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from utils.custom_model import CustomSQLModel
+
+
+if TYPE_CHECKING:
+    from game.models.main import Game
 
 
 class GameRollbackEventBase(CustomSQLModel):
@@ -23,7 +27,7 @@ class GameRollbackEvent(GameRollbackEventBase, table=True):
     game: Game = Relationship(back_populates="rollback_events")
     time_update: GameTimeUpdate | None = Relationship()
 
-    def to_public(self) -> "GameRollbackEventPublic":
+    def to_public(self) -> GameRollbackEventPublic:
         return GameRollbackEventPublic(
             occurred_at=self.occurred_at,
             ply_cnt_before=self.ply_cnt_before,
@@ -32,7 +36,7 @@ class GameRollbackEvent(GameRollbackEventBase, table=True):
             time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
 
-    def to_broadcasted_data(self, updated_sip: str) -> "RollbackBroadcastedData":
+    def to_broadcasted_data(self, updated_sip: str) -> RollbackBroadcastedData:
         return RollbackBroadcastedData(
             occurred_at=self.occurred_at,
             ply_cnt_before=self.ply_cnt_before,

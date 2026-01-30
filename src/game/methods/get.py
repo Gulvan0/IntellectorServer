@@ -10,7 +10,7 @@ from game.models.main import Game
 from game.models.offer import GameOfferEvent
 from game.models.outcome import GameOutcome
 from game.models.ply import GamePlyEvent
-from game.models.rest import GameFilter
+from game.models.rest.common import GameFilter
 from game.models.time_update import GameTimeUpdate
 from board.constants.sip import DEFAULT_STARTING_SIP
 from board.piece import PieceColor, PieceKind

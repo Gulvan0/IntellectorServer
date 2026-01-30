@@ -7,7 +7,7 @@ from game.exceptions import PlyInvalidException, TimeoutReachedException
 from game.methods.cast import compose_state_refresh
 from game.methods.end import end_game
 from game.methods.offer import accept_draw, accept_takeback, cancel_offer, create_offer, decline_offer
-from game.models.internal import InternalGameAppendPlyPayload, InternalGameAppendPlyResponse, InternalGamePerformOfferActionPayload
+from game.models.rest.internal import InternalGameAppendPlyPayload, InternalGameAppendPlyResponse, InternalGamePerformOfferActionPayload
 from game.models.time_update import GameTimeUpdatePublic
 from net.base_router import LoggingRoute
 

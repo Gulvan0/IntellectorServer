@@ -1,11 +1,15 @@
+from typing import TYPE_CHECKING
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor, PieceKind
 from common.field_types import CurrentDatetime, Sip
-from game.models.main import Game
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from board.ply import PlyKind
 from utils.custom_model import CustomSQLModel
+
+
+if TYPE_CHECKING:
+    from game.models.main import Game
 
 
 class GamePlyEventBase(CustomSQLModel):
@@ -32,7 +36,7 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
     game: Game = Relationship(back_populates="ply_events")
     time_update: GameTimeUpdate | None = Relationship()
 
-    def to_public(self) -> "GamePlyEventPublic":
+    def to_public(self) -> GamePlyEventPublic:
         return GamePlyEventPublic(
             occurred_at=self.occurred_at,
             ply_index=self.ply_index,
@@ -45,7 +49,7 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
             time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
 
-    def to_broadcasted_data(self) -> "PlyBroadcastedData":
+    def to_broadcasted_data(self) -> PlyBroadcastedData:
         return PlyBroadcastedData(
             occurred_at=self.occurred_at,
             ply_index=self.ply_index,

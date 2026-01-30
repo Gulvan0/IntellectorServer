@@ -18,7 +18,7 @@ def __require(cond: Any) -> None:
         raise PlyImpossibleException
 
 
-def __validate_capture_or_normal(ply: Ply, properties: DerivedPlyProperties, position: "Position", aura_allowed: bool = True) -> None:
+def __validate_capture_or_normal(ply: Ply, properties: DerivedPlyProperties, position: Position, aura_allowed: bool = True) -> None:
     __require(properties.ply_kind != PlyKind.SWAP)
     if ply.morph_into:
         __require(aura_allowed)
@@ -27,7 +27,7 @@ def __validate_capture_or_normal(ply: Ply, properties: DerivedPlyProperties, pos
         __require(position.is_hex_under_aura(ply.departure, properties.moving_piece.color))
 
 
-def __validate_raycast_reachability(ply: Ply, position: "Position", absolute_direction: PieceMovementDirection) -> None:
+def __validate_raycast_reachability(ply: Ply, position: Position, absolute_direction: PieceMovementDirection) -> None:
     currently_iterated_hex_coords = ply.departure.step(absolute_direction)
     __require(currently_iterated_hex_coords is not None)
     assert currently_iterated_hex_coords
@@ -39,7 +39,7 @@ def __validate_raycast_reachability(ply: Ply, position: "Position", absolute_dir
     __require(currently_iterated_hex_coords.j == ply.destination.j)
 
 
-def validate_progressor_ply(ply: Ply, properties: DerivedPlyProperties, position: "Position", allow_aura_captures: bool = False) -> None:
+def validate_progressor_ply(ply: Ply, properties: DerivedPlyProperties, position: Position, allow_aura_captures: bool = False) -> None:
     __require(-1 <= ply.destination.i - ply.departure.i <= 1)
     if (ply.departure.i % 2 == 0) == (properties.moving_piece.color == PieceColor.WHITE):
         required_delta = -1 if properties.moving_piece.color == PieceColor.WHITE else 1
@@ -57,7 +57,7 @@ def validate_progressor_ply(ply: Ply, properties: DerivedPlyProperties, position
         __validate_capture_or_normal(ply, properties, position, allow_aura_captures)
 
 
-def validate_defensor_ply(ply: Ply, properties: DerivedPlyProperties, position: "Position") -> None:
+def validate_defensor_ply(ply: Ply, properties: DerivedPlyProperties, position: Position) -> None:
     __require(ply.departure.is_lateral_neighbour_for(ply.destination))
     if properties.ply_kind == PlyKind.SWAP:
         assert properties.target_piece
@@ -72,7 +72,7 @@ def validate_intellector_ply(ply: Ply, properties: DerivedPlyProperties) -> None
     __require(ply.departure.is_lateral_neighbour_for(ply.destination))
 
 
-def validate_liberator_ply(ply: Ply, properties: DerivedPlyProperties, position: "Position") -> None:
+def validate_liberator_ply(ply: Ply, properties: DerivedPlyProperties, position: Position) -> None:
     delta_i = ply.destination.i - ply.departure.i
     delta_j = ply.destination.j - ply.departure.j
     if delta_i in (2, -2) and delta_j in (1, -1) or delta_i == 0 and delta_j in (2, -2):  # Jumps
@@ -82,7 +82,7 @@ def validate_liberator_ply(ply: Ply, properties: DerivedPlyProperties, position:
         __require(ply.departure.is_lateral_neighbour_for(ply.destination))
 
 
-def validate_aggressor_ply(ply: Ply, properties: DerivedPlyProperties, position: "Position") -> None:
+def validate_aggressor_ply(ply: Ply, properties: DerivedPlyProperties, position: Position) -> None:
     delta_i = ply.destination.i - ply.departure.i
     delta_j = ply.destination.j - ply.departure.j
     __require(delta_i)
@@ -108,7 +108,7 @@ def validate_aggressor_ply(ply: Ply, properties: DerivedPlyProperties, position:
     __validate_capture_or_normal(ply, properties, position)
 
 
-def validate_dominator_ply(ply: Ply, properties: DerivedPlyProperties, position: "Position") -> None:
+def validate_dominator_ply(ply: Ply, properties: DerivedPlyProperties, position: Position) -> None:
     delta_i = ply.destination.i - ply.departure.i
     delta_j = ply.destination.j - ply.departure.j
     if delta_i == 0:

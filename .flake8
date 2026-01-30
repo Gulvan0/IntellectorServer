@@ -1,0 +1,2 @@
+[flake8]
+extend-ignore = TC002, TC003

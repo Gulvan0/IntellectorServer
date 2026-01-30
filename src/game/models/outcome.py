@@ -1,11 +1,15 @@
+from typing import TYPE_CHECKING
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
 from common.field_types import CurrentDatetime
-from game.models.main import Game
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from game.datatypes import OutcomeKind
 from utils.custom_model import CustomModel, CustomSQLModel
+
+
+if TYPE_CHECKING:
+    from game.models.main import Game
 
 
 class GameOutcomeBase(CustomSQLModel):
@@ -32,7 +36,7 @@ class GameOutcome(GameOutcomeBase, table=True):
     game: Game = Relationship(back_populates="outcome")
     time_update: GameTimeUpdate | None = Relationship()
 
-    def to_public(self) -> "GameOutcomePublic":
+    def to_public(self) -> GameOutcomePublic:
         return GameOutcomePublic(
             game_ended_at=self.game_ended_at,
             kind=self.kind,
@@ -40,7 +44,7 @@ class GameOutcome(GameOutcomeBase, table=True):
             time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
 
-    def to_broadcasted_data(self, elo_updates: GameEndedEloUpdates | None) -> "GameEndedBroadcastedData":
+    def to_broadcasted_data(self, elo_updates: GameEndedEloUpdates | None) -> GameEndedBroadcastedData:
         return GameEndedBroadcastedData(
             game_ended_at=self.game_ended_at,
             kind=self.kind,

@@ -1,6 +1,6 @@
 from auth import routes as auth_routes
 from challenge import routes as challenge_routes
-from game.routes import main as main_game_routes
+from game.routes import common as main_game_routes
 from game.routes import external as external_game_routes
 from game.routes import internal as internal_game_routes
 from player import routes as player_routes

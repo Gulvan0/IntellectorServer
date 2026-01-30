@@ -35,7 +35,7 @@ class StudyTagBase(CustomSQLModel):
 class StudyTag(StudyTagBase, table=True):
     study_id: int | None = Field(default=None, primary_key=True, foreign_key="study.id")
 
-    study: "Study" = Relationship(back_populates="tags")
+    study: Study = Relationship(back_populates="tags")
 
 
 class StudyTagPublic(StudyTagBase):
@@ -54,10 +54,10 @@ class StudyVariationNodeBase(CustomSQLModel):
 class StudyVariationNode(StudyVariationNodeBase, table=True):
     study_id: int | None = Field(default=None, primary_key=True, foreign_key="study.id")
 
-    study: "Study" = Relationship(back_populates="nodes")
+    study: Study = Relationship(back_populates="nodes")
 
     @classmethod
-    def from_api_model(cls, node: ApiVariationNode) -> "StudyVariationNode":
+    def from_api_model(cls, node: ApiVariationNode) -> StudyVariationNode:
         return StudyVariationNode(
             joined_path=node.path,
             ply_from_i=node.ply.departure.i,
@@ -91,7 +91,7 @@ class Study(StudyBase, table=True):
     tags: list[StudyTag] = Relationship(back_populates="study", cascade_delete=True)
     nodes: list[StudyVariationNode] = Relationship(back_populates="study", cascade_delete=True)
 
-    async def to_public(self, session: AsyncSession) -> "StudyPublic":
+    async def to_public(self, session: AsyncSession) -> StudyPublic:
         return StudyPublic(
             name=self.name,
             description=self.description,

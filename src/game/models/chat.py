@@ -1,11 +1,15 @@
+from typing import TYPE_CHECKING
 from sqlmodel import Field, Relationship
 
 from common.field_types import CurrentDatetime, PlayerRef
 from common.models import UserRefWithNickname
-from game.models.main import Game
 from player.methods import get_user_ref_with_nickname
 from utils.async_orm_session import AsyncSession
 from utils.custom_model import CustomModel, CustomSQLModel
+
+
+if TYPE_CHECKING:
+    from game.models.main import Game
 
 
 class GameChatMessageEventBase(CustomSQLModel):
@@ -21,7 +25,7 @@ class GameChatMessageEvent(GameChatMessageEventBase, table=True):
 
     game: Game = Relationship(back_populates="chat_message_events")
 
-    async def to_broadcasted_data(self, session: AsyncSession) -> "ChatMessageBroadcastedData":
+    async def to_broadcasted_data(self, session: AsyncSession) -> ChatMessageBroadcastedData:
         return ChatMessageBroadcastedData(
             occurred_at=self.occurred_at,
             text=self.text,
@@ -30,7 +34,7 @@ class GameChatMessageEvent(GameChatMessageEventBase, table=True):
             game_id=self.game_id
         )
 
-    async def to_public(self, session: AsyncSession) -> "GameChatMessageEventPublic":
+    async def to_public(self, session: AsyncSession) -> GameChatMessageEventPublic:
         return GameChatMessageEventPublic(
             occurred_at=self.occurred_at,
             text=self.text,

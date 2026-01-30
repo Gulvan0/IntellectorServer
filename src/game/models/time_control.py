@@ -2,7 +2,6 @@ from typing import TYPE_CHECKING
 from sqlmodel import Field, Relationship
 
 from common.time_control import FischerTimeControlEntity
-from game.models.main import Game
 from utils.custom_model import CustomSQLModel
 
 
@@ -13,6 +12,7 @@ class GameFischerTimeControlBase(CustomSQLModel):
 
 if TYPE_CHECKING:
     _: type[FischerTimeControlEntity] = GameFischerTimeControlBase
+    from game.models.main import Game
 
 
 class GameFischerTimeControl(GameFischerTimeControlBase, table=True):

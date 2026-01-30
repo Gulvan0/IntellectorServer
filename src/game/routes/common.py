@@ -10,7 +10,7 @@ from game.methods.get import get_current_games, get_latest_time_update, get_rece
 from game.methods.timeout import check_timeout, plan_timeout_check
 from game.models.chat import GameChatMessageEvent, GameSendChatMessagePayload
 from game.models.main import Game, GamePublic
-from game.models.rest import GameFilter
+from game.models.rest.common import GameFilter
 from game.models.time_added import GameAddTimePayload, GameTimeAddedEvent
 from game.models.time_update import GameTimeUpdateReason
 from net.base_router import LoggingRoute

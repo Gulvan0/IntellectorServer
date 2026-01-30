@@ -13,7 +13,7 @@ from game.exceptions import PlyInvalidException
 from game.methods.create import create_external_game
 from game.methods.end import end_game
 from game.methods.rollback import RollbackPlyCountInput, perform_rollback, validate_rollback
-from game.models.external import (
+from game.models.rest.external import (
     ExternalGameAppendPlyPayload,
     ExternalGameAppendPlyResponse,
     ExternalGameCreatePayload,

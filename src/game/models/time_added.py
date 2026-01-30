@@ -1,10 +1,14 @@
+from typing import TYPE_CHECKING
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
 from common.field_types import CurrentDatetime
-from game.models.main import Game
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from utils.custom_model import CustomModel, CustomSQLModel
+
+
+if TYPE_CHECKING:
+    from game.models.main import Game
 
 
 class GameTimeAddedEventBase(CustomSQLModel):
@@ -22,7 +26,7 @@ class GameTimeAddedEvent(GameTimeAddedEventBase, table=True):
     game: Game = Relationship(back_populates="time_added_events")
     time_update: GameTimeUpdate = Relationship()
 
-    def to_public(self) -> "GameTimeAddedEventPublic":
+    def to_public(self) -> GameTimeAddedEventPublic:
         return GameTimeAddedEventPublic(
             occurred_at=self.occurred_at,
             amount_seconds=self.amount_seconds,
@@ -30,7 +34,7 @@ class GameTimeAddedEvent(GameTimeAddedEventBase, table=True):
             time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
 
-    def to_broadcasted_data(self) -> "TimeAddedBroadcastedData":
+    def to_broadcasted_data(self) -> TimeAddedBroadcastedData:
         return TimeAddedBroadcastedData(
             occurred_at=self.occurred_at,
             amount_seconds=self.amount_seconds,

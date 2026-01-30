@@ -1,19 +1,17 @@
-from __future__ import annotations
-
 from auth.models import *  # noqa: F401, F403
 from challenge.models import *  # noqa: F401, F403
 from common.models import *  # noqa: F401, F403
 from config.models import *  # noqa: F401, F403
 from game.models.chat import *  # noqa: F401, F403
-from game.models.external import *  # noqa: F401, F403
-from game.models.internal import *  # noqa: F401, F403
+from game.models.rest.external import *  # noqa: F401, F403
+from game.models.rest.internal import *  # noqa: F401, F403
 from game.models.main import *  # noqa: F401, F403
 from game.models.offer import *  # noqa: F401, F403
 from game.models.other import *  # noqa: F401, F403
 from game.models.outcome import *  # noqa: F401, F403
 from game.models.ply import *  # noqa: F401, F403
 from game.models.polymorphous import *  # noqa: F401, F403
-from game.models.rest import *  # noqa: F401, F403
+from game.models.rest.common import *  # noqa: F401, F403
 from game.models.rollback import *  # noqa: F401, F403
 from game.models.time_added import *  # noqa: F401, F403
 from game.models.time_control import *  # noqa: F401, F403

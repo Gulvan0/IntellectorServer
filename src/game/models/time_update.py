@@ -1,11 +1,14 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from datetime import UTC, datetime
 from enum import StrEnum, auto
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
-from game.models.main import Game
 from utils.custom_model import CustomSQLModel
+
+
+if TYPE_CHECKING:
+    from game.models.main import Game
 
 
 class GameTimeUpdateReason(StrEnum):

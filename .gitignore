@@ -3,3 +3,4 @@
 /resources/config/secret.yaml
 /.run
 .vscode
+src/.mypy_cache

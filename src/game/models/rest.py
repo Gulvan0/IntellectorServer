@@ -1,9 +1,9 @@
 from sqlalchemy import ColumnElement
 from sqlmodel import or_
 
+from common.time_control import TimeControlKind
 from game.models.main import Game
 from common.field_types import OptionalPlayerRef
-from game.datatypes import TimeControlKind
 from utils.custom_model import CustomModel
 
 

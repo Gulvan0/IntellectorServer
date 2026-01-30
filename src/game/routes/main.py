@@ -29,7 +29,7 @@ async def get_current_games_route(
     offset: int = 0,
     limit: int = Query(default=10, le=50),
     game_filter: GameFilter = GameFilter()
-):
+) -> list[GamePublic]:
     return [
         await to_public_game(session, game)
         for game in await get_current_games(session, game_filter, offset, limit)
@@ -43,7 +43,7 @@ async def get_recent_games_route(
     offset: int = 0,
     limit: int = Query(default=10, le=50),
     game_filter: GameFilter = GameFilter()
-):
+) -> list[GamePublic]:
     return [
         await to_public_game(session, game)
         for game in await get_recent_games(session, game_filter, offset, limit)
@@ -55,7 +55,7 @@ async def get_game(
     *,
     session: SessionDependency,
     game_id: int
-):
+) -> GamePublic:
     db_game = await session.get(Game, game_id)
 
     if not db_game:
@@ -72,7 +72,7 @@ async def check_timeout_route(
     main_config: MainConfigDependency,
     secret_config: SecretConfigDependency,
     game_id: int
-):
+) -> None:
     await check_timeout(session, state, main_config, secret_config, game_id)
 
 
@@ -84,7 +84,7 @@ async def send_chat_message(
     db_game: GameDependency,
     client: MandatoryUserDependency,
     payload: GameSendChatMessagePayload
-):
+) -> None:
     is_spectator = db_game.outcome or client.reference not in (db_game.white_player_ref, db_game.black_player_ref)
 
     db_event = GameChatMessageEvent(
@@ -115,7 +115,7 @@ async def add_time(
     main_config: MainConfigDependency,
     db_game: GameDependency,
     player_color: OptionalPlayerColorDependency,
-):
+) -> None:
     receiver = payload.receiver
     if db_game.external_uploader_ref:
         if not payload.receiver:

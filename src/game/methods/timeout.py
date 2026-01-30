@@ -28,11 +28,11 @@ async def __delay_timeout_check(
 
     loop = asyncio.get_running_loop()
 
-    async def task():
+    async def task() -> None:
         app.mutable_state.game_timeout_check_timers.pop(game_id, None)
 
         async with app.get_db_session() as session:
-            return await check_timeout(
+            await check_timeout(
                 session=session,
                 state=app.mutable_state,
                 main_config=app.main_config,

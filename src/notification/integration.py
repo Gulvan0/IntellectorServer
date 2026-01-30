@@ -1,3 +1,4 @@
+from typing import Any
 import aiohttp
 
 
@@ -14,7 +15,7 @@ async def post_vk_message(chat_id: int, text: str, token: str) -> int | None:
                     v="5.199"
                 )
             ) as response:
-                response_json: dict = await response.json()
+                response_json: dict[str, Any] = await response.json()
                 return response_json.get("conversation_message_id")
     except Exception:
         return None

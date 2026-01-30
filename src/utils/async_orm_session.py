@@ -77,7 +77,7 @@ class AsyncSession(_AsyncSession):
             return results.scalars()
         return results  # type: ignore
 
-    async def exec_raw(self, query: str) -> Result:
+    async def exec_raw(self, query: str) -> Result[Any]:
         connection = await self.connection()
         return await connection.execute(text(query))
 

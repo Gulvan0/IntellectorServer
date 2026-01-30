@@ -37,7 +37,7 @@ class WebSocketIncomingEventHandler[T:BaseModel]:
 
 @dataclass
 class WebSocketHandlerCollection:
-    _slug_to_handler: dict[str, WebSocketIncomingEventHandler] = field(default_factory=dict)
+    _slug_to_handler: dict[str, WebSocketIncomingEventHandler[Any]] = field(default_factory=dict)
 
     @classmethod
     def union(cls, collections: list[WebSocketHandlerCollection]) -> WebSocketHandlerCollection:
@@ -55,7 +55,7 @@ class WebSocketHandlerCollection:
         title: str | None = None,
         summary: str | None = None,
         description: str | None = None
-    ):
+    ) -> Callable[[WebSocketIncomingEventHandlerCallable[T]], WebSocketIncomingEventHandlerCallable[T]]:
         def decorator(handler_callable: WebSocketIncomingEventHandlerCallable[T]) -> WebSocketIncomingEventHandlerCallable[T]:
             actual_slug = slug or handler_callable.__name__
             assert actual_slug not in self._slug_to_handler

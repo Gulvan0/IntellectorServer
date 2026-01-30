@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import Any
 from sqlmodel import select
 from challenge.datatypes import ChallengeKind
 from challenge.models import Challenge
@@ -34,13 +35,13 @@ async def cancel_challenge(challenge: Challenge, session: AsyncSession, state: M
 
     cancel_event_payload = Id(id=challenge.id)
     if challenge.kind == ChallengeKind.PUBLIC:
-        event: OutgoingEvent = PublicChallengeCancelled(cancel_event_payload, PublicChallengeListEventChannel())
+        event: OutgoingEvent[Any, Any] = PublicChallengeCancelled(cancel_event_payload, PublicChallengeListEventChannel())
     elif challenge.kind == ChallengeKind.DIRECT and challenge.callee_ref:
         event = IncomingChallengeCancelled(cancel_event_payload, IncomingChallengesEventChannel(user_ref=challenge.callee_ref))
     await state.ws_subscribers.broadcast(event)
 
 
-async def cancel_queried_challenges(query: SelectOfScalar[Challenge], session: AsyncSession, state: MutableState, secret_config: SecretConfig):
+async def cancel_queried_challenges(query: SelectOfScalar[Challenge], session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> None:
     cancelled_challenges_by_caller = defaultdict(set)
     cancelled_challenges_by_callee = defaultdict(set)
     cancelled_public_challenges = set()
@@ -85,7 +86,7 @@ async def cancel_public_challenges_by_caller(caller: UserReference, session: Asy
     )
 
 
-async def cancel_all_challenges(session: AsyncSession, state: MutableState, secret_config: SecretConfig):
+async def cancel_all_challenges(session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> None:
     await cancel_queried_challenges(
         query=select(Challenge).where(Challenge.active == True),  # noqa: E712
         session=session,

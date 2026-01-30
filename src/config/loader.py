@@ -1,11 +1,12 @@
 import os
 from pathlib import Path
+from typing import Any
 
 import yaml  # type: ignore
 from pydantic import BaseModel
 
 
-def _merge(common: dict, stage: dict) -> None:
+def _merge(common: dict[str, Any], stage: dict[str, Any]) -> None:
     for key, stage_value in stage.items():
         common_value = common.get(key)
         if common_value and isinstance(common_value, dict):
@@ -16,7 +17,7 @@ def _merge(common: dict, stage: dict) -> None:
 
 
 def load[ConfigType: BaseModel](name: str, config_type: type[ConfigType]) -> ConfigType:
-    raw_config_content: dict = yaml.safe_load(Path(f'resources/config/{name}.yaml').read_text())
+    raw_config_content: dict[str, Any] = yaml.safe_load(Path(f'resources/config/{name}.yaml').read_text())
     cooked_config = raw_config_content.get("common", {})
-    _merge(cooked_config, raw_config_content.get(os.getenv("STAGE"), {}))
+    _merge(cooked_config, raw_config_content.get(os.getenv("STAGE", "TEST"), {}))
     return config_type.model_validate(cooked_config)

@@ -32,9 +32,6 @@ class PerformPlyOutput:
     new_position: Position
     properties: DerivedPlyProperties
 
-    def to_notation(self) -> str:
-        return self.performed_ply.to_notation(self.old_position, self.properties)
-
 
 @dataclass
 class Position:

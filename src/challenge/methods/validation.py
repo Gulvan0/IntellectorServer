@@ -37,7 +37,7 @@ async def validate_spam_limits(
     caller: UserReference,
     limits: LimitParams,
     session: AsyncSession
-):
+) -> None:
     total_active_challenges = await get_total_active_challenges_by_caller(session, caller)
     max_total = limits.max_total_active_challenges
     if total_active_challenges >= max_total:

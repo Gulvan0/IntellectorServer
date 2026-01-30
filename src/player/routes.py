@@ -4,12 +4,13 @@ from sqlalchemy import update
 from sqlmodel import col
 
 from common.models import UserRefWithNickname
-from player.dependencies import DBPlayerDependency
+from game.methods.get import get_overall_player_game_counts
+from player.dependencies import PLAYER_EXISTS_DEPENDENCY, DBPlayerDependency
 from net.base_router import LoggingRoute
 from common.user_ref import UserReference
 from player.methods import get_followed_players, get_followers, get_overall_game_stats, get_restrictions, get_roles, is_player_following_player
 from player.datatypes import GameStats
-from common.dependencies import MainConfigDependency, MandatoryPlayerLoginDependency, MutableStateDependency, OptionalPlayerLoginDependency, SessionDependency, verify_admin
+from common.dependencies import CLIENT_IS_ADMIN_DEPENDENCY, MainConfigDependency, MandatoryPlayerLoginDependency, MutableStateDependency, OptionalPlayerLoginDependency, SessionDependency, verify_admin
 from common.field_types import PlayerLogin
 from player.models import (
     PlayerFollowedPlayer,
@@ -22,10 +23,8 @@ from player.models import (
     RestrictionRemovalPayload,
     RoleOperationPayload,
 )
-
-import game.methods.get as game_get_methods
-import study.methods as study_methods
-import pubsub.models.channel as pubsub_models
+from pubsub.models.channel import IncomingChallengesEventChannel
+from study.methods import get_player_studies_cnt
 
 
 router = APIRouter(prefix="/player", route_class=LoggingRoute)
@@ -38,8 +37,8 @@ async def get_player_followers(
     login: PlayerLogin,
     offset: int = 0,
     limit: int = Query(default=50, le=100)
-):
-    await get_followers(session, login, limit, offset)
+) -> list[UserRefWithNickname]:
+    return await get_followers(session, login, limit, offset)
 
 
 @router.get("/{login}/followed", response_model=list[UserRefWithNickname])
@@ -49,8 +48,8 @@ async def get_player_followed_players(
     login: PlayerLogin,
     offset: int = 0,
     limit: int = Query(default=50, le=100)
-):
-    await get_followed_players(session, login, limit, offset)
+) -> list[UserRefWithNickname]:
+    return await get_followed_players(session, login, limit, offset)
 
 
 @router.get("/{login}", response_model=PlayerPublic)
@@ -62,8 +61,8 @@ async def get_player(
     state: MutableStateDependency,
     client_login: OptionalPlayerLoginDependency,
     main_config: MainConfigDependency
-):
-    game_counts = await game_get_methods.get_overall_player_game_counts(session, login)
+) -> PlayerPublic:
+    game_counts = await get_overall_player_game_counts(session, login)
     game_stats = await get_overall_game_stats(session, main_config, login, game_counts)
 
     user_ref = UserReference.logged(login)
@@ -72,10 +71,10 @@ async def get_player(
         joined_at=db_player.joined_at,
         nickname=db_player.nickname,
         is_friend=await is_player_following_player(session, client_login, login),
-        status=state.get_user_status_in_channel(user_ref, pubsub_models.IncomingChallengesEventChannel(user_ref=login)),
+        status=state.get_user_status_in_channel(user_ref, IncomingChallengesEventChannel(user_ref=login)),
         per_time_control_stats=game_stats.by_time_control,
         total_stats=GameStats(elo=game_stats.best.elo, is_elo_provisional=game_stats.best.is_elo_provisional, games_cnt=game_counts.total),
-        studies_cnt=await study_methods.get_player_studies_cnt(session, login, client_login == login),
+        studies_cnt=await get_player_studies_cnt(session, login, client_login == login),
         roles=await get_roles(session, login, db_player.preferred_role),
         restrictions=await get_restrictions(session, login)
     )
@@ -91,7 +90,7 @@ async def update_player(
     db_player: DBPlayerDependency,
     client_login: MandatoryPlayerLoginDependency,
     player: PlayerUpdate
-):
+) -> None:
     if client_login != login:
         raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -115,8 +114,8 @@ async def update_player(
     await session.commit()
 
 
-@router.post("/{login}/follow")
-async def follow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency, _: DBPlayerDependency):
+@router.post("/{login}/follow", dependencies=[PLAYER_EXISTS_DEPENDENCY])
+async def follow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency) -> None:
     if client_login == login:
         raise HTTPException(status_code=422, detail="Cannot follow self")
 
@@ -132,7 +131,7 @@ async def follow(*, session: SessionDependency, login: PlayerLogin, client_login
 
 
 @router.post("/{login}/unfollow")
-async def unfollow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency):
+async def unfollow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency) -> None:
     if client_login == login:
         raise HTTPException(status_code=422, detail="Cannot unfollow self")
 
@@ -144,8 +143,8 @@ async def unfollow(*, session: SessionDependency, login: PlayerLogin, client_log
     await session.commit()
 
 
-@router.post("/{login}/role/add", dependencies=[Depends(verify_admin)])
-async def add_role(*, session: SessionDependency, login: PlayerLogin, payload: RoleOperationPayload, _: DBPlayerDependency):
+@router.post("/{login}/role/add", dependencies=[CLIENT_IS_ADMIN_DEPENDENCY, PLAYER_EXISTS_DEPENDENCY])
+async def add_role(*, session: SessionDependency, login: PlayerLogin, payload: RoleOperationPayload) -> None:
     if await session.get(PlayerRole, (payload.role, login)):
         raise HTTPException(status_code=422, detail="Role is already present")
 
@@ -157,14 +156,14 @@ async def add_role(*, session: SessionDependency, login: PlayerLogin, payload: R
     await session.commit()
 
 
-@router.delete("/{login}/role/remove", dependencies=[Depends(verify_admin)])
+@router.delete("/{login}/role/remove", dependencies=[CLIENT_IS_ADMIN_DEPENDENCY])
 async def remove_role(
     *,
     session: SessionDependency,
     login: PlayerLogin,
     payload: RoleOperationPayload,
     db_player: DBPlayerDependency
-):
+) -> None:
     db_role = await session.get(PlayerRole, (payload.role, login))
     if not db_role:
         raise HTTPException(status_code=404, detail="Role is not assigned to this player")
@@ -177,14 +176,13 @@ async def remove_role(
     await session.commit()
 
 
-@router.post("/{login}/restriction/add", dependencies=[Depends(verify_admin)])
+@router.post("/{login}/restriction/add", dependencies=[CLIENT_IS_ADMIN_DEPENDENCY, PLAYER_EXISTS_DEPENDENCY])
 async def add_restriction(
     *,
     session: SessionDependency,
     login: PlayerLogin,
-    payload: RestrictionCastingPayload,
-    _: DBPlayerDependency
-):
+    payload: RestrictionCastingPayload
+) -> None:
     db_restriction = PlayerRestriction(
         expires=payload.expires,
         kind=payload.restriction,
@@ -194,8 +192,8 @@ async def add_restriction(
     await session.commit()
 
 
-@router.delete("/{login}/restriction/remove", dependencies=[Depends(verify_admin)])
-async def remove_restriction(*, session: SessionDependency, payload: RestrictionRemovalPayload):
+@router.delete("/{login}/restriction/remove", dependencies=[CLIENT_IS_ADMIN_DEPENDENCY])
+async def remove_restriction(*, session: SessionDependency, payload: RestrictionRemovalPayload) -> None:
     db_restriction = await session.get(PlayerRestriction, payload.restriction_id)
     if not db_restriction:
         raise HTTPException(status_code=404, detail="Not found")
@@ -205,13 +203,13 @@ async def remove_restriction(*, session: SessionDependency, payload: Restriction
     await session.commit()
 
 
-@router.delete("/{login}/restriction/purge", dependencies=[Depends(verify_admin)])
+@router.delete("/{login}/restriction/purge", dependencies=[CLIENT_IS_ADMIN_DEPENDENCY])
 async def purge_restrictions(
     *,
     session: SessionDependency,
     login: PlayerLogin,
     payload: RestrictionBatchRemovalPayload
-):
+) -> None:
     update_query = update(PlayerRestriction).values(expires=datetime.now(UTC)).where(col(PlayerRestriction.login) == login)
     if payload.restriction:
         update_query = update_query.where(col(PlayerRestriction.kind) == payload.restriction)
@@ -227,5 +225,5 @@ async def update_avatar(
     login: PlayerLogin,
     image: UploadFile,
     client_login: MandatoryPlayerLoginDependency
-):
+) -> None:
     raise HTTPException(status_code=501, detail="Avatar upload is not yet available")

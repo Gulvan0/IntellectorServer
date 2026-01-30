@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from html import escape
 from types import NoneType
-from typing import get_args
+from typing import Any, get_args
 from pydantic import BaseModel
 
 from common.models import Id, IdList
@@ -55,18 +55,18 @@ class OutgoingEvent[PayloadType: BaseModel | None, TargetChannelType: EventChann
         return cls._base_type_variables()[1]
 
     @classmethod
-    def payload_schema(cls) -> dict | None:
+    def payload_schema(cls) -> dict[str, Any] | None:
         payload_type: type[BaseModel] | None = cls.payload_type()  # type: ignore
         if payload_type:
             return payload_type.model_json_schema()
         return None
 
     @classmethod
-    def payload_examples_json(cls) -> list[dict | None]:
+    def payload_examples_json(cls) -> list[dict[str, Any] | None]:
         payload_type: type[BaseModel] | None = cls.payload_type()  # type: ignore
         if payload_type:
             if payload_type is Id:
-                payload_examples: list = ids()
+                payload_examples: list[Any] = ids()
             elif payload_type is IdList:
                 payload_examples = id_lists()
             else:
@@ -79,7 +79,7 @@ class OutgoingEvent[PayloadType: BaseModel | None, TargetChannelType: EventChann
         else:
             return [None]
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return dict(
             event=self.name(),
             channel=self.target_channel.model_dump() if not isinstance(self.target_channel, NoneType) else None,

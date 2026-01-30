@@ -13,4 +13,7 @@ async def get_db_player(session: SessionDependency, login: PlayerLogin) -> Playe
     return db_player
 
 
-DBPlayerDependency = Annotated[Player, Depends(get_db_player)]
+PLAYER_EXISTS_DEPENDENCY = Depends(get_db_player)
+
+
+DBPlayerDependency = Annotated[Player, PLAYER_EXISTS_DEPENDENCY]

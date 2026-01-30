@@ -70,7 +70,7 @@ async def get_followers(session: AsyncSession, followed_login: str, limit: int, 
         Player.nickname
     ).join(
         Player,
-        PlayerFollowedPlayer.follower_login == Player.login,
+        PlayerFollowedPlayer.follower_login == Player.login,  # type: ignore
         isouter=True
     ).where(
         PlayerFollowedPlayer.followed_login == followed_login
@@ -91,7 +91,7 @@ async def get_followed_players(session: AsyncSession, follower_login: str, limit
         Player.nickname
     ).join(
         Player,
-        PlayerFollowedPlayer.followed_login == Player.login,
+        PlayerFollowedPlayer.followed_login == Player.login,  # type: ignore
         isouter=True
     ).where(
         PlayerFollowedPlayer.follower_login == follower_login

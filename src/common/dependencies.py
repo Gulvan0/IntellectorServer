@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, AsyncGenerator
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import APIKeyHeader
 
@@ -17,13 +17,13 @@ OptionalUserTokenHeaderDependency = Annotated[str | None, Depends(APIKeyHeader(n
 
 
 async def get_app(request: Request) -> App:
-    return request.app
+    return request.app  # type: ignore[no-any-return]
 
 
 AppDependency = Annotated[App, Depends(get_app)]
 
 
-async def get_session(app: AppDependency):
+async def get_session(app: AppDependency) -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSession(app.db_engine) as session:
         yield session
 
@@ -77,6 +77,9 @@ MandatoryPlayerLoginDependency = Annotated[str, Depends(get_mandatory_player_log
 async def verify_admin(client_login: MandatoryPlayerLoginDependency, session: SessionDependency) -> None:
     if not session.get(player_models.PlayerRole, (player_datatypes.UserRole.ADMIN, client_login)):
         raise HTTPException(status_code=403, detail="Forbidden")
+
+
+CLIENT_IS_ADMIN_DEPENDENCY = Depends(verify_admin)
 
 
 async def get_optional_player_login(state: MutableStateDependency, token: OptionalUserTokenHeaderDependency) -> str | None:

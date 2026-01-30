@@ -4,9 +4,8 @@ from datetime import datetime
 from fastapi import HTTPException
 from board.deserializers.sip import color_to_move_from_sip
 from config.models import MainConfig, SecretConfig
-from game.methods.ply import RollbackOfferAuthorInput, perform_rollback, validate_rollback
-from game.exceptions import SinkException
 from game.methods.event import append_offer_event
+from game.methods.rollback import RollbackOfferAuthorInput, perform_rollback, validate_rollback
 from game.models.main import Game
 from game.models.offer import GameOfferEvent, OfferActionBroadcastedData
 from net.core import MutableState
@@ -26,10 +25,14 @@ from utils.async_orm_session import AsyncSession
 async def create_offer(
     session: AsyncSession,
     state: MutableState,
+    main_config: MainConfig,
+    secret_config: SecretConfig,
     game: Game,
     offer_kind: OfferKind,
     offer_author: PieceColor
 ) -> None:
+    assert game.id
+
     ply_cnt = await get_ply_cnt(session, game.id)
 
     if offer_kind == OfferKind.DRAW:
@@ -45,7 +48,7 @@ async def create_offer(
         raise HTTPException(409, "Offer is already active")
 
     if offer_kind == OfferKind.DRAW and is_offer_active(session, game.id, offer_kind, offer_author.opposite()):
-        await accept_draw(session, state, game.id, offer_author.opposite(), skip_activity_check=True)
+        await accept_draw(session, state, main_config, secret_config, game.id, offer_author.opposite(), skip_activity_check=True)
         return
 
     await append_offer_event(session, state, OfferAction.CREATE, offer_kind, offer_author, game.id)

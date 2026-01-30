@@ -34,7 +34,7 @@ async def create(
     client: MandatoryUserDependency,
     session: SessionDependency,
     state: MutableStateDependency
-):
+) -> GamePublic:
     return await create_external_game(
         uploader=client,
         white_player_ref=payload.white_player_ref,
@@ -58,7 +58,7 @@ async def append_ply_route(
     state: MutableStateDependency,
     main_config: MainConfigDependency,
     secret_config: SecretConfigDependency
-):
+) -> ExternalGameAppendPlyResponse:
     try:
         outcome, _, _ = await append_ply(
             session,
@@ -87,7 +87,7 @@ async def end(
     state: MutableStateDependency,
     main_config: MainConfigDependency,
     secret_config: SecretConfigDependency
-):
+) -> None:
     await end_game(session, state, main_config, secret_config, payload.game_id, payload.outcome_kind, payload.winner)
 
 
@@ -101,6 +101,6 @@ async def rollback(
     db_game: GameDependency,
     session: SessionDependency,
     state: MutableStateDependency
-):
+) -> None:
     validation_results = await validate_rollback(session, payload.game_id, RollbackPlyCountInput(payload.new_ply_cnt))
     await perform_rollback(session, state, payload.game_id, db_game, validation_results)

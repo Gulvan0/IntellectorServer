@@ -11,6 +11,7 @@ from common.constants import USER_TOKEN_HEADER
 
 import json
 import log.models as log_models
+from utils.async_orm_session import AsyncSession
 
 
 def headers_to_str(headers: Headers) -> str:
@@ -50,8 +51,8 @@ def get_client_ref(request: Request, app: App) -> str | None:
     return None
 
 
-async def log_info(request: Request, response_code: int, response_body: bytes, app: App):
-    with Session(app.db_engine) as session:
+async def log_info(request: Request, response_code: int, response_body: bytes, app: App) -> None:
+    async with AsyncSession(app.db_engine) as session:
         request_entry = log_models.RESTRequestLog(
             client_host=request.client.host if request.client else "unknown",
             authorized_as=get_client_ref(request, app),
@@ -67,11 +68,11 @@ async def log_info(request: Request, response_code: int, response_body: bytes, a
         )
         session.add(request_entry)
         session.add(response_entry)
-        session.commit()
+        await session.commit()
 
 
 class LoggingRoute(APIRoute):
-    def get_route_handler(self) -> Callable:
+    def get_route_handler(self) -> Callable:  # type: ignore[type-arg]
         original_route_handler = super().get_route_handler()
 
         async def custom_route_handler(request: Request) -> Response:
@@ -92,7 +93,7 @@ class LoggingRoute(APIRoute):
                     media_type=response.media_type
                 )
             else:
-                task = BackgroundTask(log_info, request, response.status_code, response.body, request.app)
+                task = BackgroundTask(log_info, request, response.status_code, response.body, request.app)  # type: ignore[arg-type]
 
             if existing_task:
                 response.background = BackgroundTasks([existing_task, task])

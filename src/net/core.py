@@ -1,33 +1,5 @@
 from __future__ import annotations
 
-from asyncio import TimerHandle
-import asyncio
-from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
-from uuid import UUID, uuid4
-from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, ValidationError
-from sqlmodel import SQLModel
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from websockets import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
-
-from challenge.methods.update import cancel_public_challenges_by_caller
-from common.user_ref import UserReference
-from pubsub.models.channel import EventChannel, EveryoneEventChannel
-from config.models import MainConfig, SecretConfig
-from log.models import ServerLaunch, WSLog
-from net.incoming import WebSocketHandlerCollection
-from net.sub_storage import SubscriberStorage
-from net.utils.ws_error import ErrorKind
-from config.loader import load
-from player.datatypes import UserStatus
-from pubsub.outgoing_event.base import OutgoingEvent
-from utils.bijective_map import BijectiveMap
-from utils.async_orm_session import AsyncSession
-
 from auth.models import *  # noqa: F401, F403
 from challenge.models import *  # noqa: F401, F403
 from common.models import *  # noqa: F401, F403
@@ -56,6 +28,34 @@ from pubsub.models.other import *  # noqa: F401, F403
 from pubsub.models.state import *  # noqa: F401, F403
 from study.models import *  # noqa: F401, F403
 
+from asyncio import TimerHandle
+import asyncio
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, AsyncGenerator
+from uuid import UUID, uuid4
+from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, ValidationError
+from sqlmodel import SQLModel
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from websockets import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
+
+from challenge.methods.update import cancel_public_challenges_by_caller
+from common.user_ref import UserReference
+from pubsub.models.channel import EventChannel, EveryoneEventChannel
+from config.models import MainConfig, SecretConfig
+from log.models import ServerLaunch, WSLog
+from net.incoming import WebSocketHandlerCollection
+from net.sub_storage import SubscriberStorage
+from net.utils.ws_error import ErrorKind
+from config.loader import load
+from player.datatypes import UserStatus
+from pubsub.outgoing_event.base import OutgoingEvent
+from utils.bijective_map import BijectiveMap
+from utils.async_orm_session import AsyncSession
+
 import time
 import json
 
@@ -72,7 +72,7 @@ class WebSocketWrapper:
     uuid: UUID = field(default_factory=uuid4)
     saved_token: str | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.send_json = self.ws.send_json
 
     def get_user_ref(self) -> UserReference | None:
@@ -80,11 +80,12 @@ class WebSocketWrapper:
             return self.app.mutable_state.token_to_user.get(self.saved_token)
         return None
 
-    async def _send_logged_json(self, payload: dict) -> None:
+    async def _send_logged_json(self, payload: dict[str, Any]) -> None:
         async with AsyncSession(self.app.db_engine) as session:
+            user = self.get_user_ref()
             session.add(WSLog(
                 connection_id=str(self.uuid),
-                authorized_as=self.get_user_ref().reference,
+                authorized_as=user.reference if user else None,
                 payload=json.dumps(payload, ensure_ascii=False),
                 incoming=False
             ))
@@ -145,12 +146,13 @@ class MutableState:
 
 class App(FastAPI):
     @asynccontextmanager
-    async def __lifespan(self):
-        SQLModel.metadata.create_all(self.db_engine)  # All models were imported using wildcard at the top of this file
+    async def __lifespan(self) -> AsyncGenerator[None, None]:
+        # All models were imported using wildcard at the top of this file
+        SQLModel.metadata.create_all(self.db_engine)  # type: ignore
 
         last_guest_id_query = LAST_GUEST_ID_QUERY_PATH.read_text()
         async with AsyncSession(self.db_engine) as session:
-            result = session.exec_raw(last_guest_id_query)
+            result = await session.exec_raw(last_guest_id_query)
             self.mutable_state.last_guest_id = result.scalar() or 0
 
             session.add(ServerLaunch())
@@ -159,7 +161,7 @@ class App(FastAPI):
         yield
 
     @asynccontextmanager
-    async def get_db_session(self):
+    async def get_db_session(self) -> AsyncGenerator[AsyncSession, None]:
         async with AsyncSession(self.db_engine) as session:
             yield session
 
@@ -183,25 +185,25 @@ class App(FastAPI):
         self.add_api_route("/ws_docs", self.websocket_docs_endpoint, response_class=HTMLResponse)
         self.add_websocket_route("/ws", self.websocket_endpoint)
 
-    async def websocket_docs_endpoint(self):
+    async def websocket_docs_endpoint(self) -> HTMLResponse:
         return HTMLResponse(content=Path('./resources/ws_api_docs/docs_page.html').read_text())
 
-    async def __delay_challenge_cancellation(self, caller: UserReference):
+    async def __delay_challenge_cancellation(self, caller: UserReference) -> None:
         existing_timer_handle = self.mutable_state.user_challenge_cancelling_timers.get(caller)
         if existing_timer_handle:
             existing_timer_handle.cancel()
 
         loop = asyncio.get_running_loop()
 
-        async def task():
+        async def task() -> None:
             self.mutable_state.user_challenge_cancelling_timers.pop(caller, None)
 
             async with self.get_db_session() as session:
-                return await cancel_public_challenges_by_caller(caller, session, self.mutable_state, self.secret_config)
+                await cancel_public_challenges_by_caller(caller, session, self.mutable_state, self.secret_config)
 
         self.mutable_state.user_challenge_cancelling_timers[caller] = loop.call_later(60, lambda: asyncio.create_task(task()))
 
-    async def websocket_endpoint(self, websocket: WebSocket):
+    async def websocket_endpoint(self, websocket: WebSocket) -> None:
         await websocket.accept()
         now_ts = int(time.time())
         ws_wrapper = WebSocketWrapper(self, websocket, now_ts, now_ts)
@@ -219,6 +221,7 @@ class App(FastAPI):
             self.mutable_state.ws_subscribers.fully_remove(ws_wrapper)
 
             user = ws_wrapper.get_user_ref()
-            challenge_channel = IncomingChallengesEventChannel(user.reference)  # noqa: F405
-            if user and not self.mutable_state.ws_subscribers.count_subscribers(challenge_channel):
-                await self.__delay_challenge_cancellation(user)
+            if user:
+                challenge_channel = IncomingChallengesEventChannel(user_ref=user.reference)  # noqa: F405
+                if not self.mutable_state.ws_subscribers.count_subscribers(challenge_channel):
+                    await self.__delay_challenge_cancellation(user)

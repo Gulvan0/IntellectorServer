@@ -28,7 +28,7 @@ async def append_ply_route(
     state: MutableStateDependency,
     main_config: MainConfigDependency,
     secret_config: SecretConfigDependency
-):
+) -> InternalGameAppendPlyResponse:
     try:
         outcome, sip_after, time_update = await append_ply(
             session,
@@ -64,8 +64,7 @@ async def append_ply_route(
             reason="Impossible ply",
             game_state=game_state
         ))
-    else:
-        return InternalGameAppendPlyResponse(outcome=outcome, sip_after=sip_after, time_update=GameTimeUpdatePublic.cast(time_update))
+    return InternalGameAppendPlyResponse(outcome=outcome, sip_after=sip_after, time_update=GameTimeUpdatePublic.cast(time_update))
 
 
 @router.post("/perform_offer_action", dependencies=[
@@ -81,10 +80,10 @@ async def perform_offer_action(
     state: MutableStateDependency,
     main_config: MainConfigDependency,
     secret_config: SecretConfigDependency
-):
+) -> None:
     match payload.action_kind:
         case OfferAction.CREATE:
-            await create_offer(session, state, db_game, payload.offer_kind, client_color)
+            await create_offer(session, state, main_config, secret_config, db_game, payload.offer_kind, client_color)
         case OfferAction.CANCEL:
             await cancel_offer(session, state, payload.game_id, payload.offer_kind, client_color)
         case OfferAction.DECLINE:

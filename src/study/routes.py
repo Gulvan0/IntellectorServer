@@ -1,3 +1,4 @@
+from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import col, distinct, select
 
@@ -12,7 +13,7 @@ router = APIRouter(prefix="/study", route_class=LoggingRoute)
 
 
 @router.post("/create", response_model=StudyPublic, status_code=201)
-async def create_study(*, session: SessionDependency, client_login: MandatoryPlayerLoginDependency, study: StudyCreate):
+async def create_study(*, session: SessionDependency, client_login: MandatoryPlayerLoginDependency, study: StudyCreate) -> StudyPublic:
     db_study = study.build_table_model(client_login)
 
     session.add(db_study)
@@ -30,7 +31,7 @@ async def list_studies(
     tags: list[str] | None = None,
     offset: int = 0,
     limit: int = Query(default=10, le=50)
-):
+) -> list[StudyPublic]:
     query = select(Study)
 
     if author_login is not None:
@@ -49,7 +50,7 @@ async def list_studies(
 
 
 @router.get("/{study_id}", response_model=StudyPublic)
-async def get_study(*, session: SessionDependency, study_id: int, client_login: OptionalPlayerLoginDependency):
+async def get_study(*, session: SessionDependency, study_id: int, client_login: OptionalPlayerLoginDependency) -> StudyPublic:
     db_study = await session.get(Study, study_id)
 
     if not db_study:
@@ -62,7 +63,7 @@ async def get_study(*, session: SessionDependency, study_id: int, client_login: 
 
 
 @router.patch("/{study_id}", response_model=StudyPublic)
-async def update_study(*, session: SessionDependency, client_login: MandatoryPlayerLoginDependency, study_id: int, study: StudyUpdate):
+async def update_study(*, session: SessionDependency, client_login: MandatoryPlayerLoginDependency, study_id: int, study: StudyUpdate) -> StudyPublic:
     db_study = await session.get(Study, study_id)
     if not db_study:
         raise HTTPException(status_code=404, detail="Study not found")
@@ -83,7 +84,7 @@ async def update_study(*, session: SessionDependency, client_login: MandatoryPla
 
 
 @router.delete("/{study_id}")
-async def delete_study(*, session: SessionDependency, client_login: MandatoryPlayerLoginDependency, study_id: int):
+async def delete_study(*, session: SessionDependency, client_login: MandatoryPlayerLoginDependency, study_id: int) -> dict[str, Any]:
     db_study = await session.get(Study, study_id)
     if not db_study:
         raise HTTPException(status_code=404, detail="Study not found")

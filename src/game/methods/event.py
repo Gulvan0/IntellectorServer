@@ -1,3 +1,4 @@
+from typing import Any
 from game.datatypes import OfferAction, OfferKind
 from game.models.chat import GameChatMessageEvent
 from game.models.offer import GameOfferEvent
@@ -28,7 +29,7 @@ async def append_event(
     tag_blacklist = set()
     match event:
         case GamePlyEvent():
-            ws_event: OutgoingEvent = NewPly(event.to_broadcasted_data(), target_channel)
+            ws_event: OutgoingEvent[Any, Any] = NewPly(event.to_broadcasted_data(), target_channel)
             tag_blacklist.add(SubscriberTag.WHITE_PLAYER if event.moving_color == PieceColor.WHITE else SubscriberTag.BLACK_PLAYER)
         case GameChatMessageEvent():
             ws_event = NewChatMessage(await event.to_broadcasted_data(session), target_channel)

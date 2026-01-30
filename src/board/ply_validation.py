@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from board.coords import HexCoordinates
 from board.piece import Piece, PieceColor, PieceKind
 from board.piece_movement import PieceMovementDirection
@@ -13,12 +13,12 @@ class PlyImpossibleException(Exception):
     pass
 
 
-def __require(cond) -> None:
+def __require(cond: Any) -> None:
     if not cond:
         raise PlyImpossibleException
 
 
-def __validate_capture_or_normal(ply: Ply, properties: DerivedPlyProperties, position: "Position", aura_allowed: bool = True):
+def __validate_capture_or_normal(ply: Ply, properties: DerivedPlyProperties, position: "Position", aura_allowed: bool = True) -> None:
     __require(properties.ply_kind != PlyKind.SWAP)
     if ply.morph_into:
         __require(aura_allowed)
@@ -27,7 +27,7 @@ def __validate_capture_or_normal(ply: Ply, properties: DerivedPlyProperties, pos
         __require(position.is_hex_under_aura(ply.departure, properties.moving_piece.color))
 
 
-def __validate_raycast_reachability(ply: Ply, position: "Position", absolute_direction: PieceMovementDirection):
+def __validate_raycast_reachability(ply: Ply, position: "Position", absolute_direction: PieceMovementDirection) -> None:
     currently_iterated_hex_coords = ply.departure.step(absolute_direction)
     __require(currently_iterated_hex_coords is not None)
     assert currently_iterated_hex_coords

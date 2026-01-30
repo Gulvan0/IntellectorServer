@@ -61,11 +61,11 @@ for i in range(0, 9):
         draw.text(xy=vertices[1], text=f"i{i};j{j}", fill=(0, 0, 0), font=ImageFont.load_default(size=HEIGHT / 3))
 
 
-def mark_hex(coords: HexCoordinates):
+def mark_hex(coords: HexCoordinates) -> None:
     draw.circle(xy=get_hex_center(coords), radius=10, fill="red")
 
 
-def draw_arrow(departure: HexCoordinates, destination: HexCoordinates, colour: str | None = None, spread: float = 0):
+def draw_arrow(departure: HexCoordinates, destination: HexCoordinates, colour: str | None = None, spread: float = 0) -> None:
     dep_center = get_hex_center(departure)
     dest_center = get_hex_center(destination)
     fp = (dep_center[0] + (random() - 0.5) * spread, dep_center[1] + (random() - 0.5) * spread)
@@ -74,7 +74,7 @@ def draw_arrow(departure: HexCoordinates, destination: HexCoordinates, colour: s
     draw.circle(xy=sp, radius=10, fill=colour or "blue")
 
 
-def put_piece(piece: Piece, coords: HexCoordinates):
+def put_piece(piece: Piece, coords: HexCoordinates) -> None:
     center = get_hex_center(coords)
     piece_image = PIECES[piece]
     im.paste(piece_image, (round(center[0] - piece_image.width / 2), round(center[1] - piece_image.height / 2)), piece_image)

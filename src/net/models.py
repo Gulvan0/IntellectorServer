@@ -1,3 +1,4 @@
+from typing import Any
 from pydantic import Field
 
 from utils.custom_model import CustomModel
@@ -6,7 +7,7 @@ from utils.custom_model import CustomModel
 class WebsocketIncomingMessage(CustomModel):
     event: str
     token: str | None = None
-    body: dict = Field(default_factory=dict)
+    body: dict[str, Any] = Field(default_factory=dict)
 
 
 class NewSubscriberBroadcastedData(CustomModel):

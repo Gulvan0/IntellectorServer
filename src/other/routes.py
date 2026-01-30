@@ -1,7 +1,9 @@
+from typing import Any
 from fastapi import APIRouter, Depends, Response
 
 from net.base_router import LoggingRoute
-from other.models import CompatibilityCheckPayload, CompatibilityResolution, CompatibilityResponse
+from other.datatypes import CompatibilityResolution
+from other.models import CompatibilityCheckPayload, CompatibilityResponse
 from common.dependencies import MainConfigDependency, MutableStateDependency, SecretConfigDependency, SessionDependency, verify_admin
 
 import challenge.methods.update as challenge_update_methods
@@ -14,7 +16,7 @@ router = APIRouter(prefix="", route_class=LoggingRoute)
 
 
 @router.post("/check_compatibility", response_model=CompatibilityResponse)
-async def check_compatibility(*, payload: CompatibilityCheckPayload, response: Response, main_config: MainConfigDependency):
+async def check_compatibility(*, payload: CompatibilityCheckPayload, response: Response, main_config: MainConfigDependency) -> CompatibilityResponse:
     resolution = CompatibilityResolution.COMPATIBLE
     if payload.client_build < main_config.min_client_build:
         response.status_code = 400
@@ -36,7 +38,7 @@ async def shutdown(
     session: SessionDependency,
     state: MutableStateDependency,
     secret_config: SecretConfigDependency
-):
+) -> None:
     if state.shutdown_activated:
         return
 
@@ -51,5 +53,5 @@ async def shutdown(
 
 
 @router.get("/mutable_state", dependencies=[Depends(verify_admin)])
-async def get_mutable_state(state: MutableStateDependency):
+async def get_mutable_state(state: MutableStateDependency) -> Any:
     raise NotImplementedError()  # TODO: Implement

@@ -1,3 +1,4 @@
+from typing import Any
 from challenge.methods.cast import to_public_challenge
 from challenge.methods.get import get_active_public_challenges, get_direct_challenges
 from common.user_ref import UserReference
@@ -30,7 +31,7 @@ collection = WebSocketHandlerCollection()
 
 
 @collection.register(SubUnsubPayload)
-async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUnsubPayload):
+async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUnsubPayload) -> None:
     sub_storage = ws.app.mutable_state.ws_subscribers
     tags = set()
 
@@ -38,7 +39,7 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
         match payload.channel:
             case PublicChallengeListEventChannel():
                 public_challenges = await get_active_public_challenges(session)
-                refresh_event: OutgoingEvent = PublicChallengeListRefresh(ChallengeListStateRefresh(
+                refresh_event: OutgoingEvent[Any, Any] = PublicChallengeListRefresh(ChallengeListStateRefresh(
                     challenges=public_challenges
                 ))
             case GameListEventChannel():
@@ -122,7 +123,7 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
 
 
 @collection.register(SubUnsubPayload)
-async def unsub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUnsubPayload):
+async def unsub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUnsubPayload) -> None:
     sub_storage = ws.app.mutable_state.ws_subscribers
 
     if not sub_storage.has_ws_subscriber(ws, payload.channel):

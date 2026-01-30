@@ -10,9 +10,9 @@ class EarlyResponse(Exception):
     body: BaseModel
 
 
-def supports_early_responses(has_response_arg: bool = False):
-    def decorator(endpoint: Callable):
-        def wrapper(*, response: Response, **additional_kwargs):
+def supports_early_responses(has_response_arg: bool = False) -> Callable:  # type: ignore[type-arg]
+    def decorator(endpoint: Callable) -> Callable:  # type: ignore[type-arg]
+        def wrapper(*, response: Response, **additional_kwargs):  # type: ignore
             try:
                 return endpoint(response=response, **additional_kwargs) if has_response_arg else endpoint(**additional_kwargs)
             except EarlyResponse as early_resp:

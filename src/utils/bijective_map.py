@@ -2,10 +2,7 @@ from typing import Hashable
 
 
 class BijectionError(Exception):
-    def __init__(self, value):
-        self.value = value
-        msg = 'The value "{}" is already in the mapping.'
-        super().__init__(msg.format(value))
+    pass
 
 
 class BijectiveMap[L:Hashable, R:Hashable]:
@@ -15,7 +12,7 @@ class BijectiveMap[L:Hashable, R:Hashable]:
 
     def add(self, left: L, right: R) -> None:
         if right in self.inverse:
-            raise BijectionError(right)
+            raise BijectionError()
 
         self.straight[left] = right
         self.inverse[right] = left

@@ -208,8 +208,13 @@ class App(FastAPI):
         self.mutable_state.ws_subscribers.subscribe(ws_wrapper, EveryoneEventChannel())
         try:
             while True:
-                data = await websocket.receive_json()
-                await self.ws_handlers.handle(self.mutable_state.token_to_user, ws_wrapper, data)
+                try:
+                    data = await asyncio.wait_for(websocket.receive_json(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    if time.time() - ws_wrapper.last_message > 60:
+                        raise WebSocketDisconnect()
+                else:
+                    await self.ws_handlers.handle(self.mutable_state.token_to_user, ws_wrapper, data)
         except (WebSocketDisconnect, ConnectionClosedError, ConnectionClosed, ConnectionClosedOK):
             self.mutable_state.ws_subscribers.fully_remove(ws_wrapper)
 

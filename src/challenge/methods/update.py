@@ -3,8 +3,10 @@ from sqlmodel import select
 from src.challenge.datatypes import ChallengeKind
 from src.challenge.models import Challenge
 from src.common.models import Id, IdList
+from src.common.user_ref import UserReference
 from src.config.models import SecretConfig
 from src.net.core import MutableState
+from sqlmodel.sql.expression import SelectOfScalar
 
 import src.notification.methods as notification_methods
 from src.pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
@@ -38,12 +40,12 @@ async def cancel_challenge(challenge: Challenge, session: AsyncSession, state: M
     await state.ws_subscribers.broadcast(event)
 
 
-async def cancel_all_challenges(session: AsyncSession, state: MutableState, secret_config: SecretConfig):
+async def cancel_queried_challenges(query: SelectOfScalar[Challenge], session: AsyncSession, state: MutableState, secret_config: SecretConfig):
     cancelled_challenges_by_caller = defaultdict(set)
     cancelled_challenges_by_callee = defaultdict(set)
     cancelled_public_challenges = set()
 
-    challenges = await session.exec(select(Challenge).where(Challenge.active == True))  # noqa
+    challenges = await session.exec(query)
     for challenge in challenges:
         await cancel_challenge(challenge, session, state, secret_config)
 
@@ -68,3 +70,25 @@ async def cancel_all_challenges(session: AsyncSession, state: MutableState, secr
     public_channel = PublicChallengeListEventChannel()
     public_event = PublicChallengesCancelledByServer(IdList(ids=list(cancelled_public_challenges)), public_channel)
     await state.ws_subscribers.broadcast(public_event)
+
+
+async def cancel_public_challenges_by_caller(caller: UserReference, session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> None:
+    await cancel_queried_challenges(
+        query=select(Challenge).where(
+            Challenge.active == True,  # noqa: E712
+            Challenge.kind == ChallengeKind.PUBLIC,
+            Challenge.caller_ref == caller.reference,
+        ),
+        session=session,
+        state=state,
+        secret_config=secret_config
+    )
+
+
+async def cancel_all_challenges(session: AsyncSession, state: MutableState, secret_config: SecretConfig):
+    await cancel_queried_challenges(
+        query=select(Challenge).where(Challenge.active == True),  # noqa: E712
+        session=session,
+        state=state,
+        secret_config=secret_config
+    )

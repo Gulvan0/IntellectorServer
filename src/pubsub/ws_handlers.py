@@ -50,6 +50,11 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
             case IncomingChallengesEventChannel(user_ref=user_ref):
                 if not client or client.reference != user_ref:
                     raise WebSocketException("Forbidden. Make sure you're authorized as a player whose incoming challenges you want to subscribe to")
+
+                timer = ws.app.mutable_state.user_challenge_cancelling_timers.get(client)
+                if timer:
+                    timer.cancel()
+
                 db_challenges = await get_direct_challenges(session, client, include_outgoing=False)
                 incoming_challenges = [await to_public_challenge(session, db_challenge) for db_challenge in db_challenges]
                 refresh_event = IncomingChallengesRefresh(ChallengeListStateRefresh(

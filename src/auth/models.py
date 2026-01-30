@@ -1,8 +1,8 @@
 from pydantic import Field as PydanticField
 from sqlalchemy import CHAR, Column
 from sqlmodel import Field
-from src.common.field_types import CurrentDatetime, PlayerLogin
-from src.utils.custom_model import CustomModel, CustomSQLModel
+from common.field_types import CurrentDatetime, PlayerLogin
+from utils.custom_model import CustomModel, CustomSQLModel
 
 
 class AuthCredentials(CustomModel):

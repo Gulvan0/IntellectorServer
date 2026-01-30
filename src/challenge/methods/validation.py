@@ -1,16 +1,16 @@
 from fastapi import HTTPException
 
-from src.challenge.datatypes import ChallengeAcceptorColor
-from src.challenge.methods.get import get_active_challenge_cnt_by_players, get_identical_challenge, get_total_active_challenges_by_caller
-from src.challenge.models import ChallengeCreateDirect, ChallengeCreateOpen
-from src.board.constants.sip import DEFAULT_STARTING_SIP
-from src.board.deserializers.sip import position_from_sip
-from src.utils.async_orm_session import AsyncSession
-from src.common.user_ref import UserReference
-from src.config.models import LimitParams
+from challenge.datatypes import ChallengeAcceptorColor
+from challenge.methods.get import get_active_challenge_cnt_by_players, get_identical_challenge, get_total_active_challenges_by_caller
+from challenge.models import ChallengeCreateDirect, ChallengeCreateOpen
+from board.constants.sip import DEFAULT_STARTING_SIP
+from board.deserializers.sip import position_from_sip
+from utils.async_orm_session import AsyncSession
+from common.user_ref import UserReference
+from config.models import LimitParams
 
-import src.player.methods as player_methods
-import src.player.models as player_models
+import player.methods as player_methods
+import player.models as player_models
 
 
 async def validate_bracket(challenge: ChallengeCreateOpen | ChallengeCreateDirect, session: AsyncSession, caller: UserReference) -> None:

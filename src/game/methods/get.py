@@ -3,19 +3,19 @@ from sqlalchemy import ScalarResult
 from sqlmodel import and_, col, desc, or_, select, func
 from sqlmodel.sql.expression import SelectOfScalar
 
-from src.common.sql import count_if
-from src.common.time_control import TimeControlKind
-from src.game.datatypes import OfferAction, OfferKind, OverallGameCounts
-from src.game.models.main import Game
-from src.game.models.offer import GameOfferEvent
-from src.game.models.outcome import GameOutcome
-from src.game.models.ply import GamePlyEvent
-from src.game.models.rest import GameFilter
-from src.game.models.time_update import GameTimeUpdate
-from src.board.constants.sip import DEFAULT_STARTING_SIP
-from src.board.piece import PieceColor, PieceKind
-from src.board.ply import PlyKind
-from src.utils.async_orm_session import AsyncSession
+from common.sql import count_if
+from common.time_control import TimeControlKind
+from game.datatypes import OfferAction, OfferKind, OverallGameCounts
+from game.models.main import Game
+from game.models.offer import GameOfferEvent
+from game.models.outcome import GameOutcome
+from game.models.ply import GamePlyEvent
+from game.models.rest import GameFilter
+from game.models.time_update import GameTimeUpdate
+from board.constants.sip import DEFAULT_STARTING_SIP
+from board.piece import PieceColor, PieceKind
+from board.ply import PlyKind
+from utils.async_orm_session import AsyncSession
 
 
 def get_current_sip_and_ply_cnt(game: Game, last_ply_event: GamePlyEvent | None) -> tuple[str, int]:

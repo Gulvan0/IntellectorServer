@@ -1,14 +1,14 @@
 from sqlmodel import desc, select, func
-from src.common.models import UserRefWithNickname
-from src.common.sql import exists, not_expired
-from src.common.time_control import TimeControlKind
-from src.common.user_ref import UserReference
-from src.config.models import MainConfig
-from src.player.models import Player, PlayerEloProgress, PlayerFollowedPlayer, PlayerRestriction, PlayerRestrictionPublic, PlayerRole, PlayerRolePublic
-from src.player.datatypes import GameStats, OverallGameStats, UserRestrictionKind, UserRole
-from src.utils.async_orm_session import AsyncSession
+from common.models import UserRefWithNickname
+from common.sql import exists, not_expired
+from common.time_control import TimeControlKind
+from common.user_ref import UserReference
+from config.models import MainConfig
+from player.models import Player, PlayerEloProgress, PlayerFollowedPlayer, PlayerRestriction, PlayerRestrictionPublic, PlayerRole, PlayerRolePublic
+from player.datatypes import GameStats, OverallGameStats, UserRestrictionKind, UserRole
+from utils.async_orm_session import AsyncSession
 
-import src.game.datatypes as game_datatypes
+import game.datatypes as game_datatypes
 
 
 async def prettify_player_reference(user_ref: UserReference, session: AsyncSession) -> str:

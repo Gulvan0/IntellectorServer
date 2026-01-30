@@ -1,8 +1,8 @@
 from sqlmodel import col, select, func
 
-from src.study.models import Study
-from src.study.datatypes import StudyPublicity
-from src.utils.async_orm_session import AsyncSession
+from study.models import Study
+from study.datatypes import StudyPublicity
+from utils.async_orm_session import AsyncSession
 
 
 async def get_player_studies_cnt(session: AsyncSession, author_login: str, include_private: bool) -> int:

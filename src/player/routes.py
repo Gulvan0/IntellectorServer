@@ -3,15 +3,15 @@ from fastapi import APIRouter, HTTPException, Query, UploadFile, Depends
 from sqlalchemy import update
 from sqlmodel import col
 
-from src.common.models import UserRefWithNickname
-from src.player.dependencies import DBPlayerDependency
-from src.net.base_router import LoggingRoute
-from src.common.user_ref import UserReference
-from src.player.methods import get_followed_players, get_followers, get_overall_game_stats, get_restrictions, get_roles, is_player_following_player
-from src.player.datatypes import GameStats
-from src.common.dependencies import MainConfigDependency, MandatoryPlayerLoginDependency, MutableStateDependency, OptionalPlayerLoginDependency, SessionDependency, verify_admin
-from src.common.field_types import PlayerLogin
-from src.player.models import (
+from common.models import UserRefWithNickname
+from player.dependencies import DBPlayerDependency
+from net.base_router import LoggingRoute
+from common.user_ref import UserReference
+from player.methods import get_followed_players, get_followers, get_overall_game_stats, get_restrictions, get_roles, is_player_following_player
+from player.datatypes import GameStats
+from common.dependencies import MainConfigDependency, MandatoryPlayerLoginDependency, MutableStateDependency, OptionalPlayerLoginDependency, SessionDependency, verify_admin
+from common.field_types import PlayerLogin
+from player.models import (
     PlayerFollowedPlayer,
     PlayerPublic,
     PlayerRestriction,
@@ -23,9 +23,9 @@ from src.player.models import (
     RoleOperationPayload,
 )
 
-import src.game.methods.get as game_get_methods
-import src.study.methods as study_methods
-import src.pubsub.models.channel as pubsub_models
+import game.methods.get as game_get_methods
+import study.methods as study_methods
+import pubsub.models.channel as pubsub_models
 
 
 router = APIRouter(prefix="/player", route_class=LoggingRoute)

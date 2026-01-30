@@ -1,8 +1,8 @@
-from src.challenge.models import Challenge, ChallengeFischerTimeControlPublic, ChallengePublic
+from challenge.models import Challenge, ChallengeFischerTimeControlPublic, ChallengePublic
 
-import src.game.methods.cast as game_cast_methods
-import src.player.methods as player_methods
-from src.utils.async_orm_session import AsyncSession
+import game.methods.cast as game_cast_methods
+import player.methods as player_methods
+from utils.async_orm_session import AsyncSession
 
 
 async def to_public_challenge(session: AsyncSession, db_challenge: Challenge) -> ChallengePublic:

@@ -3,9 +3,9 @@ from datetime import UTC, datetime
 from enum import StrEnum, auto
 from sqlmodel import Field, Relationship
 
-from src.board.piece import PieceColor
-from src.game.models.main import Game
-from src.utils.custom_model import CustomSQLModel
+from board.piece import PieceColor
+from game.models.main import Game
+from utils.custom_model import CustomSQLModel
 
 
 class GameTimeUpdateReason(StrEnum):

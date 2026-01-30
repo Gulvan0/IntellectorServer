@@ -1,14 +1,14 @@
 from sqlmodel import select
 
-from src.common.user_ref import UserReference
-from src.config.models import IntegrationParams
-from src.notification.integration import delete_vk_message, post_discord_webhook, post_vk_message
-from src.notification.models import GameStartedNotification, NewPublicChallengeNotification, NotificationApp
-from src.notification.texts import get_discord_new_challenge_message, get_vk_new_challenge_message, get_vk_new_game_message
+from common.user_ref import UserReference
+from config.models import IntegrationParams
+from notification.integration import delete_vk_message, post_discord_webhook, post_vk_message
+from notification.models import GameStartedNotification, NewPublicChallengeNotification, NotificationApp
+from notification.texts import get_discord_new_challenge_message, get_vk_new_challenge_message, get_vk_new_game_message
 
-import src.game.models.main as main_game_models
-import src.challenge.models as challenge_models
-from src.utils.async_orm_session import AsyncSession
+import game.models.main as main_game_models
+import challenge.models as challenge_models
+from utils.async_orm_session import AsyncSession
 
 
 async def send_new_public_challenge_notifications(

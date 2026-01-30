@@ -2,14 +2,14 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import APIKeyHeader
 
-from src.common.constants import USER_TOKEN_HEADER
-from src.common.user_ref import UserReference
-from src.config.models import MainConfig, SecretConfig
-from src.net.core import App, MutableState
+from common.constants import USER_TOKEN_HEADER
+from common.user_ref import UserReference
+from config.models import MainConfig, SecretConfig
+from net.core import App, MutableState
 
-import src.player.models as player_models
-import src.player.datatypes as player_datatypes
-from src.utils.async_orm_session import AsyncSession
+import player.models as player_models
+import player.datatypes as player_datatypes
+from utils.async_orm_session import AsyncSession
 
 
 UserTokenHeaderDependency = Annotated[str, Depends(APIKeyHeader(name=USER_TOKEN_HEADER))]

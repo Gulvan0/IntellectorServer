@@ -4,11 +4,11 @@ from math import floor
 from random import choice, randint, random, randrange, uniform
 from typing import Literal
 
-from src.board.deserializers.sip import position_from_sip
-from src.board.position import Position
-from src.board.serializers.sip import get_sip
-from src.common.models import UserRefWithNickname
-from src.common.samples import (
+from board.deserializers.sip import position_from_sip
+from board.position import Position
+from board.serializers.sip import get_sip
+from common.models import UserRefWithNickname
+from common.samples import (
     SampleTimeControl,
     bot_user_ref_with_nickname,
     guest_ref_with_nickname,
@@ -20,20 +20,20 @@ from src.common.samples import (
     underscore_str,
     past_datetime,
 )
-from src.common.time_control import TimeControlKind
-from src.game.datatypes import OfferAction, OfferKind, OutcomeKind
-from src.game.models.chat import ChatMessageBroadcastedData, GameChatMessageEventPublic
-from src.game.models.main import GamePublic, GameStartedBroadcastedData, GenericEventList
-from src.board.samples import non_default_starting_position, piece_color, playthrough, valid_non_final_sip
-from src.board.piece import PieceColor
-from src.game.models.offer import GameOfferEventPublic, OfferActionBroadcastedData
-from src.game.models.outcome import GameEndedBroadcastedData, GameEndedEloUpdate, GameEndedEloUpdates, GameOutcomePublic
-from src.game.models.ply import GamePlyEventPublic, PlyBroadcastedData
-from src.game.models.rollback import RollbackBroadcastedData
-from src.game.models.time_added import GameTimeAddedEventPublic, TimeAddedBroadcastedData
-from src.game.models.time_control import GameFischerTimeControlPublic
-from src.game.models.time_update import GameTimeUpdatePublic, GameTimeUpdateReason
-from src.pubsub.models.state import GameStateRefresh
+from common.time_control import TimeControlKind
+from game.datatypes import OfferAction, OfferKind, OutcomeKind
+from game.models.chat import ChatMessageBroadcastedData, GameChatMessageEventPublic
+from game.models.main import GamePublic, GameStartedBroadcastedData, GenericEventList
+from board.samples import non_default_starting_position, piece_color, playthrough, valid_non_final_sip
+from board.piece import PieceColor
+from game.models.offer import GameOfferEventPublic, OfferActionBroadcastedData
+from game.models.outcome import GameEndedBroadcastedData, GameEndedEloUpdate, GameEndedEloUpdates, GameOutcomePublic
+from game.models.ply import GamePlyEventPublic, PlyBroadcastedData
+from game.models.rollback import RollbackBroadcastedData
+from game.models.time_added import GameTimeAddedEventPublic, TimeAddedBroadcastedData
+from game.models.time_control import GameFischerTimeControlPublic
+from game.models.time_update import GameTimeUpdatePublic, GameTimeUpdateReason
+from pubsub.models.state import GameStateRefresh
 
 
 @dataclass

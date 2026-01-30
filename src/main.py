@@ -1,15 +1,17 @@
-from src.auth import routes as auth_routes
-from src.challenge import routes as challenge_routes
-from src.game.routes import main as main_game_routes
-from src.game.routes import external as external_game_routes
-from src.player import routes as player_routes
-from src.other import routes as other_routes
-from src.study import routes as study_routes
+from auth import routes as auth_routes
+from challenge import routes as challenge_routes
+from game.routes import main as main_game_routes
+from game.routes import external as external_game_routes
+from player import routes as player_routes
+from other import routes as other_routes
+from study import routes as study_routes
 
-from src.game.ws import handlers as ws_game
-from src.pubsub import ws_handlers as ws_pubsub
+from game.ws import handlers as ws_game
+from pubsub import ws_handlers as ws_pubsub
 
-from src.net.core import App
+from net.core import App
+
+from uvicorn import run
 
 
 app = App(
@@ -27,3 +29,6 @@ app = App(
         ws_pubsub.collection,
     ]
 )
+
+
+run("main:app", ssl_keyfile=app.secret_config.ssl.key_path, ssl_certfile=app.secret_config.ssl.cert_path)

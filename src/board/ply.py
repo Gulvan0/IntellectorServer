@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from src.board.coords import HexCoordinates
-from src.board.piece import Piece, PieceKind
+from board.coords import HexCoordinates
+from board.piece import Piece, PieceKind
 
 
 @dataclass

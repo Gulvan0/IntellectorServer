@@ -1,10 +1,10 @@
 from typing import Literal
-from src.challenge.models import ChallengePublic
-from src.common.models import UserRefWithNickname
-from src.game.models.main import GamePublic, GenericEventList
-from src.game.models.outcome import GameOutcomePublic
-from src.game.models.time_update import GameTimeUpdatePublic
-from src.utils.custom_model import CustomModel
+from challenge.models import ChallengePublic
+from common.models import UserRefWithNickname
+from game.models.main import GamePublic, GenericEventList
+from game.models.outcome import GameOutcomePublic
+from game.models.time_update import GameTimeUpdatePublic
+from utils.custom_model import CustomModel
 
 
 class ChallengeListStateRefresh(CustomModel):

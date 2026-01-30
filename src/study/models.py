@@ -2,15 +2,15 @@ from datetime import datetime
 from typing import Any
 from sqlmodel import Field, Relationship
 
-from src.common.models import UserRefWithNickname
-from src.board.piece import PieceKind
-from src.common.field_types import CurrentDatetime, Sip
-from src.study.datatypes import StudyPublicity
-from src.utils.async_orm_session import AsyncSession
-from src.utils.custom_model import CustomModel, CustomSQLModel
+from common.models import UserRefWithNickname
+from board.piece import PieceKind
+from common.field_types import CurrentDatetime, Sip
+from study.datatypes import StudyPublicity
+from utils.async_orm_session import AsyncSession
+from utils.custom_model import CustomModel, CustomSQLModel
 
-import src.player.models as player_models
-import src.player.methods as player_methods
+import player.models as player_models
+import player.methods as player_methods
 
 
 class ApiHexCoords(CustomModel):

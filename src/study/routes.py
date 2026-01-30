@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import col, distinct, select
 
-from src.common.field_types import PlayerLogin
-from src.net.base_router import LoggingRoute
-from src.study.models import Study, StudyCreate, StudyPublic, StudyTag, StudyUpdate
-from src.study.datatypes import StudyPublicity
-from src.common.dependencies import OptionalPlayerLoginDependency, SessionDependency, MandatoryPlayerLoginDependency
+from common.field_types import PlayerLogin
+from net.base_router import LoggingRoute
+from study.models import Study, StudyCreate, StudyPublic, StudyTag, StudyUpdate
+from study.datatypes import StudyPublicity
+from common.dependencies import OptionalPlayerLoginDependency, SessionDependency, MandatoryPlayerLoginDependency
 
 
 router = APIRouter(prefix="/study", route_class=LoggingRoute)

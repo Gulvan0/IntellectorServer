@@ -1,6 +1,6 @@
-from src.board.coords import HexCoordinates
-from src.board.piece import PieceColor, PieceKind, Piece
-from src.board.position import Position
+from board.coords import HexCoordinates
+from board.piece import PieceColor, PieceKind, Piece
+from board.position import Position
 
 
 def get_piece_kind(letter: str) -> PieceKind:

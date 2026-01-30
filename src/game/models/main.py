@@ -1,18 +1,18 @@
 from typing import Optional
 from sqlmodel import Field, Relationship
 
-from src.common.field_types import CurrentDatetime, OptionalSip, PlayerRef, OptionalPlayerRef
-from src.common.models import UserRefWithNickname
-from src.common.time_control import TimeControlKind
-from src.game.models.time_control import GameFischerTimeControl, GameFischerTimeControlPublic
-from src.game.models.outcome import GameOutcome, GameOutcomePublic
-from src.game.models.ply import GamePlyEvent, GamePlyEventPublic
-from src.game.models.chat import GameChatMessageEvent, GameChatMessageEventPublic
-from src.game.models.offer import GameOfferEvent, GameOfferEventPublic
-from src.game.models.rollback import GameRollbackEvent, GameRollbackEventPublic
-from src.game.models.time_added import GameTimeAddedEvent, GameTimeAddedEventPublic
-from src.game.models.time_update import GameTimeUpdatePublic
-from src.utils.custom_model import CustomSQLModel
+from common.field_types import CurrentDatetime, OptionalSip, PlayerRef, OptionalPlayerRef
+from common.models import UserRefWithNickname
+from common.time_control import TimeControlKind
+from game.models.time_control import GameFischerTimeControl, GameFischerTimeControlPublic
+from game.models.outcome import GameOutcome, GameOutcomePublic
+from game.models.ply import GamePlyEvent, GamePlyEventPublic
+from game.models.chat import GameChatMessageEvent, GameChatMessageEventPublic
+from game.models.offer import GameOfferEvent, GameOfferEventPublic
+from game.models.rollback import GameRollbackEvent, GameRollbackEventPublic
+from game.models.time_added import GameTimeAddedEvent, GameTimeAddedEventPublic
+from game.models.time_update import GameTimeUpdatePublic
+from utils.custom_model import CustomSQLModel
 
 
 GenericEventList = list[GamePlyEventPublic | GameChatMessageEventPublic | GameOfferEventPublic | GameTimeAddedEventPublic | GameRollbackEventPublic]

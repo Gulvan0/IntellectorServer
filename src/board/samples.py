@@ -1,10 +1,10 @@
 from random import randint, random
-from src.board.constants.common import BOARD_HEX_COUNT
-from src.board.coords import HexCoordinates
-from src.board.piece import Piece, PieceColor, PieceKind
-from src.board.ply import Ply
-from src.board.position import Position, PositionFinalityGroup
-from src.board.serializers.sip import get_sip
+from board.constants.common import BOARD_HEX_COUNT
+from board.coords import HexCoordinates
+from board.piece import Piece, PieceColor, PieceKind
+from board.ply import Ply
+from board.position import Position, PositionFinalityGroup
+from board.serializers.sip import get_sip
 
 
 def piece_color() -> PieceColor:

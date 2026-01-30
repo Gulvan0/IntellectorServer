@@ -1,12 +1,12 @@
 from sqlmodel import Field, Relationship
 
-from src.board.piece import PieceColor
-from src.common.field_types import CurrentDatetime
-from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
-from src.game.datatypes import OutcomeKind
-from src.utils.custom_model import CustomModel, CustomSQLModel
+from board.piece import PieceColor
+from common.field_types import CurrentDatetime
+from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
+from game.datatypes import OutcomeKind
+from utils.custom_model import CustomModel, CustomSQLModel
 
-import src.game.models.main as game_main_models
+import game.models.main as game_main_models
 
 
 class GameOutcomeBase(CustomSQLModel):

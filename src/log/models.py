@@ -3,8 +3,8 @@ from sqlalchemy import CHAR
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlmodel import Field, Relationship, Column
 
-from src.common.field_types import CurrentDatetime, OptionalPlayerRef
-from src.utils.custom_model import CustomSQLModel
+from common.field_types import CurrentDatetime, OptionalPlayerRef
+from utils.custom_model import CustomSQLModel
 
 
 class ServerLaunch(CustomSQLModel, table=True):

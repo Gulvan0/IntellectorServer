@@ -2,8 +2,8 @@ from dataclasses import dataclass, field
 from enum import auto, StrEnum
 from typing import Self
 
-from src.common.time_control import TimeControlKind
-from src.utils.custom_model import CustomModel
+from common.time_control import TimeControlKind
+from utils.custom_model import CustomModel
 
 
 class UserRole(StrEnum):

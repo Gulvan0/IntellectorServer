@@ -1,7 +1,7 @@
-from src.board.piece import PieceKind
-from src.common.field_types import Sip
-from src.game.datatypes import OfferAction, OfferKind
-from src.utils.custom_model import CustomModel
+from board.piece import PieceKind
+from common.field_types import Sip
+from game.datatypes import OfferAction, OfferKind
+from utils.custom_model import CustomModel
 
 
 class PlyIntentData(CustomModel):

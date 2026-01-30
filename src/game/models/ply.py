@@ -1,12 +1,12 @@
 from sqlmodel import Field, Relationship
 
-from src.board.piece import PieceColor, PieceKind
-from src.common.field_types import CurrentDatetime, Sip
-from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
-from src.board.ply import PlyKind
-from src.utils.custom_model import CustomSQLModel
+from board.piece import PieceColor, PieceKind
+from common.field_types import CurrentDatetime, Sip
+from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
+from board.ply import PlyKind
+from utils.custom_model import CustomSQLModel
 
-import src.game.models.main as game_main_models
+import game.models.main as game_main_models
 
 
 class GamePlyEventBase(CustomSQLModel):

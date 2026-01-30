@@ -1,24 +1,24 @@
 from collections import defaultdict
 from sqlmodel import select
-from src.challenge.datatypes import ChallengeKind
-from src.challenge.models import Challenge
-from src.common.models import Id, IdList
-from src.common.user_ref import UserReference
-from src.config.models import SecretConfig
-from src.net.core import MutableState
+from challenge.datatypes import ChallengeKind
+from challenge.models import Challenge
+from common.models import Id, IdList
+from common.user_ref import UserReference
+from config.models import SecretConfig
+from net.core import MutableState
 from sqlmodel.sql.expression import SelectOfScalar
 
-import src.notification.methods as notification_methods
-from src.pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
-from src.pubsub.outgoing_event.base import OutgoingEvent
-from src.pubsub.outgoing_event.update import (
+import notification.methods as notification_methods
+from pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
+from pubsub.outgoing_event.base import OutgoingEvent
+from pubsub.outgoing_event.update import (
     IncomingChallengeCancelled,
     IncomingChallengesCancelledByServer,
     OutgoingChallengesCancelledByServer,
     PublicChallengeCancelled,
     PublicChallengesCancelledByServer,
 )
-from src.utils.async_orm_session import AsyncSession
+from utils.async_orm_session import AsyncSession
 
 
 async def cancel_challenge(challenge: Challenge, session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> None:

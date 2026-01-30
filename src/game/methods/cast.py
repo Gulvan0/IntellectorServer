@@ -1,17 +1,17 @@
 from datetime import datetime, timedelta
 from typing import Literal
 
-from src.game.exceptions import TimeoutReachedException
-from src.game.models.offer import GameOfferEventPublic
-from src.game.models.main import Game, GamePublic, GenericEventList
-from src.game.models.time_control import GameFischerTimeControlPublic
-from src.game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic, GameTimeUpdateReason
-from src.game.methods.get import get_ply_history, get_latest_time_update
-from src.board.piece import PieceColor
-from src.pubsub.models.state import GameStateRefresh
-from src.utils.async_orm_session import AsyncSession
+from game.exceptions import TimeoutReachedException
+from game.models.offer import GameOfferEventPublic
+from game.models.main import Game, GamePublic, GenericEventList
+from game.models.time_control import GameFischerTimeControlPublic
+from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic, GameTimeUpdateReason
+from game.methods.get import get_ply_history, get_latest_time_update
+from board.piece import PieceColor
+from pubsub.models.state import GameStateRefresh
+from utils.async_orm_session import AsyncSession
 
-import src.player.methods as player_methods
+import player.methods as player_methods
 
 
 async def collect_game_events(

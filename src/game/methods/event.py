@@ -1,15 +1,15 @@
-from src.game.datatypes import OfferAction, OfferKind
-from src.game.models.chat import GameChatMessageEvent
-from src.game.models.offer import GameOfferEvent
-from src.game.models.ply import GamePlyEvent
-from src.game.models.rollback import GameRollbackEvent
-from src.game.models.time_added import GameTimeAddedEvent
-from src.net.core import MutableState
-from src.pubsub.models.channel import GameEventChannel
-from src.pubsub.outgoing_event.base import OutgoingEvent
-from src.pubsub.outgoing_event.update import NewChatMessage, NewPly, OfferActionPerformed, Rollback, TimeAdded
-from src.board.piece import PieceColor
-from src.utils.async_orm_session import AsyncSession
+from game.datatypes import OfferAction, OfferKind
+from game.models.chat import GameChatMessageEvent
+from game.models.offer import GameOfferEvent
+from game.models.ply import GamePlyEvent
+from game.models.rollback import GameRollbackEvent
+from game.models.time_added import GameTimeAddedEvent
+from net.core import MutableState
+from pubsub.models.channel import GameEventChannel
+from pubsub.outgoing_event.base import OutgoingEvent
+from pubsub.outgoing_event.update import NewChatMessage, NewPly, OfferActionPerformed, Rollback, TimeAdded
+from board.piece import PieceColor
+from utils.async_orm_session import AsyncSession
 
 
 async def append_event(

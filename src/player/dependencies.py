@@ -1,9 +1,9 @@
 from typing import Annotated
 from fastapi import Depends, HTTPException
 
-from src.common.field_types import PlayerLogin
-from src.player.models import Player
-from src.common.dependencies import SessionDependency
+from common.field_types import PlayerLogin
+from player.models import Player
+from common.dependencies import SessionDependency
 
 
 async def get_db_player(session: SessionDependency, login: PlayerLogin) -> Player:

@@ -5,29 +5,29 @@ from itertools import chain
 from time import time
 from typing import Iterable
 
-from src.config.models import MainConfig, SecretConfig
-from src.game.datatypes import OutcomeKind, SimpleOutcome, TimeRemainders
-from src.game.exceptions import PlyInvalidException, SinkException
-from src.game.methods.cast import construct_new_ply_time_update
-from src.game.methods.event import append_event, append_rollback_event
-from src.game.methods.get import get_current_sip_and_ply_cnt, get_initial_time, get_last_ply_event, get_latest_time_update, get_ply_history, has_occured_thrice, is_stale
-from src.game.methods.timeout import plan_timeout_check
-from src.game.methods.update import cancel_all_active_offers, end_game
-from src.game.models.main import Game
-from src.game.models.ply import GamePlyEvent
-from src.game.models.polymorphous import PayloadWithGameId, PlyPayload
-from src.game.models.rollback import GameRollbackEvent
-from src.game.models.time_added import GameTimeAddedEvent
-from src.game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
-from src.net.core import MutableState
-from src.board.constants.sip import DEFAULT_STARTING_SIP
-from src.board.coords import HexCoordinates
-from src.board.deserializers.sip import color_to_move_from_sip, position_from_sip
-from src.board.piece import PieceColor
-from src.board.ply import Ply
-from src.board.position import Position, PositionFinalityGroup
-from src.board.serializers.sip import get_sip
-from src.utils.async_orm_session import AsyncSession
+from config.models import MainConfig, SecretConfig
+from game.datatypes import OutcomeKind, SimpleOutcome, TimeRemainders
+from game.exceptions import PlyInvalidException, SinkException
+from game.methods.cast import construct_new_ply_time_update
+from game.methods.event import append_event, append_rollback_event
+from game.methods.get import get_current_sip_and_ply_cnt, get_initial_time, get_last_ply_event, get_latest_time_update, get_ply_history, has_occured_thrice, is_stale
+from game.methods.timeout import plan_timeout_check
+from game.methods.update import cancel_all_active_offers, end_game
+from game.models.main import Game
+from game.models.ply import GamePlyEvent
+from game.models.polymorphous import PayloadWithGameId, PlyPayload
+from game.models.rollback import GameRollbackEvent
+from game.models.time_added import GameTimeAddedEvent
+from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
+from net.core import MutableState
+from board.constants.sip import DEFAULT_STARTING_SIP
+from board.coords import HexCoordinates
+from board.deserializers.sip import color_to_move_from_sip, position_from_sip
+from board.piece import PieceColor
+from board.ply import Ply
+from board.position import Position, PositionFinalityGroup
+from board.serializers.sip import get_sip
+from utils.async_orm_session import AsyncSession
 
 
 @dataclass

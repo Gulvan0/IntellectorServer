@@ -5,15 +5,15 @@ from typing import Any, Callable, Coroutine
 
 from pydantic import BaseModel, ValidationError
 
-from src.common.user_ref import UserReference
-from src.log.models import WSLog
-from src.net.models import WebsocketIncomingMessage
-from src.net.utils.ws_error import ErrorKind, WebSocketException
-from src.utils.bijective_map import BijectiveMap
+from common.user_ref import UserReference
+from log.models import WSLog
+from net.models import WebsocketIncomingMessage
+from net.utils.ws_error import ErrorKind, WebSocketException
+from utils.bijective_map import BijectiveMap
 
 import json
 import time
-import src.net.core as core
+import net.core as core
 
 
 type WebSocketIncomingEventHandlerCallable[T:BaseModel] = Callable[

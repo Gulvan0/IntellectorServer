@@ -1,14 +1,14 @@
 from datetime import datetime
 from enum import Enum, auto
 
-from src.challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
-from src.challenge.models import ChallengeFischerTimeControlPublic, ChallengePublic
+from challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
+from challenge.models import ChallengeFischerTimeControlPublic, ChallengePublic
 
-import src.board.samples as board_samples
-from src.common.models import UserRefWithNickname
-import src.common.samples as common_samples
-from src.common.time_control import TimeControlKind
-from src.game.samples import game
+import board.samples as board_samples
+from common.models import UserRefWithNickname
+import common.samples as common_samples
+from common.time_control import TimeControlKind
+from game.samples import game
 
 
 class ChallengeState(Enum):

@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, Response
 
-from src.net.base_router import LoggingRoute
-from src.other.models import CompatibilityCheckPayload, CompatibilityResolution, CompatibilityResponse
-from src.common.dependencies import MainConfigDependency, MutableStateDependency, SecretConfigDependency, SessionDependency, verify_admin
+from net.base_router import LoggingRoute
+from other.models import CompatibilityCheckPayload, CompatibilityResolution, CompatibilityResponse
+from common.dependencies import MainConfigDependency, MutableStateDependency, SecretConfigDependency, SessionDependency, verify_admin
 
-import src.challenge.methods.update as challenge_update_methods
-import src.game.methods.get as game_get_methods
-from src.pubsub.models.channel import EveryoneEventChannel
-from src.pubsub.outgoing_event.update import ServerShutdown
+import challenge.methods.update as challenge_update_methods
+import game.methods.get as game_get_methods
+from pubsub.models.channel import EveryoneEventChannel
+from pubsub.outgoing_event.update import ServerShutdown
 
 
 router = APIRouter(prefix="", route_class=LoggingRoute)

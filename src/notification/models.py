@@ -1,7 +1,7 @@
 from enum import StrEnum, auto
 from sqlmodel import Field
 
-from src.utils.custom_model import CustomSQLModel
+from utils.custom_model import CustomSQLModel
 
 
 class NotificationApp(StrEnum):

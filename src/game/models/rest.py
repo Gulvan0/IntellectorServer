@@ -1,10 +1,10 @@
 from sqlalchemy import ColumnElement
 from sqlmodel import or_
 
-from src.game.models.main import Game
-from src.common.field_types import OptionalPlayerRef
-from src.game.datatypes import TimeControlKind
-from src.utils.custom_model import CustomModel
+from game.models.main import Game
+from common.field_types import OptionalPlayerRef
+from game.datatypes import TimeControlKind
+from utils.custom_model import CustomModel
 
 
 class GameFilter(CustomModel):

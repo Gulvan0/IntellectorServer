@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import auto, StrEnum
 
-from src.board.piece_movement import PieceMovementDirection, PieceMovementRule, UnlimitedPieceMovementDistance
+from board.piece_movement import PieceMovementDirection, PieceMovementRule, UnlimitedPieceMovementDistance
 
 
 class PieceKind(StrEnum):

@@ -1,12 +1,12 @@
-from src.net.utils.early_response import EarlyResponse
-from src.challenge.methods.get import get_mergeable_challenge
-from src.challenge.models import ChallengeCreateDirect, ChallengeCreateOpen, ChallengeCreateResponse
-from src.common.user_ref import UserReference
-from src.config.models import SecretConfig
-from src.net.core import MutableState
+from net.utils.early_response import EarlyResponse
+from challenge.methods.get import get_mergeable_challenge
+from challenge.models import ChallengeCreateDirect, ChallengeCreateOpen, ChallengeCreateResponse
+from common.user_ref import UserReference
+from config.models import SecretConfig
+from net.core import MutableState
 
-import src.game.methods.create as game_create_methods
-from src.utils.async_orm_session import AsyncSession
+import game.methods.create as game_create_methods
+from utils.async_orm_session import AsyncSession
 
 
 async def try_merging(

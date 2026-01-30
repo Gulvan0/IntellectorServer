@@ -6,8 +6,8 @@ from math import sqrt
 
 from board.coords import HexCoordinates
 from board.piece import Piece, PieceColor, PieceKind
-from src.board.position import Position
-from src.board.serializers.sip import piece_letter, color_letter
+from board.position import Position
+from board.serializers.sip import piece_letter, color_letter
 
 
 SQRT3 = sqrt(3)

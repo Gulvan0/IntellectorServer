@@ -1,6 +1,6 @@
 from pydantic import Field
 
-from src.utils.custom_model import CustomModel
+from utils.custom_model import CustomModel
 
 
 class WebsocketIncomingMessage(CustomModel):

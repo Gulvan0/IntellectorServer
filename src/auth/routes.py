@@ -3,15 +3,15 @@ from secrets import token_hex
 from fastapi import APIRouter, HTTPException
 from fastapi.routing import APIRoute
 
-from src.auth.models import AuthCredentials, PlayerPasswordUpdate, TokenResponse, GuestTokenResponse, PlayerPassword
-from src.common.dependencies import MandatoryPlayerLoginDependency, MutableStateDependency, SessionDependency
-from src.net.base_router import LoggingRoute
+from auth.models import AuthCredentials, PlayerPasswordUpdate, TokenResponse, GuestTokenResponse, PlayerPassword
+from common.dependencies import MandatoryPlayerLoginDependency, MutableStateDependency, SessionDependency
+from net.base_router import LoggingRoute
 
 import bcrypt  # type: ignore
 import os
-import src.player.methods as player_methods
-import src.player.datatypes as player_datatypes
-import src.player.models as player_models
+import player.methods as player_methods
+import player.datatypes as player_datatypes
+import player.models as player_models
 
 
 route_class: type[APIRoute] = APIRoute

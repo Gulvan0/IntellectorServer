@@ -2,13 +2,13 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Literal, Optional
 from sqlmodel import Field, Relationship
 
-from src.challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
-from src.common.models import UserRefWithNickname
-from src.common.time_control import FischerTimeControlEntity, TimeControlKind
-from src.common.field_types import CurrentDatetime, PlayerRef, OptionalSip, OptionalPlayerRef
-from src.utils.custom_model import CustomModel, CustomSQLModel
+from challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
+from common.models import UserRefWithNickname
+from common.time_control import FischerTimeControlEntity, TimeControlKind
+from common.field_types import CurrentDatetime, PlayerRef, OptionalSip, OptionalPlayerRef
+from utils.custom_model import CustomModel, CustomSQLModel
 
-import src.game.models.main as game_models
+import game.models.main as game_models
 
 
 class ChallengeBase(CustomSQLModel):

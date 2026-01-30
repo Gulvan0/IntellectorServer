@@ -7,14 +7,14 @@ from typing import DefaultDict, Iterable
 from uuid import UUID
 from pydantic import BaseModel
 
-from src.common.user_ref import UserReference
-from src.pubsub.models.channel import EventChannel, EveryoneEventChannel
-from src.player.datatypes import UserStatus
-from src.pubsub.outgoing_event.base import OutgoingEvent
-from src.utils.bijective_map import BijectiveMap
+from common.user_ref import UserReference
+from pubsub.models.channel import EventChannel, EveryoneEventChannel
+from player.datatypes import UserStatus
+from pubsub.outgoing_event.base import OutgoingEvent
+from utils.bijective_map import BijectiveMap
 
 import asyncio
-import src.net.core as core
+import net.core as core
 
 
 class SubscriberTag(Enum):

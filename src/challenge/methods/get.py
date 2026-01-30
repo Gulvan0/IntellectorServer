@@ -1,12 +1,12 @@
 from typing import Iterable
 from sqlmodel import and_, desc, or_, select, func, col
 
-from src.challenge.datatypes import ChallengeKind
-from src.challenge.methods.cast import to_public_challenge
-from src.challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic
-from src.challenge.sql import time_control_equality_conditions
-from src.common.user_ref import UserReference
-from src.utils.async_orm_session import AsyncSession
+from challenge.datatypes import ChallengeKind
+from challenge.methods.cast import to_public_challenge
+from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic
+from challenge.sql import time_control_equality_conditions
+from common.user_ref import UserReference
+from utils.async_orm_session import AsyncSession
 
 
 async def get_total_active_challenges_by_caller(session: AsyncSession, caller: UserReference) -> int:

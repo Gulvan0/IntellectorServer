@@ -1,16 +1,16 @@
-from src.challenge.methods.cast import to_public_challenge
-from src.challenge.methods.get import get_active_public_challenges, get_direct_challenges
-from src.common.user_ref import UserReference
-from src.game.methods.cast import compose_state_refresh, to_public_game
-from src.game.methods.get import get_current_games
-from src.game.models.main import Game
-from src.game.models.rest import GameFilter
-from src.net.core import WebSocketWrapper
-from src.net.incoming import WebSocketHandlerCollection
-from src.net.sub_storage import SubscriberTag
-from src.net.utils.ws_error import WebSocketException
-from src.player.methods import get_user_ref_with_nickname
-from src.pubsub.models.channel import (
+from challenge.methods.cast import to_public_challenge
+from challenge.methods.get import get_active_public_challenges, get_direct_challenges
+from common.user_ref import UserReference
+from game.methods.cast import compose_state_refresh, to_public_game
+from game.methods.get import get_current_games
+from game.models.main import Game
+from game.models.rest import GameFilter
+from net.core import WebSocketWrapper
+from net.incoming import WebSocketHandlerCollection
+from net.sub_storage import SubscriberTag
+from net.utils.ws_error import WebSocketException
+from player.methods import get_user_ref_with_nickname
+from pubsub.models.channel import (
     GameEventChannel,
     GameListEventChannel,
     IncomingChallengesEventChannel,
@@ -19,11 +19,11 @@ from src.pubsub.models.channel import (
     StartedPlayerGamesEventChannel,
     SubscriberListEventChannel,
 )
-from src.pubsub.models.other import SubUnsubPayload
-from src.pubsub.models.state import ChallengeListStateRefresh, GameListChannelsStateRefresh, SubscriberListChannelStateRefresh
-from src.pubsub.outgoing_event.base import OutgoingEvent
-from src.pubsub.outgoing_event.refresh import GameListRefresh, IncomingChallengesRefresh, OutgoingChallengesRefresh, PublicChallengeListRefresh, SubscriberListRefresh
-from src.pubsub.outgoing_event.update import NewSubscriber, SubscriberLeft
+from pubsub.models.other import SubUnsubPayload
+from pubsub.models.state import ChallengeListStateRefresh, GameListChannelsStateRefresh, SubscriberListChannelStateRefresh
+from pubsub.outgoing_event.base import OutgoingEvent
+from pubsub.outgoing_event.refresh import GameListRefresh, IncomingChallengesRefresh, OutgoingChallengesRefresh, PublicChallengeListRefresh, SubscriberListRefresh
+from pubsub.outgoing_event.update import NewSubscriber, SubscriberLeft
 
 
 collection = WebSocketHandlerCollection()

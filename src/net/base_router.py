@@ -6,11 +6,11 @@ from starlette.responses import StreamingResponse
 from fastapi.routing import APIRoute
 from typing import Callable
 
-from src.net.core import App
-from src.common.constants import USER_TOKEN_HEADER
+from net.core import App
+from common.constants import USER_TOKEN_HEADER
 
 import json
-import src.log.models as log_models
+import log.models as log_models
 
 
 def headers_to_str(headers: Headers) -> str:

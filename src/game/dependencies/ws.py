@@ -2,13 +2,13 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import AsyncGenerator
 
-from src.common.user_ref import UserReference
-from src.game.exceptions import SinkException
-from src.game.models.main import Game
-from src.net.core import WebSocketWrapper
-from src.net.utils.ws_error import WebSocketException
-from src.board.piece import PieceColor
-from src.utils.async_orm_session import AsyncSession
+from common.user_ref import UserReference
+from game.exceptions import SinkException
+from game.models.main import Game
+from net.core import WebSocketWrapper
+from net.utils.ws_error import WebSocketException
+from board.piece import PieceColor
+from utils.async_orm_session import AsyncSession
 
 
 @dataclass

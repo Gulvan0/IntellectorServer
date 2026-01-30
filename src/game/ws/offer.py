@@ -1,17 +1,17 @@
 
-from src.game.endpoint_sinks import RollbackOfferAuthorInput, perform_rollback, validate_rollback
-from src.game.exceptions import SinkException
-from src.game.methods.event import append_offer_event
-from src.game.models.main import Game
-from src.net.core import WebSocketWrapper
-from src.net.utils.ws_error import WebSocketException
-from src.game.methods.update import end_game
-from src.game.methods.get import (
+from game.endpoint_sinks import RollbackOfferAuthorInput, perform_rollback, validate_rollback
+from game.exceptions import SinkException
+from game.methods.event import append_offer_event
+from game.models.main import Game
+from net.core import WebSocketWrapper
+from net.utils.ws_error import WebSocketException
+from game.methods.update import end_game
+from game.methods.get import (
     is_offer_active,
 )
-from src.board.piece import PieceColor
-from src.game.datatypes import OfferAction, OfferKind, OutcomeKind
-from src.utils.async_orm_session import AsyncSession
+from board.piece import PieceColor
+from game.datatypes import OfferAction, OfferKind, OutcomeKind
+from utils.async_orm_session import AsyncSession
 
 
 async def create_offer(

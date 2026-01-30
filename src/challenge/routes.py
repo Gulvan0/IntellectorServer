@@ -1,22 +1,22 @@
 from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import select
-from src.challenge.datatypes import ChallengeKind
-from src.challenge.methods.get import get_direct_challenges
-from src.challenge.methods.merge import try_merging
-from src.challenge.methods.validation import perform_common_validations, validate_direct_callee
-from src.challenge.methods.update import cancel_challenge as cancel_specific_challenge
-from src.challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengeCreateResponse, ChallengePublic
-from src.challenge.methods.cast import to_public_challenge
-from src.common.dependencies import MainConfigDependency, MandatoryUserDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
-from src.common.models import Id
-from src.net.base_router import LoggingRoute
-from src.net.utils.early_response import supports_early_responses
-from src.pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
+from challenge.datatypes import ChallengeKind
+from challenge.methods.get import get_direct_challenges
+from challenge.methods.merge import try_merging
+from challenge.methods.validation import perform_common_validations, validate_direct_callee
+from challenge.methods.update import cancel_challenge as cancel_specific_challenge
+from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengeCreateResponse, ChallengePublic
+from challenge.methods.cast import to_public_challenge
+from common.dependencies import MainConfigDependency, MandatoryUserDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
+from common.models import Id
+from net.base_router import LoggingRoute
+from net.utils.early_response import supports_early_responses
+from pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
 
-import src.notification.methods as notification_methods
-import src.game.methods.create as game_create_methods
-import src.game.models.main as game_models
-from src.pubsub.outgoing_event.update import IncomingChallengeReceived, NewPublicChallenge, OutgoingChallengeRejected
+import notification.methods as notification_methods
+import game.methods.create as game_create_methods
+import game.models.main as game_models
+from pubsub.outgoing_event.update import IncomingChallengeReceived, NewPublicChallenge, OutgoingChallengeRejected
 
 
 router = APIRouter(prefix="/challenge", route_class=LoggingRoute)

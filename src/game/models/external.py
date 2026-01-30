@@ -1,11 +1,11 @@
 from typing import Literal, Self
 from pydantic import Field as PydanticField, model_validator
 
-from src.board.piece import PieceColor, PieceKind
-from src.common.field_types import OptionalSip, PlayerRef
-from src.game.datatypes import OutcomeKind, SimpleOutcome, TimeRemainders
-from src.game.models.time_control import GameFischerTimeControlCreate
-from src.utils.custom_model import CustomModel
+from board.piece import PieceColor, PieceKind
+from common.field_types import OptionalSip, PlayerRef
+from game.datatypes import OutcomeKind, SimpleOutcome, TimeRemainders
+from game.models.time_control import GameFischerTimeControlCreate
+from utils.custom_model import CustomModel
 
 
 class ExternalGameCreatePayload(CustomModel):

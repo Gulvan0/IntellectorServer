@@ -1,7 +1,7 @@
-from src.challenge.samples import active_public_challenges, incoming_challenges, outgoing_challenges
-from src.common.samples import underscore_str, user_ref_with_nickname, user_ref_with_nickname_list
-from src.game.samples import game_state_refreshes, minimal_representative_games
-from src.pubsub.models.channel import (
+from challenge.samples import active_public_challenges, incoming_challenges, outgoing_challenges
+from common.samples import underscore_str, user_ref_with_nickname, user_ref_with_nickname_list
+from game.samples import game_state_refreshes, minimal_representative_games
+from pubsub.models.channel import (
     GameEventChannel,
     GameListEventChannel,
     IncomingChallengesEventChannel,
@@ -10,14 +10,14 @@ from src.pubsub.models.channel import (
     StartedPlayerGamesEventChannel,
     SubscriberListEventChannel,
 )
-from src.pubsub.models.state import (
+from pubsub.models.state import (
     ChallengeListStateRefresh,
     GameListChannelsStateRefresh,
     GameStateRefresh,
     StartedPlayerGamesStateRefresh,
     SubscriberListChannelStateRefresh,
 )
-from src.pubsub.outgoing_event.base import RefreshEvent
+from pubsub.outgoing_event.base import RefreshEvent
 
 
 class StartedPlayerGamesRefresh(RefreshEvent[StartedPlayerGamesStateRefresh, StartedPlayerGamesEventChannel]):

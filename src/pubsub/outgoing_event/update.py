@@ -1,16 +1,16 @@
 
-from src.challenge.models import ChallengePublic
-from src.challenge.samples import incoming_challenges, minimal_representative_challenges
-from src.common.models import Id, IdList, UserRefWithNickname
-from src.common.samples import user_ref_with_nickname
-from src.game.models.chat import ChatMessageBroadcastedData
-from src.game.models.main import GamePublic, GameStartedBroadcastedData
-from src.game.models.offer import OfferActionBroadcastedData
-from src.game.models.outcome import GameEndedBroadcastedData
-from src.game.models.ply import PlyBroadcastedData
-from src.game.models.rollback import RollbackBroadcastedData
-from src.game.models.time_added import TimeAddedBroadcastedData
-from src.game.samples import (
+from challenge.models import ChallengePublic
+from challenge.samples import incoming_challenges, minimal_representative_challenges
+from common.models import Id, IdList, UserRefWithNickname
+from common.samples import user_ref_with_nickname
+from game.models.chat import ChatMessageBroadcastedData
+from game.models.main import GamePublic, GameStartedBroadcastedData
+from game.models.offer import OfferActionBroadcastedData
+from game.models.outcome import GameEndedBroadcastedData
+from game.models.ply import PlyBroadcastedData
+from game.models.rollback import RollbackBroadcastedData
+from game.models.time_added import TimeAddedBroadcastedData
+from game.samples import (
     chat_message_broadcasted_data,
     game_ended_data_samples,
     game_started_data_samples,
@@ -20,7 +20,7 @@ from src.game.samples import (
     rollback_broadcasted_data,
     time_added_broadcasted_data,
 )
-from src.pubsub.models.channel import (
+from pubsub.models.channel import (
     EveryoneEventChannel,
     GameEventChannel,
     GameListEventChannel,
@@ -30,7 +30,7 @@ from src.pubsub.models.channel import (
     StartedPlayerGamesEventChannel,
     SubscriberListEventChannel,
 )
-from src.pubsub.outgoing_event.base import OutgoingEvent
+from pubsub.outgoing_event.base import OutgoingEvent
 
 
 # TODO: Make foreign imports absolute (after examples are moved) - in every new module

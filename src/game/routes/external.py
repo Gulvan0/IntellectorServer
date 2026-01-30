@@ -2,19 +2,19 @@ from contextlib import contextmanager
 from typing import Generator
 from fastapi import APIRouter, HTTPException
 
-from src.common.dependencies import (
+from common.dependencies import (
     MainConfigDependency,
     MandatoryUserDependency,
     MutableStateDependency,
     SecretConfigDependency,
     SessionDependency,
 )
-from src.game.dependencies.rest import CLIENT_IS_UPLOADER_DEPENDENCY, GAME_EXISTS_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency
-from src.game.endpoint_sinks import RollbackPlyCountInput, add_time_sink, append_ply_sink, perform_rollback, validate_rollback
-from src.game.exceptions import PlyInvalidException, SinkException, TimeoutReachedException
-from src.game.methods.create import create_external_game
-from src.game.methods.update import end_game
-from src.game.models.external import (
+from game.dependencies.rest import CLIENT_IS_UPLOADER_DEPENDENCY, GAME_EXISTS_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency
+from game.endpoint_sinks import RollbackPlyCountInput, add_time_sink, append_ply_sink, perform_rollback, validate_rollback
+from game.exceptions import PlyInvalidException, SinkException, TimeoutReachedException
+from game.methods.create import create_external_game
+from game.methods.update import end_game
+from game.models.external import (
     ExternalGameAddTimePayload,
     ExternalGameAppendPlyPayload,
     ExternalGameAppendPlyResponse,
@@ -22,8 +22,8 @@ from src.game.models.external import (
     ExternalGameEndPayload,
     ExternalGameRollbackPayload,
 )
-from src.game.models.main import GamePublic
-from src.net.base_router import LoggingRoute
+from game.models.main import GamePublic
+from net.base_router import LoggingRoute
 
 
 router = APIRouter(prefix="/game/external", route_class=LoggingRoute)

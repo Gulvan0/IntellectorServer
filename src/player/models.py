@@ -1,13 +1,13 @@
 from datetime import datetime
 from sqlmodel import Field, Relationship
 
-from src.common.field_types import CurrentDatetime
-from src.common.models import UserRefWithNickname
-from src.player.datatypes import GameStats, UserRestrictionKind, UserRole, UserStatus
-from src.common.time_control import TimeControlKind
-from src.utils.custom_model import CustomModel, CustomSQLModel
+from common.field_types import CurrentDatetime
+from common.models import UserRefWithNickname
+from player.datatypes import GameStats, UserRestrictionKind, UserRole, UserStatus
+from common.time_control import TimeControlKind
+from utils.custom_model import CustomModel, CustomSQLModel
 
-import src.study.models as study_models
+import study.models as study_models
 
 
 class PlayerBase(CustomSQLModel):

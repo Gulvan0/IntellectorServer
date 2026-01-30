@@ -1,22 +1,22 @@
 from datetime import UTC, datetime
 
-from src.common.models import Id
-from src.common.user_ref import UserReference
-from src.config.models import SecretConfig
-from src.game.methods.cast import to_public_game
-from src.game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
-from src.pubsub.models.channel import GameListEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
-from src.game.models.main import Game, GamePublic, GameStartedBroadcastedData
-from src.game.models.time_control import GameFischerTimeControl
-from src.net.core import MutableState
-from src.common.time_control import FischerTimeControlEntity, TimeControlKind
-from src.pubsub.outgoing_event.update import GameStarted, NewActiveGame, OutgoingChallengeAccepted, PublicChallengeFulfilled
-from src.utils.async_orm_session import AsyncSession
+from common.models import Id
+from common.user_ref import UserReference
+from config.models import SecretConfig
+from game.methods.cast import to_public_game
+from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
+from pubsub.models.channel import GameListEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
+from game.models.main import Game, GamePublic, GameStartedBroadcastedData
+from game.models.time_control import GameFischerTimeControl
+from net.core import MutableState
+from common.time_control import FischerTimeControlEntity, TimeControlKind
+from pubsub.outgoing_event.update import GameStarted, NewActiveGame, OutgoingChallengeAccepted, PublicChallengeFulfilled
+from utils.async_orm_session import AsyncSession
 
 import random
-import src.challenge.datatypes as challenge_datatypes
-import src.challenge.models as challenge_models
-import src.notification.methods as notification_methods
+import challenge.datatypes as challenge_datatypes
+import challenge.models as challenge_models
+import notification.methods as notification_methods
 
 
 def assign_player_colors(

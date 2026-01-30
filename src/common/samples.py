@@ -3,8 +3,8 @@ from datetime import UTC, datetime, timedelta
 from random import choice, randint, random
 from rstr import lowercase, normal, printable
 
-from src.common.models import Id, IdList, UserRefWithNickname
-from src.common.time_control import TimeControlKind
+from common.models import Id, IdList, UserRefWithNickname
+from common.time_control import TimeControlKind
 
 
 @dataclass

@@ -1,22 +1,22 @@
 from datetime import UTC, datetime
 
-from src.common.user_ref import UserReference
-from src.config.models import MainConfig, SecretConfig
-from src.game.models.main import Game
-from src.game.models.offer import GameOfferEvent, OfferActionBroadcastedData
-from src.game.methods.get import get_active_offers, get_latest_time_update, get_ongoing_finite_game
-from src.game.datatypes import OfferAction, OutcomeKind
-from src.game.models.outcome import GameEndedEloUpdate, GameEndedEloUpdates, GameOutcome
-from src.game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
-from src.net.core import MutableState
-from src.player.methods import get_stats_for_time_control
-from src.player.models import PlayerEloProgress
-from src.pubsub.models.channel import GameEventChannel, GameListEventChannel
-from src.pubsub.outgoing_event.update import GameEnded, NewRecentGame, OfferActionPerformed
-from src.board.piece import PieceColor
-from src.utils.async_orm_session import AsyncSession
+from common.user_ref import UserReference
+from config.models import MainConfig, SecretConfig
+from game.models.main import Game
+from game.models.offer import GameOfferEvent, OfferActionBroadcastedData
+from game.methods.get import get_active_offers, get_latest_time_update, get_ongoing_finite_game
+from game.datatypes import OfferAction, OutcomeKind
+from game.models.outcome import GameEndedEloUpdate, GameEndedEloUpdates, GameOutcome
+from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
+from net.core import MutableState
+from player.methods import get_stats_for_time_control
+from player.models import PlayerEloProgress
+from pubsub.models.channel import GameEventChannel, GameListEventChannel
+from pubsub.outgoing_event.update import GameEnded, NewRecentGame, OfferActionPerformed
+from board.piece import PieceColor
+from utils.async_orm_session import AsyncSession
 
-import src.notification.methods as notification_methods
+import notification.methods as notification_methods
 
 
 async def end_game(

@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
 from enum import auto, StrEnum
 
-from src.common.time_control import TimeControlKind
-from src.board.piece import PieceColor
-from src.utils.custom_model import CustomModel
+from common.time_control import TimeControlKind
+from board.piece import PieceColor
+from utils.custom_model import CustomModel
 
 
 class TimeRemainders(CustomModel):

@@ -1,10 +1,10 @@
 from typing import Annotated
 from fastapi import Depends, HTTPException
 
-from src.common.dependencies import MandatoryUserDependency, SessionDependency
-from src.common.user_ref import UserReference
-from src.game.models.main import Game
-from src.game.models.polymorphous import PayloadWithGameId
+from common.dependencies import MandatoryUserDependency, SessionDependency
+from common.user_ref import UserReference
+from game.models.main import Game
+from game.models.polymorphous import PayloadWithGameId
 
 
 async def get_game(session: SessionDependency, payload: PayloadWithGameId) -> Game:

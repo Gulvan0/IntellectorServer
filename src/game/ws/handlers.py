@@ -1,26 +1,26 @@
 
-from src.common.user_ref import UserReference
-from src.game.dependencies.ws import any_user_dependencies, player_dependencies
-from src.game.endpoint_sinks import add_time_sink, append_ply_sink
-from src.game.exceptions import PlyInvalidException, TimeoutReachedException
-from src.game.ws.offer import accept_draw, accept_takeback, cancel_offer, create_offer, decline_offer
-from src.game.models.chat import GameChatMessageEvent
-from src.game.models.incoming_ws import AddTimeIntentData, ChatMessageIntentData, OfferActionIntentData, PlyIntentData
-from src.game.models.other import GameId
-from src.pubsub.models.channel import GameEventChannel
-from src.net.core import WebSocketWrapper
-from src.net.incoming import WebSocketHandlerCollection
-from src.net.sub_storage import SubscriberTag
-from src.game.methods.cast import compose_state_refresh
-from src.game.methods.update import end_game
-from src.game.methods.get import (
+from common.user_ref import UserReference
+from game.dependencies.ws import any_user_dependencies, player_dependencies
+from game.endpoint_sinks import add_time_sink, append_ply_sink
+from game.exceptions import PlyInvalidException, TimeoutReachedException
+from game.ws.offer import accept_draw, accept_takeback, cancel_offer, create_offer, decline_offer
+from game.models.chat import GameChatMessageEvent
+from game.models.incoming_ws import AddTimeIntentData, ChatMessageIntentData, OfferActionIntentData, PlyIntentData
+from game.models.other import GameId
+from pubsub.models.channel import GameEventChannel
+from net.core import WebSocketWrapper
+from net.incoming import WebSocketHandlerCollection
+from net.sub_storage import SubscriberTag
+from game.methods.cast import compose_state_refresh
+from game.methods.update import end_game
+from game.methods.get import (
     get_current_sip_and_ply_cnt,
     get_last_ply_event,
 )
-from src.pubsub.outgoing_event.refresh import GameRefresh
-from src.pubsub.outgoing_event.update import NewChatMessage
-from src.board.deserializers.sip import color_to_move_from_sip
-from src.game.datatypes import OfferAction, OfferKind, OutcomeKind
+from pubsub.outgoing_event.refresh import GameRefresh
+from pubsub.outgoing_event.update import NewChatMessage
+from board.deserializers.sip import color_to_move_from_sip
+from game.datatypes import OfferAction, OfferKind, OutcomeKind
 
 
 collection = WebSocketHandlerCollection()

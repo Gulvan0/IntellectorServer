@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from src.board.piece import PieceKind
+    from board.piece import PieceKind
 
 
 class PieceMovementDirection(Enum):

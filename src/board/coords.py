@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import assert_never
 
-from src.board.constants.common import BOARD_HEX_COUNT
-from src.board.piece import PieceColor
-from src.board.piece_movement import PieceMovementDirection
+from board.constants.common import BOARD_HEX_COUNT
+from board.piece import PieceColor
+from board.piece_movement import PieceMovementDirection
 
 
 @dataclass(frozen=True)

@@ -1,5 +1,5 @@
-from src.board.piece import PieceKind, PieceColor
-from src.board.position import Position
+from board.piece import PieceKind, PieceColor
+from board.position import Position
 
 
 def piece_letter(piece_kind: PieceKind) -> str:

@@ -1,7 +1,7 @@
 from sqlmodel import Field
 
-from src.other.datatypes import CompatibilityResolution
-from src.utils.custom_model import CustomModel, CustomSQLModel
+from other.datatypes import CompatibilityResolution
+from utils.custom_model import CustomModel, CustomSQLModel
 
 
 class SavedQuery(CustomSQLModel, table=True):

@@ -4,10 +4,10 @@ from types import NoneType
 from typing import get_args
 from pydantic import BaseModel
 
-from src.common.models import Id, IdList
-from src.common.samples import id_lists, ids
-from src.pubsub.models.channel import EventChannel
-from src.utils.string import camel_to_snake
+from common.models import Id, IdList
+from common.samples import id_lists, ids
+from pubsub.models.channel import EventChannel
+from utils.string import camel_to_snake
 
 
 @dataclass

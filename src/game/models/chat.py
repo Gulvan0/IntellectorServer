@@ -1,12 +1,12 @@
 from sqlmodel import Field, Relationship
 
-from src.common.field_types import CurrentDatetime, PlayerRef
-from src.common.models import UserRefWithNickname
-from src.utils.async_orm_session import AsyncSession
-from src.utils.custom_model import CustomSQLModel
+from common.field_types import CurrentDatetime, PlayerRef
+from common.models import UserRefWithNickname
+from utils.async_orm_session import AsyncSession
+from utils.custom_model import CustomSQLModel
 
-import src.game.models.main as game_main_models
-import src.player.methods as player_methods
+import game.models.main as game_main_models
+import player.methods as player_methods
 
 
 class GameChatMessageEventBase(CustomSQLModel):

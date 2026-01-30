@@ -1,16 +1,16 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 
-from src.config.models import SecretConfig
-from src.game.methods.update import end_game
-from src.game.models.main import Game
-from src.game.models.outcome import GameOutcome
-from src.game.methods.get import get_latest_time_update
-from src.game.datatypes import OutcomeKind
-from src.game.models.time_update import GameTimeUpdate
-from src.net.core import MutableState
-from src.board.piece import PieceColor
-from src.utils.async_orm_session import AsyncSession
+from config.models import SecretConfig
+from game.methods.update import end_game
+from game.models.main import Game
+from game.models.outcome import GameOutcome
+from game.methods.get import get_latest_time_update
+from game.datatypes import OutcomeKind
+from game.models.time_update import GameTimeUpdate
+from net.core import MutableState
+from board.piece import PieceColor
+from utils.async_orm_session import AsyncSession
 
 import time
 
@@ -20,7 +20,7 @@ async def __delay_timeout_check(
     game_id: int,
     outcome_abscence_checked: bool = False
 ) -> None:
-    from src.main import app
+    from main import app
 
     existing_timer_handle = app.mutable_state.game_timeout_check_timers.get(game_id)
     if existing_timer_handle:

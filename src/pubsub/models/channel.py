@@ -1,7 +1,7 @@
 from typing import Annotated, ClassVar, Literal, Union
 from pydantic import Field
 
-from src.utils.custom_model import CustomFrozenModel
+from utils.custom_model import CustomFrozenModel
 
 
 class EveryoneEventChannel(CustomFrozenModel, frozen=True):

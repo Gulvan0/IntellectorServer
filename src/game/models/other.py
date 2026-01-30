@@ -1,4 +1,4 @@
-from src.utils.custom_model import CustomModel
+from utils.custom_model import CustomModel
 
 
 class GameId(CustomModel):

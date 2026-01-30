@@ -1,9 +1,9 @@
-from src.common.time_control import FischerTimeControlEntity
-from src.common.user_ref import UserReference
+from common.time_control import FischerTimeControlEntity
+from common.user_ref import UserReference
 
-import src.challenge.datatypes as challenge_datatypes
-import src.challenge.models as challenge_models
-import src.game.models.main as game_models
+import challenge.datatypes as challenge_datatypes
+import challenge.models as challenge_models
+import game.models.main as game_models
 
 
 def format_time_control(time_control: FischerTimeControlEntity | None) -> str | None:

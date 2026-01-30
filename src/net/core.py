@@ -14,47 +14,47 @@ from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from websockets import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
 
-from src.challenge.methods.update import cancel_public_challenges_by_caller
-from src.common.user_ref import UserReference
-from src.pubsub.models.channel import EventChannel, EveryoneEventChannel
-from src.config.models import MainConfig, SecretConfig
-from src.log.models import ServerLaunch, WSLog
-from src.net.incoming import WebSocketHandlerCollection
-from src.net.sub_storage import SubscriberStorage
-from src.net.utils.ws_error import ErrorKind
-from src.config.loader import load
-from src.player.datatypes import UserStatus
-from src.pubsub.outgoing_event.base import OutgoingEvent
-from src.utils.bijective_map import BijectiveMap
-from src.utils.async_orm_session import AsyncSession
+from challenge.methods.update import cancel_public_challenges_by_caller
+from common.user_ref import UserReference
+from pubsub.models.channel import EventChannel, EveryoneEventChannel
+from config.models import MainConfig, SecretConfig
+from log.models import ServerLaunch, WSLog
+from net.incoming import WebSocketHandlerCollection
+from net.sub_storage import SubscriberStorage
+from net.utils.ws_error import ErrorKind
+from config.loader import load
+from player.datatypes import UserStatus
+from pubsub.outgoing_event.base import OutgoingEvent
+from utils.bijective_map import BijectiveMap
+from utils.async_orm_session import AsyncSession
 
-from src.auth.models import *  # noqa: F401, F403
-from src.challenge.models import *  # noqa: F401, F403
-from src.common.models import *  # noqa: F401, F403
-from src.config.models import *  # noqa: F401, F403
-from src.game.models.chat import *  # noqa: F401, F403
-from src.game.models.external import *  # noqa: F401, F403
-from src.game.models.incoming_ws import *  # noqa: F401, F403
-from src.game.models.main import *  # noqa: F401, F403
-from src.game.models.offer import *  # noqa: F401, F403
-from src.game.models.other import *  # noqa: F401, F403
-from src.game.models.outcome import *  # noqa: F401, F403
-from src.game.models.ply import *  # noqa: F401, F403
-from src.game.models.polymorphous import *  # noqa: F401, F403
-from src.game.models.rest import *  # noqa: F401, F403
-from src.game.models.rollback import *  # noqa: F401, F403
-from src.game.models.time_added import *  # noqa: F401, F403
-from src.game.models.time_control import *  # noqa: F401, F403
-from src.game.models.time_update import *  # noqa: F401, F403
-from src.log.models import *  # noqa: F401, F403
-from src.net.models import *  # noqa: F401, F403
-from src.notification.models import *  # noqa: F401, F403
-from src.other.models import *  # noqa: F401, F403
-from src.player.models import *  # noqa: F401, F403
-from src.pubsub.models.channel import *  # noqa: F401, F403
-from src.pubsub.models.other import *  # noqa: F401, F403
-from src.pubsub.models.state import *  # noqa: F401, F403
-from src.study.models import *  # noqa: F401, F403
+from auth.models import *  # noqa: F401, F403
+from challenge.models import *  # noqa: F401, F403
+from common.models import *  # noqa: F401, F403
+from config.models import *  # noqa: F401, F403
+from game.models.chat import *  # noqa: F401, F403
+from game.models.external import *  # noqa: F401, F403
+from game.models.incoming_ws import *  # noqa: F401, F403
+from game.models.main import *  # noqa: F401, F403
+from game.models.offer import *  # noqa: F401, F403
+from game.models.other import *  # noqa: F401, F403
+from game.models.outcome import *  # noqa: F401, F403
+from game.models.ply import *  # noqa: F401, F403
+from game.models.polymorphous import *  # noqa: F401, F403
+from game.models.rest import *  # noqa: F401, F403
+from game.models.rollback import *  # noqa: F401, F403
+from game.models.time_added import *  # noqa: F401, F403
+from game.models.time_control import *  # noqa: F401, F403
+from game.models.time_update import *  # noqa: F401, F403
+from log.models import *  # noqa: F401, F403
+from net.models import *  # noqa: F401, F403
+from notification.models import *  # noqa: F401, F403
+from other.models import *  # noqa: F401, F403
+from player.models import *  # noqa: F401, F403
+from pubsub.models.channel import *  # noqa: F401, F403
+from pubsub.models.other import *  # noqa: F401, F403
+from pubsub.models.state import *  # noqa: F401, F403
+from study.models import *  # noqa: F401, F403
 
 import time
 import json

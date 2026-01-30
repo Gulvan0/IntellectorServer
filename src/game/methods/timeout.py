@@ -1,7 +1,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 
-from config.models import SecretConfig
+from config.models import MainConfig, SecretConfig
 from game.methods.update import end_game
 from game.models.main import Game
 from game.models.outcome import GameOutcome
@@ -35,6 +35,7 @@ async def __delay_timeout_check(
             return await check_timeout(
                 session=session,
                 state=app.mutable_state,
+                main_config=app.main_config,
                 secret_config=app.secret_config,
                 game_id=game_id,
                 outcome_abscence_checked=outcome_abscence_checked,
@@ -44,9 +45,9 @@ async def __delay_timeout_check(
 
 
 async def check_timeout(
-    *,
     session: AsyncSession,
     state: MutableState,
+    main_config: MainConfig,
     secret_config: SecretConfig,
     game_id: int,
     outcome_abscence_checked: bool = False,
@@ -72,6 +73,7 @@ async def check_timeout(
         await end_game(
             session,
             state,
+            main_config,
             secret_config,
             game_id,
             OutcomeKind.TIMEOUT,

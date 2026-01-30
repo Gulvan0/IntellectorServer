@@ -66,6 +66,7 @@ async def append_ply(
     db_game: GameDependency,
     session: SessionDependency,
     state: MutableStateDependency,
+    main_config: MainConfigDependency,
     secret_config: SecretConfigDependency
 ):
     try:
@@ -73,6 +74,7 @@ async def append_ply(
             outcome = await append_ply_sink(
                 session,
                 state,
+                main_config,
                 secret_config,
                 payload,
                 db_game,
@@ -99,10 +101,11 @@ async def end(
     payload: ExternalGameEndPayload,
     session: SessionDependency,
     state: MutableStateDependency,
+    main_config: MainConfigDependency,
     secret_config: SecretConfigDependency
 ):
     with sink_exception_wrapper():
-        await end_game(session, state, secret_config, payload.game_id, payload.outcome_kind, payload.winner)
+        await end_game(session, state, main_config, secret_config, payload.game_id, payload.outcome_kind, payload.winner)
 
 
 @router.get("/rollback", dependencies=[

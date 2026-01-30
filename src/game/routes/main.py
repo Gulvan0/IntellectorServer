@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 
-from common.dependencies import MutableStateDependency, SecretConfigDependency, SessionDependency
+from common.dependencies import MainConfigDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
 from game.methods.cast import to_public_game
 from game.methods.get import get_current_games, get_recent_games
 from game.methods.timeout import check_timeout
@@ -59,7 +59,8 @@ async def check_timeout_route(
     *,
     session: SessionDependency,
     state: MutableStateDependency,
+    main_config: MainConfigDependency,
     secret_config: SecretConfigDependency,
     game_id: int
 ):
-    await check_timeout(session=session, state=state, secret_config=secret_config, game_id=game_id)
+    await check_timeout(session, state, main_config, secret_config, game_id)

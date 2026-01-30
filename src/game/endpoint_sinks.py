@@ -73,6 +73,7 @@ def _get_simple_outcome(session: AsyncSession, game_id: int, new_position: Posit
 async def append_ply_sink(
     session: AsyncSession,
     mutable_state: MutableState,
+    main_config: MainConfig,
     secret_config: SecretConfig,
     payload: PlyPayload,
     db_game: Game,
@@ -150,6 +151,7 @@ async def append_ply_sink(
         await end_game(
             session,
             mutable_state,
+            main_config,
             secret_config,
             payload.game_id,
             outcome.kind,

@@ -2,9 +2,8 @@ from typing import TYPE_CHECKING
 from sqlmodel import Field, Relationship
 
 from common.time_control import FischerTimeControlEntity
+from game.models.main import Game
 from utils.custom_model import CustomSQLModel
-
-import game.models.main as game_main_models
 
 
 class GameFischerTimeControlBase(CustomSQLModel):
@@ -19,7 +18,7 @@ if TYPE_CHECKING:
 class GameFischerTimeControl(GameFischerTimeControlBase, table=True):
     game_id: int | None = Field(default=None, primary_key=True, foreign_key="game.id")
 
-    game: game_main_models.Game = Relationship(back_populates="fischer_time_control")
+    game: Game = Relationship(back_populates="fischer_time_control")
 
 
 class GameFischerTimeControlPublic(GameFischerTimeControlBase):

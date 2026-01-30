@@ -5,16 +5,15 @@ from challenge.methods.get import get_active_challenge_cnt_by_players, get_ident
 from challenge.models import ChallengeCreateDirect, ChallengeCreateOpen
 from board.constants.sip import DEFAULT_STARTING_SIP
 from board.deserializers.sip import position_from_sip
+from player.methods import is_banned_in_ranked
+from player.models import Player
 from utils.async_orm_session import AsyncSession
 from common.user_ref import UserReference
 from config.models import LimitParams
 
-import player.methods as player_methods
-import player.models as player_models
-
 
 async def validate_bracket(challenge: ChallengeCreateOpen | ChallengeCreateDirect, session: AsyncSession, caller: UserReference) -> None:
-    if caller.is_guest() or await player_methods.is_banned_in_ranked(session, caller):
+    if caller.is_guest() or await is_banned_in_ranked(session, caller):
         challenge.rated = False
 
 
@@ -92,7 +91,7 @@ async def validate_direct_callee(
     if callee.is_guest() and callee.guest_id > last_guest_id:
         raise HTTPException(status_code=404, detail=f"Guest not found: {callee.guest_id}")
     else:
-        db_callee = await session.get(player_models.Player, callee.login)
+        db_callee = await session.get(Player, callee.login)
         if not db_callee:
             raise HTTPException(status_code=404, detail=f"Player not found: {callee.login}")
 

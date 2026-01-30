@@ -1,18 +1,17 @@
 from sqlmodel import select
 
+from challenge.models import ChallengePublic
 from common.user_ref import UserReference
 from config.models import IntegrationParams
+from game.models.main import GamePublic
 from notification.integration import delete_vk_message, post_discord_webhook, post_vk_message
 from notification.models import GameStartedNotification, NewPublicChallengeNotification, NotificationApp
 from notification.texts import get_discord_new_challenge_message, get_vk_new_challenge_message, get_vk_new_game_message
-
-import game.models.main as main_game_models
-import challenge.models as challenge_models
 from utils.async_orm_session import AsyncSession
 
 
 async def send_new_public_challenge_notifications(
-    public_challenge: challenge_models.ChallengePublic,
+    public_challenge: ChallengePublic,
     integrations_config: IntegrationParams,
     session: AsyncSession
 ) -> None:
@@ -56,7 +55,7 @@ async def delete_new_public_challenge_notifications(challenge_id: int, session: 
 async def send_game_started_notifications(
     white_player_ref: str,
     black_player_ref: str,
-    public_game: main_game_models.GamePublic,
+    public_game: GamePublic,
     integrations_config: IntegrationParams,
     session: AsyncSession
 ) -> None:

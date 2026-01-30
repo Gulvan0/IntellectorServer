@@ -3,9 +3,8 @@ from sqlmodel import Field, Relationship
 from board.piece import PieceColor
 from common.field_types import CurrentDatetime
 from game.datatypes import OfferAction, OfferKind
+from game.models.main import Game
 from utils.custom_model import CustomSQLModel
-
-import game.models.main as game_main_models
 
 
 class GameOfferEventBase(CustomSQLModel):
@@ -19,7 +18,7 @@ class GameOfferEvent(GameOfferEventBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     game_id: int = Field(foreign_key="game.id")
 
-    game: game_main_models.Game = Relationship(back_populates="offer_events")
+    game: Game = Relationship(back_populates="offer_events")
 
     def to_broadcasted_data(self) -> "OfferActionBroadcastedData":
         return OfferActionBroadcastedData.cast(self)

@@ -1,9 +1,7 @@
+from challenge.datatypes import ChallengeAcceptorColor
+from challenge.models import ChallengePublic
 from common.time_control import FischerTimeControlEntity
-from common.user_ref import UserReference
-
-import challenge.datatypes as challenge_datatypes
-import challenge.models as challenge_models
-import game.models.main as game_models
+from game.models.main import GamePublic
 
 
 def format_time_control(time_control: FischerTimeControlEntity | None) -> str | None:
@@ -28,15 +26,15 @@ https://intellector.info/game/?p=join/{challenge_id}
 """
 
 
-def get_discord_new_challenge_message(challenge: challenge_models.ChallengePublic) -> str:
+def get_discord_new_challenge_message(challenge: ChallengePublic) -> str:
     bracket = "Rated" if challenge.rated else "Unrated"
     time_control = format_time_control(challenge.fischer_time_control) or "Correspondence"
     match challenge.acceptor_color:
-        case challenge_datatypes.ChallengeAcceptorColor.WHITE:
+        case ChallengeAcceptorColor.WHITE:
             color = "White"
-        case challenge_datatypes.ChallengeAcceptorColor.BLACK:
+        case ChallengeAcceptorColor.BLACK:
             color = "Black"
-        case challenge_datatypes.ChallengeAcceptorColor.RANDOM:
+        case ChallengeAcceptorColor.RANDOM:
             color = "Random"
     start_pos = "Custom" if challenge.custom_starting_sip else "Default"
 
@@ -60,15 +58,15 @@ https://intellector.info/game/?p=join/{challenge_id}
 """
 
 
-def get_vk_new_challenge_message(challenge: challenge_models.ChallengePublic) -> str:
+def get_vk_new_challenge_message(challenge: ChallengePublic) -> str:
     bracket = "На рейтинг" if challenge.rated else "Без рейтинга"
     time_control = format_time_control(challenge.fischer_time_control) or "По переписке"
     match challenge.acceptor_color:
-        case challenge_datatypes.ChallengeAcceptorColor.WHITE:
+        case ChallengeAcceptorColor.WHITE:
             color = "Белыми"
-        case challenge_datatypes.ChallengeAcceptorColor.BLACK:
+        case ChallengeAcceptorColor.BLACK:
             color = "Черными"
-        case challenge_datatypes.ChallengeAcceptorColor.RANDOM:
+        case ChallengeAcceptorColor.RANDOM:
             color = "Случайно"
     start_pos = "Особая" if challenge.custom_starting_sip else "Стандартная"
 
@@ -90,7 +88,7 @@ https://intellector.info/game/?p=live/{game_id}
 """
 
 
-def get_vk_new_game_message(game: game_models.GamePublic) -> str:
+def get_vk_new_game_message(game: GamePublic) -> str:
     time_control = format_time_control(game.fischer_time_control) or "По переписке"
 
     return VK_NEW_GAME_MESSAGE_TEMPLATE.format(

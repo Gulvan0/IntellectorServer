@@ -8,14 +8,13 @@ from game.datatypes import OutcomeKind
 from game.models.outcome import GameEndedEloUpdate, GameEndedEloUpdates, GameOutcome
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from net.core import MutableState
+from notification.methods import delete_game_started_notifications
 from player.methods import get_stats_for_time_control
 from player.models import PlayerEloProgress
 from pubsub.models.channel import GameEventChannel, GameListEventChannel
 from pubsub.outgoing_event.update import GameEnded, NewRecentGame
 from board.piece import PieceColor
 from utils.async_orm_session import AsyncSession
-
-import notification.methods as notification_methods
 
 
 async def end_game(
@@ -120,7 +119,7 @@ async def end_game(
     await state.ws_subscribers.broadcast(GameEnded(broadcasted_data, GameEventChannel(game_id=game_id)))
     await state.ws_subscribers.broadcast(NewRecentGame(broadcasted_data, GameListEventChannel()))
 
-    await notification_methods.delete_game_started_notifications(
+    await delete_game_started_notifications(
         game_id=game_id,
         vk_token=secret_config.integrations.vk.token,
         session=session

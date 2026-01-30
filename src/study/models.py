@@ -5,12 +5,11 @@ from sqlmodel import Field, Relationship
 from common.models import UserRefWithNickname
 from board.piece import PieceKind
 from common.field_types import CurrentDatetime, Sip
+from player.methods import get_user_ref_with_nickname
+from player.models import Player
 from study.datatypes import StudyPublicity
 from utils.async_orm_session import AsyncSession
 from utils.custom_model import CustomModel, CustomSQLModel
-
-import player.models as player_models
-import player.methods as player_methods
 
 
 class ApiHexCoords(CustomModel):
@@ -88,7 +87,7 @@ class Study(StudyBase, table=True):
     author_login: str = Field(foreign_key="player.login")
     deleted: bool = False
 
-    author: player_models.Player = Relationship(back_populates="studies")
+    author: Player = Relationship(back_populates="studies")
     tags: list[StudyTag] = Relationship(back_populates="study", cascade_delete=True)
     nodes: list[StudyVariationNode] = Relationship(back_populates="study", cascade_delete=True)
 
@@ -102,7 +101,7 @@ class Study(StudyBase, table=True):
             id=self.id,
             created_at=self.created_at,
             modified_at=self.modified_at,
-            author=await player_methods.get_user_ref_with_nickname(session, self.author_login),
+            author=await get_user_ref_with_nickname(session, self.author_login),
             deleted=self.deleted,
             tags=[StudyTagPublic.cast(tag) for tag in self.tags],
             nodes=[StudyVariationNodePublic.cast(node) for node in self.nodes]

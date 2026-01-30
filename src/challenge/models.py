@@ -6,9 +6,8 @@ from challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
 from common.models import UserRefWithNickname
 from common.time_control import FischerTimeControlEntity, TimeControlKind
 from common.field_types import CurrentDatetime, PlayerRef, OptionalSip, OptionalPlayerRef
+from game.models.main import Game, GamePublic
 from utils.custom_model import CustomModel, CustomSQLModel
-
-import game.models.main as game_models
 
 
 class ChallengeBase(CustomSQLModel):
@@ -27,7 +26,7 @@ class Challenge(ChallengeBase, table=True):
     active: bool = True
     resulting_game_id: int | None = Field(default=None, foreign_key="game.id")
 
-    resulting_game: game_models.Game | None = Relationship()
+    resulting_game: Game | None = Relationship()
     fischer_time_control: Optional["ChallengeFischerTimeControl"] = Relationship(back_populates="challenge", cascade_delete=True)
 
 
@@ -98,11 +97,11 @@ class ChallengePublic(ChallengeBase):
     time_control_kind: TimeControlKind
     active: bool
     fischer_time_control: ChallengeFischerTimeControlPublic | None = None
-    resulting_game: game_models.GamePublic | None = None
+    resulting_game: GamePublic | None = None
 
 
 class ChallengeCreateResponse(CustomModel):
     result: Literal["created", "merged"]
     challenge: ChallengePublic | None = None
     callee_online: bool | None = None
-    game: game_models.GamePublic | None = None
+    game: GamePublic | None = None

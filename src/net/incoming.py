@@ -7,18 +7,18 @@ from pydantic import BaseModel, ValidationError
 
 from common.user_ref import UserReference
 from log.models import WSLog
+from net.core import WebSocketWrapper
 from net.models import WebsocketIncomingMessage
 from net.utils.ws_error import ErrorKind, WebSocketException
 from utils.bijective_map import BijectiveMap
 
 import json
 import time
-import net.core as core
 
 
 type WebSocketIncomingEventHandlerCallable[T:BaseModel] = Callable[
     [
-        core.WebSocketWrapper,
+        WebSocketWrapper,
         UserReference | None,
         T
     ],
@@ -63,7 +63,7 @@ class WebSocketHandlerCollection:
             return handler_callable
         return decorator
 
-    async def handle(self, token_map: BijectiveMap[str, UserReference], ws: core.WebSocketWrapper, data: Any) -> None:
+    async def handle(self, token_map: BijectiveMap[str, UserReference], ws: WebSocketWrapper, data: Any) -> None:
         now_ts = int(time.time())
         ws.last_message = now_ts
 

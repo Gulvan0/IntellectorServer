@@ -8,8 +8,7 @@ from common.user_ref import UserReference
 from config.models import SecretConfig
 from net.core import MutableState
 from sqlmodel.sql.expression import SelectOfScalar
-
-import notification.methods as notification_methods
+from notification.methods import delete_new_public_challenge_notifications
 from pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
 from pubsub.outgoing_event.base import OutgoingEvent
 from pubsub.outgoing_event.update import (
@@ -25,7 +24,7 @@ from utils.async_orm_session import AsyncSession
 async def cancel_challenge(challenge: Challenge, session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> None:
     assert challenge.id
 
-    await notification_methods.delete_new_public_challenge_notifications(
+    await delete_new_public_challenge_notifications(
         challenge_id=challenge.id,
         session=session,
         vk_token=secret_config.integrations.vk.token

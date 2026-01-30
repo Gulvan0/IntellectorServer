@@ -1,10 +1,13 @@
 from datetime import UTC, datetime
 
+from challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
+from challenge.models import Challenge
 from common.models import Id
 from common.user_ref import UserReference
 from config.models import SecretConfig
 from game.methods.cast import to_public_game
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
+from notification.methods import delete_new_public_challenge_notifications, send_game_started_notifications
 from pubsub.models.channel import GameListEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
 from game.models.main import Game, GamePublic, GameStartedBroadcastedData
 from game.models.time_control import GameFischerTimeControl
@@ -14,25 +17,22 @@ from pubsub.outgoing_event.update import GameStarted, NewActiveGame, OutgoingCha
 from utils.async_orm_session import AsyncSession
 
 import random
-import challenge.datatypes as challenge_datatypes
-import challenge.models as challenge_models
-import notification.methods as notification_methods
 
 
 def assign_player_colors(
-    acceptor_color: challenge_datatypes.ChallengeAcceptorColor,
+    acceptor_color: ChallengeAcceptorColor,
     caller_ref: str,
     acceptor_ref: str
 ) -> tuple[str, str]:
     match acceptor_color:
-        case challenge_datatypes.ChallengeAcceptorColor.RANDOM:
+        case ChallengeAcceptorColor.RANDOM:
             return random.choice([
                 (caller_ref, acceptor_ref),
                 (acceptor_ref, caller_ref)
             ])
-        case challenge_datatypes.ChallengeAcceptorColor.WHITE:
+        case ChallengeAcceptorColor.WHITE:
             return acceptor_ref, caller_ref
-        case challenge_datatypes.ChallengeAcceptorColor.BLACK:
+        case ChallengeAcceptorColor.BLACK:
             return caller_ref, acceptor_ref
 
 
@@ -45,7 +45,7 @@ async def create_game(
     external_uploader_ref: str | None,
     session: AsyncSession,
     state: MutableState,
-    deactivated_challenge: challenge_models.Challenge | None = None
+    deactivated_challenge: Challenge | None = None
 ) -> GamePublic:
     started_at = datetime.now(UTC)
 
@@ -94,7 +94,7 @@ async def create_game(
 
 
 async def create_internal_game(
-    challenge: challenge_models.Challenge,
+    challenge: Challenge,
     acceptor: UserReference,
     session: AsyncSession,
     state: MutableState,
@@ -116,7 +116,7 @@ async def create_internal_game(
 
     assert challenge.id
 
-    await notification_methods.delete_new_public_challenge_notifications(
+    await delete_new_public_challenge_notifications(
         challenge_id=challenge.id,
         session=session,
         vk_token=secret_config.integrations.vk.token
@@ -124,14 +124,14 @@ async def create_internal_game(
 
     event_payload = Id(id=challenge.id)
 
-    if challenge.kind == challenge_datatypes.ChallengeKind.PUBLIC:
+    if challenge.kind == ChallengeKind.PUBLIC:
         fulfill_event = PublicChallengeFulfilled(event_payload, PublicChallengeListEventChannel())
         await state.ws_subscribers.broadcast(fulfill_event)
 
     accept_event = OutgoingChallengeAccepted(event_payload, OutgoingChallengesEventChannel(user_ref=challenge.caller_ref))
     await state.ws_subscribers.broadcast(accept_event)
 
-    await notification_methods.send_game_started_notifications(
+    await send_game_started_notifications(
         white_player_ref,
         black_player_ref,
         public_game,

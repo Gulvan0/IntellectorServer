@@ -2,12 +2,10 @@ from datetime import datetime
 from sqlmodel import Field, Relationship
 
 from common.field_types import CurrentDatetime
-from common.models import UserRefWithNickname
 from player.datatypes import GameStats, UserRestrictionKind, UserRole, UserStatus
 from common.time_control import TimeControlKind
+from study.models import Study
 from utils.custom_model import CustomModel, CustomSQLModel
-
-import study.models as study_models
 
 
 class PlayerBase(CustomSQLModel):
@@ -23,7 +21,7 @@ class Player(PlayerBase, table=True):
     roles: list["PlayerRole"] = Relationship(back_populates="player", cascade_delete=True)
     restrictions: list["PlayerRestriction"] = Relationship(back_populates="player", cascade_delete=True)
     followed_players: list["PlayerFollowedPlayer"] = Relationship(cascade_delete=True, sa_relationship_kwargs=dict(foreign_keys="PlayerFollowedPlayer.follower_login"))
-    studies: list[study_models.Study] = Relationship(back_populates="author", cascade_delete=True)
+    studies: list[Study] = Relationship(back_populates="author", cascade_delete=True)
 
 
 class PlayerRoleBase(CustomSQLModel):

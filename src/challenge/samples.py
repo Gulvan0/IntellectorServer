@@ -1,12 +1,12 @@
 from datetime import datetime
 from enum import Enum, auto
 
+from board.samples import non_default_starting_sip
 from challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
 from challenge.models import ChallengeFischerTimeControlPublic, ChallengePublic
 
-import board.samples as board_samples
 from common.models import UserRefWithNickname
-import common.samples as common_samples
+from common.samples import boolean, datetime_after, past_datetime, time_control, uint, user_ref_with_nickname
 from common.time_control import TimeControlKind
 from game.samples import game
 
@@ -27,19 +27,19 @@ def challenge(
     created_at: datetime | None = None
 ) -> ChallengePublic:
     if rated is None:
-        rated = common_samples.boolean()
+        rated = boolean()
 
     if not caller:
-        caller = common_samples.user_ref_with_nickname()
+        caller = user_ref_with_nickname()
     if not callee:
-        callee = common_samples.user_ref_with_nickname() if kind == ChallengeKind.DIRECT else None
-    acceptor = callee or common_samples.user_ref_with_nickname()
+        callee = user_ref_with_nickname() if kind == ChallengeKind.DIRECT else None
+    acceptor = callee or user_ref_with_nickname()
 
     if rated:
         acceptor_color = ChallengeAcceptorColor.RANDOM
-        players = (caller, acceptor) if common_samples.boolean() else (acceptor, caller)
+        players = (caller, acceptor) if boolean() else (acceptor, caller)
     else:
-        if common_samples.boolean():
+        if boolean():
             acceptor_color = ChallengeAcceptorColor.WHITE
             players = (acceptor, caller)
         else:
@@ -47,22 +47,22 @@ def challenge(
             players = (caller, acceptor)
 
     if correspondence:
-        sample_time_control = common_samples.time_control(TimeControlKind.CORRESPONDENCE)
+        sample_time_control = time_control(TimeControlKind.CORRESPONDENCE)
     else:
-        sample_time_control = common_samples.time_control(exclude_correspondence=correspondence is not None)
+        sample_time_control = time_control(exclude_correspondence=correspondence is not None)
 
     custom_starting_sip = None
     if not rated:
-        custom_starting_sip = board_samples.non_default_starting_sip()
+        custom_starting_sip = non_default_starting_sip()
 
     if not created_at:
-        created_at = common_samples.past_datetime(min_offset_days=3, max_offset_days=200)
+        created_at = past_datetime(min_offset_days=3, max_offset_days=200)
 
     return ChallengePublic(
         acceptor_color=acceptor_color,
         custom_starting_sip=custom_starting_sip,
         rated=rated,
-        id=common_samples.uint(),
+        id=uint(),
         created_at=created_at,
         caller=caller,
         callee=callee,
@@ -80,7 +80,7 @@ def challenge(
             custom_starting_sip=custom_starting_sip,
             external_uploader_login=None,
             finished=True,
-            started_at=common_samples.datetime_after(created_at, min_delay_seconds=30, max_delay_seconds=8 * 60)
+            started_at=datetime_after(created_at, min_delay_seconds=30, max_delay_seconds=8 * 60)
         ) if state == ChallengeState.FULFILLED else None
     )
 
@@ -94,15 +94,15 @@ def minimal_representative_challenges() -> list[ChallengePublic]:
 
 
 def incoming_challenges(count: int = 2) -> list[ChallengePublic]:
-    callee = common_samples.user_ref_with_nickname()
+    callee = user_ref_with_nickname()
     return [
-        challenge(ChallengeKind.DIRECT, ChallengeState.ACTIVE, rated=common_samples.boolean(), correspondence=common_samples.boolean(), callee=callee)
+        challenge(ChallengeKind.DIRECT, ChallengeState.ACTIVE, rated=boolean(), correspondence=boolean(), callee=callee)
         for _ in range(count)
     ]
 
 
 def outgoing_challenges(count: int = 3) -> list[ChallengePublic]:
-    caller = common_samples.user_ref_with_nickname()
+    caller = user_ref_with_nickname()
     return [
         challenge(ChallengeKind.DIRECT, ChallengeState.ACTIVE, rated=True, correspondence=False, caller=caller),
         challenge(ChallengeKind.LINK_ONLY, ChallengeState.ACTIVE, rated=False, correspondence=False, caller=caller),
@@ -112,6 +112,6 @@ def outgoing_challenges(count: int = 3) -> list[ChallengePublic]:
 
 def active_public_challenges(count: int = 3) -> list[ChallengePublic]:
     return [
-        challenge(ChallengeKind.PUBLIC, ChallengeState.ACTIVE, rated=common_samples.boolean(), correspondence=common_samples.boolean())
+        challenge(ChallengeKind.PUBLIC, ChallengeState.ACTIVE, rated=boolean(), correspondence=boolean())
         for _ in range(count)
     ]

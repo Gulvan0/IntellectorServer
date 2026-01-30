@@ -1,11 +1,10 @@
+from game.methods.create import create_internal_game
 from net.utils.early_response import EarlyResponse
 from challenge.methods.get import get_mergeable_challenge
 from challenge.models import ChallengeCreateDirect, ChallengeCreateOpen, ChallengeCreateResponse
 from common.user_ref import UserReference
 from config.models import SecretConfig
 from net.core import MutableState
-
-import game.methods.create as game_create_methods
 from utils.async_orm_session import AsyncSession
 
 
@@ -18,6 +17,6 @@ async def try_merging(
 ) -> None:
     mergeable_challenge = await get_mergeable_challenge(session, caller, challenge)
     if mergeable_challenge:
-        game = await game_create_methods.create_internal_game(mergeable_challenge, caller, session, state, secret_config)
+        game = await create_internal_game(mergeable_challenge, caller, session, state, secret_config)
         response = ChallengeCreateResponse(result="merged", game=game)
         raise EarlyResponse(status_code=200, body=response)

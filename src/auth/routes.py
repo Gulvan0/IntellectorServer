@@ -9,9 +9,10 @@ from net.base_router import LoggingRoute
 
 import bcrypt
 import os
-import player.methods as player_methods
-import player.datatypes as player_datatypes
-import player.models as player_models
+
+from player.datatypes import UserRole
+from player.methods import create_player
+from player.models import PlayerRole
 
 
 route_class: type[APIRoute] = APIRoute
@@ -50,7 +51,7 @@ async def register(*, credentials: AuthCredentials, session: SessionDependency, 
     if password_data:
         raise HTTPException(status_code=422, detail="User already exists")
 
-    await player_methods.create_player(
+    await create_player(
         session=session,
         login=login,
         nickname=credentials.login,  # case preserved!
@@ -78,7 +79,7 @@ async def update_password(
     client_login: MandatoryPlayerLoginDependency,
     session: SessionDependency
 ) -> None:
-    existing_admin_entry = await session.get(player_models.PlayerRole, (player_datatypes.UserRole.ADMIN, client_login))
+    existing_admin_entry = await session.get(PlayerRole, (UserRole.ADMIN, client_login))
     if client_login != payload.login and not existing_admin_entry:
         raise HTTPException(status_code=403, detail="Forbidden")
 

@@ -8,10 +8,9 @@ from game.models.time_control import GameFischerTimeControlPublic
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic, GameTimeUpdateReason
 from game.methods.get import get_ply_history, get_latest_time_update
 from board.piece import PieceColor
+from player.methods import get_user_ref_with_nickname
 from pubsub.models.state import GameStateRefresh
 from utils.async_orm_session import AsyncSession
-
-import player.methods as player_methods
 
 
 async def collect_game_events(
@@ -44,8 +43,8 @@ async def to_public_game(
     assert game.id
     return GamePublic(
         started_at=game.started_at,
-        white_player=player_methods.get_user_ref_with_nickname(session, game.white_player_ref),
-        black_player=player_methods.get_user_ref_with_nickname(session, game.black_player_ref),
+        white_player=get_user_ref_with_nickname(session, game.white_player_ref),
+        black_player=get_user_ref_with_nickname(session, game.black_player_ref),
         time_control_kind=game.time_control_kind,
         rated=game.rated,
         custom_starting_sip=game.custom_starting_sip,

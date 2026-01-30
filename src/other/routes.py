@@ -1,13 +1,12 @@
 from typing import Any
 from fastapi import APIRouter, Depends, Response
 
+from challenge.methods.update import cancel_all_challenges
+from game.methods.get import get_ongoing_finite_game
 from net.base_router import LoggingRoute
 from other.datatypes import CompatibilityResolution
 from other.models import CompatibilityCheckPayload, CompatibilityResponse
 from common.dependencies import MainConfigDependency, MutableStateDependency, SecretConfigDependency, SessionDependency, verify_admin
-
-import challenge.methods.update as challenge_update_methods
-import game.methods.get as game_get_methods
 from pubsub.models.channel import EveryoneEventChannel
 from pubsub.outgoing_event.update import ServerShutdown
 
@@ -43,12 +42,12 @@ async def shutdown(
         return
 
     state.shutdown_activated = True
-    await challenge_update_methods.cancel_all_challenges(session, state, secret_config)
+    await cancel_all_challenges(session, state, secret_config)
 
     event = ServerShutdown(None, EveryoneEventChannel())
     await state.ws_subscribers.broadcast(event)
 
-    if not game_get_methods.get_ongoing_finite_game(session):
+    if not get_ongoing_finite_game(session):
         raise KeyboardInterrupt  # A hack to break out of the FastAPI jail
 
 

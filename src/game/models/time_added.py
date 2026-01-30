@@ -2,10 +2,9 @@ from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
 from common.field_types import CurrentDatetime
+from game.models.main import Game
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from utils.custom_model import CustomModel, CustomSQLModel
-
-import game.models.main as game_main_models
 
 
 class GameTimeAddedEventBase(CustomSQLModel):
@@ -20,7 +19,7 @@ class GameTimeAddedEvent(GameTimeAddedEventBase, table=True):
 
     time_update_id: int | None = Field(default=None, foreign_key="gametimeupdate.id")
 
-    game: game_main_models.Game = Relationship(back_populates="time_added_events")
+    game: Game = Relationship(back_populates="time_added_events")
     time_update: GameTimeUpdate = Relationship()
 
     def to_public(self) -> "GameTimeAddedEventPublic":

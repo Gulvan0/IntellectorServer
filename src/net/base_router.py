@@ -6,11 +6,11 @@ from starlette.responses import StreamingResponse
 from fastapi.routing import APIRoute
 from typing import Callable
 
+from log.models import RESTResponseLog
 from net.core import App
 from common.constants import USER_TOKEN_HEADER
 
 import json
-import log.models as log_models
 from utils.async_orm_session import AsyncSession
 
 
@@ -53,7 +53,7 @@ def get_client_ref(request: Request, app: App) -> str | None:
 
 async def log_info(request: Request, response_code: int, response_body: bytes, app: App) -> None:
     async with AsyncSession(app.db_engine) as session:
-        request_entry = log_models.RESTRequestLog(
+        request_entry = RESTRequestLog(
             client_host=request.client.host if request.client else "unknown",
             authorized_as=get_client_ref(request, app),
             endpoint=request.url.path,
@@ -61,7 +61,7 @@ async def log_info(request: Request, response_code: int, response_body: bytes, a
             headers_json=headers_to_str(request.headers),
             payload=request_body_to_str(await request.body()),
         )
-        response_entry = log_models.RESTResponseLog(
+        response_entry = RESTResponseLog(
             response_code=response_code,
             response=response_body_to_str(response_body),
             request=request_entry

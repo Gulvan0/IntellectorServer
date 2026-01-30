@@ -8,13 +8,13 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from common.user_ref import UserReference
+from net.core import WebSocketWrapper
 from pubsub.models.channel import EventChannel, EveryoneEventChannel
 from player.datatypes import UserStatus
 from pubsub.outgoing_event.base import OutgoingEvent
 from utils.bijective_map import BijectiveMap
 
 import asyncio
-import net.core as core
 
 
 class SubscriberTag(Enum):
@@ -24,7 +24,7 @@ class SubscriberTag(Enum):
 
 @dataclass
 class Subscriber:
-    ws: core.WebSocketWrapper
+    ws: WebSocketWrapper
     tags: set[SubscriberTag]
 
 
@@ -32,22 +32,22 @@ class SubscriberStorage:
     subscribers: DefaultDict[EventChannel, dict[UUID, Subscriber]] = defaultdict(dict)
 
     @staticmethod
-    def _resolve_websocket_reference(websocket_ref: core.WebSocketWrapper | UUID) -> UUID:
-        return websocket_ref.uuid if isinstance(websocket_ref, core.WebSocketWrapper) else websocket_ref
+    def _resolve_websocket_reference(websocket_ref: WebSocketWrapper | UUID) -> UUID:
+        return websocket_ref.uuid if isinstance(websocket_ref, WebSocketWrapper) else websocket_ref
 
-    def subscribe(self, websocket: core.WebSocketWrapper, channel: EventChannel, tags: set[SubscriberTag] | None = None) -> None:
+    def subscribe(self, websocket: WebSocketWrapper, channel: EventChannel, tags: set[SubscriberTag] | None = None) -> None:
         self.subscribers[channel][websocket.uuid] = Subscriber(websocket, tags or set())
 
-    def unsubscribe(self, websocket_ref: core.WebSocketWrapper | UUID, channel: EventChannel) -> None:
+    def unsubscribe(self, websocket_ref: WebSocketWrapper | UUID, channel: EventChannel) -> None:
         uuid = self._resolve_websocket_reference(websocket_ref)
         self.subscribers[channel].pop(uuid, None)
 
-    def fully_remove(self, websocket_ref: core.WebSocketWrapper | UUID) -> None:
+    def fully_remove(self, websocket_ref: WebSocketWrapper | UUID) -> None:
         uuid = self._resolve_websocket_reference(websocket_ref)
         for channel_subs in self.subscribers.values():
             channel_subs.pop(uuid, None)
 
-    def get_subscriptions(self, websocket_ref: core.WebSocketWrapper | UUID) -> set[EventChannel]:
+    def get_subscriptions(self, websocket_ref: WebSocketWrapper | UUID) -> set[EventChannel]:
         uuid = self._resolve_websocket_reference(websocket_ref)
         return set(channel for channel, channel_subs in self.subscribers.items() if uuid in channel_subs)
 
@@ -57,7 +57,7 @@ class SubscriberStorage:
     def get_subscribers(self, channel: EventChannel = EveryoneEventChannel()) -> Iterable[Subscriber]:
         return self.subscribers[channel].values()
 
-    def has_ws_subscriber(self, websocket_ref: core.WebSocketWrapper | UUID, channel: EventChannel = EveryoneEventChannel()) -> bool:
+    def has_ws_subscriber(self, websocket_ref: WebSocketWrapper | UUID, channel: EventChannel = EveryoneEventChannel()) -> bool:
         return self._resolve_websocket_reference(websocket_ref) in self.subscribers[channel]
 
     def has_token_subscriber(self, token: str, channel: EventChannel = EveryoneEventChannel()) -> bool:

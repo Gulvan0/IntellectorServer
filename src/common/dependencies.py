@@ -6,9 +6,8 @@ from common.constants import USER_TOKEN_HEADER
 from common.user_ref import UserReference
 from config.models import MainConfig, SecretConfig
 from net.core import App, MutableState
-
-import player.models as player_models
-import player.datatypes as player_datatypes
+from player.datatypes import UserRole
+from player.models import PlayerRole
 from utils.async_orm_session import AsyncSession
 
 
@@ -75,7 +74,7 @@ MandatoryPlayerLoginDependency = Annotated[str, Depends(get_mandatory_player_log
 
 
 async def verify_admin(client_login: MandatoryPlayerLoginDependency, session: SessionDependency) -> None:
-    if not session.get(player_models.PlayerRole, (player_datatypes.UserRole.ADMIN, client_login)):
+    if not session.get(PlayerRole, (UserRole.ADMIN, client_login)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
 

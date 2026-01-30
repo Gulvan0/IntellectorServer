@@ -4,11 +4,10 @@ from common.sql import exists, not_expired
 from common.time_control import TimeControlKind
 from common.user_ref import UserReference
 from config.models import MainConfig
+from game.datatypes import OverallGameCounts
 from player.models import Player, PlayerEloProgress, PlayerFollowedPlayer, PlayerRestriction, PlayerRestrictionPublic, PlayerRole, PlayerRolePublic
 from player.datatypes import GameStats, OverallGameStats, UserRestrictionKind, UserRole
 from utils.async_orm_session import AsyncSession
-
-import game.datatypes as game_datatypes
 
 
 async def prettify_player_reference(user_ref: UserReference, session: AsyncSession) -> str:
@@ -146,7 +145,7 @@ async def get_overall_game_stats(
     session: AsyncSession,
     main_config: MainConfig,
     player_login: str,
-    overall_counts: game_datatypes.OverallGameCounts,
+    overall_counts: OverallGameCounts,
 ) -> OverallGameStats:
     db_elo_entries = await session.exec(select(
         PlayerEloProgress

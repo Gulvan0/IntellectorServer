@@ -2,11 +2,10 @@ from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor, PieceKind
 from common.field_types import CurrentDatetime, Sip
+from game.models.main import Game
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from board.ply import PlyKind
 from utils.custom_model import CustomSQLModel
-
-import game.models.main as game_main_models
 
 
 class GamePlyEventBase(CustomSQLModel):
@@ -30,7 +29,7 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
     sip_after: Sip
     time_update_id: int | None = Field(default=None, foreign_key="gametimeupdate.id")
 
-    game: game_main_models.Game = Relationship(back_populates="ply_events")
+    game: Game = Relationship(back_populates="ply_events")
     time_update: GameTimeUpdate | None = Relationship()
 
     def to_public(self) -> "GamePlyEventPublic":

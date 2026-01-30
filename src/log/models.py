@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 from sqlalchemy import CHAR
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlmodel import Field, Relationship, Column
@@ -47,8 +47,18 @@ class WSLog(CustomSQLModel, table=True):
 
 
 # <private>
-class ServiceLog(CustomSQLModel, table=True):
+class TimeoutCheckExecutedLog(CustomSQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    ts: CurrentDatetime
-    service: str
-    message: str
+    event_time: CurrentDatetime
+    aborted: bool
+    game_id: int
+    remaining_ms: int
+    is_external: bool
+
+
+# <private>
+class TimeoutCheckPlannedLog(CustomSQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    event_time: CurrentDatetime
+    game_id: int
+    delay_ms: int

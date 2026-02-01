@@ -4,3 +4,4 @@
 /.run
 .vscode
 src/.mypy_cache
+converted_passes.json

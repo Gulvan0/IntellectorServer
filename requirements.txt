@@ -10,6 +10,7 @@ pandas-stubs
 pillow
 py-bcrypt
 pydantic
+PyMySQL
 python-multipart
 PyYAML
 rstr

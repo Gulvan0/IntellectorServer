@@ -1,11 +1,12 @@
 from collections import defaultdict
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import StrEnum, auto
 from typing import DefaultDict, Iterable
 from uuid import UUID
 from pydantic import BaseModel
 
 from common.user_ref import UserReference
+from net.models import WebsocketWrapperDump
 from net.ws_wrapper import WebSocketWrapper
 from pubsub.models.channel import EventChannel, EveryoneEventChannel
 from player.datatypes import UserStatus
@@ -15,7 +16,7 @@ from utils.bijective_map import BijectiveMap
 import asyncio
 
 
-class SubscriberTag(Enum):
+class SubscriberTag(StrEnum):
     WHITE_PLAYER = auto()
     BLACK_PLAYER = auto()
 
@@ -32,6 +33,23 @@ class SubscriberStorage:
     @staticmethod
     def _resolve_websocket_reference(websocket_ref: WebSocketWrapper | UUID) -> UUID:
         return websocket_ref.uuid if isinstance(websocket_ref, WebSocketWrapper) else websocket_ref
+
+    def __len__(self) -> int:
+        uuids = {
+            ws_uuid
+            for subs in self.subscribers.values()
+            for ws_uuid in subs.keys()
+        }
+        return len(uuids)
+
+    def dump(self) -> dict[EventChannel, dict[UUID, WebsocketWrapperDump]]:
+        return {
+            channel: {
+                ws_uuid: sub.ws.dump(sub.tags)
+                for ws_uuid, sub in subs.items()
+            }
+            for channel, subs in self.subscribers.items()
+        }
 
     def subscribe(self, websocket: WebSocketWrapper, channel: EventChannel, tags: set[SubscriberTag] | None = None) -> None:
         self.subscribers[channel][websocket.uuid] = Subscriber(websocket, tags or set())

@@ -6,6 +6,7 @@ from fastapi import WebSocket
 from pydantic import BaseModel, ValidationError
 from typing import TYPE_CHECKING
 from common.user_ref import UserReference
+from net.models import WebsocketWrapperDump
 from pubsub.models.channel import EventChannel
 from log.models import WSLog
 from net.utils.ws_error import ErrorKind
@@ -32,6 +33,16 @@ class WebSocketWrapper:
 
     def __post_init__(self) -> None:
         self.send_json = self.ws.send_json
+
+    def dump(self, tags: list[str] = []) -> WebsocketWrapperDump:
+        return WebsocketWrapperDump(
+            last_activity=self.last_activity,
+            last_message=self.last_message,
+            status=self.get_status(),
+            saved_token=self.saved_token,
+            saved_user_ref=self.get_user_ref(),
+            tags=tags
+        )
 
     def get_user_ref(self) -> UserReference | None:
         if self.saved_token:

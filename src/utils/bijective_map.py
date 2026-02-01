@@ -6,6 +6,9 @@ class BijectiveMap[L:Hashable, R:Hashable]:
         self.straight: dict[L, R] = {}
         self.inverse: dict[R, L] = {}
 
+    def __len__(self) -> int:
+        return len(self.straight)
+
     def update(self, left: L, right: R) -> None:
         old_left = self.inverse.get(right)
         if old_left:

@@ -4,6 +4,7 @@ from typing import Literal
 from game.exceptions import TimeoutReachedException
 from game.models.offer import GameOfferEventPublic
 from game.models.main import Game, GamePublic, GenericEventList
+from game.models.rollback import GameRollbackEventPublic
 from game.models.time_control import GameFischerTimeControlPublic
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic, GameTimeUpdateReason
 from game.methods.get import get_ply_history, get_latest_time_update
@@ -33,7 +34,7 @@ async def collect_game_events(
     for rollback_event in game.rollback_events:
         events.append(rollback_event.to_public())
 
-    return sorted(events, key=lambda x: x.occurred_at)
+    return sorted(events, key=lambda x: x.occurred_at + timedelta(microseconds=1 if isinstance(x, GameRollbackEventPublic) else 0))
 
 
 async def to_public_game(
@@ -85,9 +86,13 @@ async def construct_new_ply_time_update(
     if not latest_time_update:
         return None
 
-    new_time_update = latest_time_update.model_copy()
-    new_time_update.reason = GameTimeUpdateReason.PLY
-    new_time_update.updated_at = ply_dt
+    new_time_update = GameTimeUpdate(
+        updated_at=ply_dt,
+        white_ms=latest_time_update.white_ms,
+        black_ms=latest_time_update.black_ms,
+        ticking_side=color_to_move if new_ply_index >= 1 else None,
+        reason=GameTimeUpdateReason.PLY
+    )
 
     if latest_time_update.ticking_side:
         ms_passed = int((ply_dt - latest_time_update.updated_at).total_seconds() * 1000)
@@ -101,7 +106,5 @@ async def construct_new_ply_time_update(
         if remaining_time <= -timeout_grace_ms:
             timed_out_at = ply_dt + timedelta(milliseconds=remaining_time)
             raise TimeoutReachedException(winner=latest_time_update.ticking_side.opposite(), reached_at=timed_out_at)
-
-    new_time_update.ticking_side = color_to_move if new_ply_index >= 1 else None
 
     return new_time_update

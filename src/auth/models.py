@@ -1,5 +1,5 @@
 from pydantic import Field as PydanticField
-from sqlalchemy import CHAR, Column
+from sqlalchemy import CHAR, Column, LargeBinary
 from sqlmodel import Field
 from common.field_types import CurrentDatetime, PlayerLogin
 from utils.custom_model import CustomModel, CustomSQLModel
@@ -23,8 +23,8 @@ class GuestTokenResponse(CustomModel):
 class PlayerPassword(CustomSQLModel, table=True):
     login: str = Field(primary_key=True, foreign_key="player.login")
     created_at: CurrentDatetime
-    salt: str = Field(sa_column=Column(CHAR(6)))
-    password_hash: str = Field(sa_column=Column(CHAR(32)))
+    password_hash: bytes = Field(sa_column=Column(LargeBinary))
+    normal_md5: str | None = None
 
 
 class PlayerPasswordUpdate(CustomModel):

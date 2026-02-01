@@ -12,7 +12,7 @@ from game.models.chat import GameChatMessageEvent, GameSendChatMessagePayload
 from game.models.main import Game, GamePublic
 from game.models.rest.common import GameFilter
 from game.models.time_added import GameAddTimePayload, GameTimeAddedEvent
-from game.models.time_update import GameTimeUpdateReason
+from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from net.base_router import LoggingRoute
 from net.sub_storage import SubscriberTag
 from pubsub.models.channel import GameEventChannel
@@ -89,7 +89,7 @@ async def send_chat_message(
 
     db_event = GameChatMessageEvent(
         author_ref=client.reference,
-        text=payload.text[:500],
+        text=payload.text[:255],
         game_id=payload.game_id,
         spectator=is_spectator
     )
@@ -139,9 +139,13 @@ async def add_time(
     secs_added = main_config.rules.secs_added_manually
     ms_added = secs_added * 1000
 
-    appended_time_update = latest_time_update.model_copy()
-    appended_time_update.updated_at = addition_dt
-    appended_time_update.reason = GameTimeUpdateReason.TIME_ADDED
+    appended_time_update = GameTimeUpdate(
+        updated_at=addition_dt,
+        white_ms=latest_time_update.white_ms,
+        black_ms=latest_time_update.black_ms,
+        ticking_side=latest_time_update.ticking_side,
+        reason=GameTimeUpdateReason.TIME_ADDED
+    )
     if receiver == PieceColor.WHITE:
         appended_time_update.white_ms += ms_added
     else:

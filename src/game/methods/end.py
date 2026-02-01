@@ -106,7 +106,8 @@ async def end_game(
                     time_control_kind=db_game.time_control_kind,
                     elo=new_elo,
                     delta=delta,
-                    causing_game_id=game_id
+                    causing_game_id=game_id,
+                    ranked_games_played=prior_games + 1
                 ))
 
                 raw_elo_updates[color] = GameEndedEloUpdate(new_value=new_elo, delta=delta)

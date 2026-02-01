@@ -17,6 +17,7 @@ class OutcomeKind(StrEnum):
     TIMEOUT = auto()
     RESIGN = auto()
     ABANDON = auto()
+    CHEATING_ABORT = auto()
     DRAW_AGREEMENT = auto()
     REPETITION = auto()
     NO_PROGRESS = auto()

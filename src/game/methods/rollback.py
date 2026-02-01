@@ -11,7 +11,7 @@ from game.methods.timeout import plan_timeout_check
 from game.models.main import Game
 from game.models.ply import GamePlyEvent
 from game.models.rollback import GameRollbackEvent
-from game.models.time_update import GameTimeUpdateReason
+from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from net.core import MutableState
 from board.constants.sip import DEFAULT_STARTING_SIP
 from board.deserializers.sip import color_to_move_from_sip
@@ -105,11 +105,13 @@ async def perform_rollback(
         current_sip = db_game.custom_starting_sip or DEFAULT_STARTING_SIP
 
     if time_update:
-        time_update = time_update.model_copy()
-        time_update.updated_at = rollback_dt
-        time_update.reason = GameTimeUpdateReason.ROLLBACK
-        time_update.ticking_side = validation_results.requested_by if validation_results.new_ply_cnt >= 2 else None
-        session.add(time_update)
+        time_update = GameTimeUpdate(
+            updated_at=rollback_dt,
+            white_ms=time_update.white_ms,
+            black_ms=time_update.black_ms,
+            ticking_side=validation_results.requested_by if validation_results.new_ply_cnt >= 2 else None,
+            reason=GameTimeUpdateReason.ROLLBACK
+        )
 
     event = GameRollbackEvent(
         occurred_at=rollback_dt,

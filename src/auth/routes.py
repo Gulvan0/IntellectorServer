@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from hashlib import md5
 from secrets import token_hex
 from fastapi import APIRouter, HTTPException
 from fastapi.routing import APIRoute
@@ -36,8 +37,20 @@ async def signin(*, credentials: AuthCredentials, session: SessionDependency, st
     password_data = await session.get(PlayerPassword, login)
     if not password_data:
         raise HTTPException(status_code=404, detail="User not found")
-    if password_data.password_hash != bcrypt.hashpw(credentials.password, password_data.salt):
+
+    pwd_bytes = credentials.password.encode()
+    if password_data.normal_md5:
+        if md5(pwd_bytes).hexdigest() != password_data.normal_md5:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        password_data.created_at = datetime.now(UTC)
+        password_data.password_hash = bcrypt.hashpw(pwd_bytes, bcrypt.gensalt())
+        password_data.normal_md5 = None
+        session.add(password_data)
+        await session.commit()
+    elif not bcrypt.checkpw(pwd_bytes, password_data.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
     token = token_hex()
     state.add_logged(token, login)
     return TokenResponse(token=token)
@@ -58,11 +71,9 @@ async def register(*, credentials: AuthCredentials, session: SessionDependency, 
         commit=False
     )
 
-    salt = bcrypt.gensalt()
     password = PlayerPassword(
         login=login,
-        salt=salt,
-        password_hash=bcrypt.hashpw(credentials.password, salt)
+        password_hash=bcrypt.hashpw(credentials.password.encode(), bcrypt.gensalt())
     )
     session.add(password)
     await session.commit()
@@ -87,9 +98,8 @@ async def update_password(
     if not password_data:
         raise HTTPException(status_code=404, detail="User not found")
 
-    salt = bcrypt.gensalt()
     password_data.created_at = datetime.now(UTC)
-    password_data.salt = salt
-    password_data.password_hash = bcrypt.hashpw(payload.password, salt)
+    password_data.normal_md5 = None
+    password_data.password_hash = bcrypt.hashpw(payload.password.encode(), bcrypt.gensalt())
     session.add(password_data)
     await session.commit()

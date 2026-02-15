@@ -51,7 +51,7 @@ async def create_open_challenge(
             session=session
         )
 
-    return ChallengeCreateResponse(result="created", challenge=public_challenge)
+    return ChallengeCreateResponse(result="CREATED", challenge=public_challenge)
 
 
 @supports_early_responses()
@@ -81,7 +81,7 @@ async def create_direct_challenge(
     event = IncomingChallengeReceived(public_challenge, IncomingChallengesEventChannel(user_ref=challenge.callee_ref))
     await state.ws_subscribers.broadcast(event)
 
-    return ChallengeCreateResponse(result="created", challenge=public_challenge, callee_online=callee_online)
+    return ChallengeCreateResponse(result="CREATED", challenge=public_challenge, callee_online=callee_online)
 
 
 @router.get("/public", response_model=list[ChallengePublic])
@@ -107,9 +107,9 @@ async def get_my_direct_challenges(*, session: SessionDependency, client: Mandat
     ]
 
 
-@router.get("/{id}", response_model=ChallengePublic)
-async def get_challenge(*, session: SessionDependency, id: int) -> ChallengePublic:
-    db_challenge = await session.get(Challenge, id)
+@router.get("/{challenge_id}", response_model=ChallengePublic)
+async def get_challenge(*, session: SessionDependency, challenge_id: int) -> ChallengePublic:
+    db_challenge = await session.get(Challenge, challenge_id)
 
     if not db_challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
@@ -117,7 +117,7 @@ async def get_challenge(*, session: SessionDependency, id: int) -> ChallengePubl
     return await to_public_challenge(session, db_challenge)
 
 
-@router.delete("/{id}")
+@router.delete("/{challenge_id}")
 async def cancel_challenge(
     *,
     challenge_id: int,
@@ -142,7 +142,7 @@ async def cancel_challenge(
     await session.commit()
 
 
-@router.post("/{id}/accept", response_model=GamePublic)
+@router.post("/{challenge_id}/accept", response_model=GamePublic)
 async def accept_challenge(
     *,
     challenge_id: int,
@@ -171,7 +171,7 @@ async def accept_challenge(
     return db_game
 
 
-@router.post("/{id}/decline")
+@router.post("/{challenge_id}/decline")
 async def decline_challenge(
     *,
     challenge_id: int,

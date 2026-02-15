@@ -101,7 +101,7 @@ class ChallengePublic(ChallengeBase):
 
 
 class ChallengeCreateResponse(CustomModel):
-    result: Literal["created", "merged"]
+    result: Literal["CREATED", "MERGED"]
     challenge: ChallengePublic | None = None
     callee_online: bool | None = None
     game: GamePublic | None = None

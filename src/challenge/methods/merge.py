@@ -18,5 +18,5 @@ async def try_merging(
     mergeable_challenge = await get_mergeable_challenge(session, caller, challenge)
     if mergeable_challenge:
         game = await create_internal_game(mergeable_challenge, caller, session, state, secret_config)
-        response = ChallengeCreateResponse(result="merged", game=game)
+        response = ChallengeCreateResponse(result="MERGED", game=game)
         raise EarlyResponse(status_code=200, body=response)

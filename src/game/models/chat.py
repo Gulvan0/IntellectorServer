@@ -1,8 +1,9 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from sqlmodel import Field, Relationship
 
 from common.field_types import CurrentDatetime, PlayerRef
 from common.models import UserRefWithNickname
+from game.datatypes import EventKind
 from player.methods import get_user_ref_with_nickname
 from utils.async_orm_session import AsyncSession
 from utils.custom_model import CustomModel, CustomSQLModel
@@ -44,6 +45,7 @@ class GameChatMessageEvent(GameChatMessageEventBase, table=True):
 
 
 class GameChatMessageEventPublic(GameChatMessageEventBase):
+    event_kind: Literal[EventKind.CHAT_MESSAGE] = EventKind.CHAT_MESSAGE
     author: UserRefWithNickname
 
 

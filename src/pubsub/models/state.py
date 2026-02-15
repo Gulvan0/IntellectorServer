@@ -22,7 +22,7 @@ class StartedPlayerGamesStateRefresh(CustomModel):
 
 class GameStateRefresh(CustomModel):
     game_id: int
-    refresh_reason: Literal['sub', 'invalid_move']
+    refresh_reason: Literal['SUB', 'INVALID_MOVE']
     outcome: GameOutcomePublic | None
     events: GenericEventList
     latest_time_update: GameTimeUpdatePublic | None

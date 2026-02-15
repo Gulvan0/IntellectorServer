@@ -1,8 +1,9 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
 from common.field_types import CurrentDatetime
+from game.datatypes import EventKind
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from utils.custom_model import CustomModel, CustomSQLModel
 
@@ -45,6 +46,7 @@ class GameTimeAddedEvent(GameTimeAddedEventBase, table=True):
 
 
 class GameTimeAddedEventPublic(GameTimeAddedEventBase):
+    event_kind: Literal[EventKind.TIME_ADDED] = EventKind.TIME_ADDED
     time_update: GameTimeUpdatePublic
 
 

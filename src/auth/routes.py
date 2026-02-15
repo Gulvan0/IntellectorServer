@@ -24,7 +24,7 @@ if os.getenv("STAGE", "").lower() == "test":  # To prevent password leakage
 router = APIRouter(prefix="/auth", route_class=route_class)
 
 
-@router.post("/guest", response_model=GuestTokenResponse)
+@router.get("/guest", response_model=GuestTokenResponse)
 async def guest(state: MutableStateDependency) -> GuestTokenResponse:
     token = token_hex()
     guest_id = state.add_guest(token)

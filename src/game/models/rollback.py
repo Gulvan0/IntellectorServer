@@ -1,8 +1,9 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
 from common.field_types import CurrentDatetime, Sip
+from game.datatypes import EventKind
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from utils.custom_model import CustomSQLModel
 
@@ -49,6 +50,7 @@ class GameRollbackEvent(GameRollbackEventBase, table=True):
 
 
 class GameRollbackEventPublic(GameRollbackEventBase):
+    event_kind: Literal[EventKind.ROLLBACK] = EventKind.ROLLBACK
     time_update: GameTimeUpdatePublic | None
 
 

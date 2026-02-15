@@ -12,7 +12,7 @@ class ExternalGameCreatePayload(CustomModel):
     white_player_ref: PlayerRef
     black_player_ref: PlayerRef
     custom_starting_sip: OptionalSip
-    time_control: GameFischerTimeControlCreate
+    time_control: GameFischerTimeControlCreate | None = None
 
 
 class ExternalGameAppendPlyPayload(CustomModel):
@@ -36,7 +36,7 @@ class ExternalGameEndPayload(CustomModel):
     winner: PieceColor | None = None
 
     @model_validator(mode='after')
-    def check_passwords_match(self) -> Self:
+    def check_winner_presense_matches_outcome_kind(self) -> Self:
         if self.outcome_kind.drawish:
             if self.winner:
                 raise ValueError("This outcome kind cannot have a winner")

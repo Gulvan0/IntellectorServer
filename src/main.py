@@ -34,6 +34,7 @@ async def run_server() -> None:
     ssl_config = app.secret_config.ssl
     config = Config(
         app,
+        host="0.0.0.0",
         ssl_keyfile=ssl_config.key_path if ssl_config else None,
         ssl_certfile=ssl_config.cert_path if ssl_config else None
     )

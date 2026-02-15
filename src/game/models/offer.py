@@ -1,9 +1,9 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
 from common.field_types import CurrentDatetime
-from game.datatypes import OfferAction, OfferKind
+from game.datatypes import EventKind, OfferAction, OfferKind
 from utils.custom_model import CustomSQLModel
 
 
@@ -29,7 +29,7 @@ class GameOfferEvent(GameOfferEventBase, table=True):
 
 
 class GameOfferEventPublic(GameOfferEventBase):
-    pass
+    event_kind: Literal[EventKind.OFFER] = EventKind.OFFER
 
 
 class OfferActionBroadcastedData(GameOfferEventBase):

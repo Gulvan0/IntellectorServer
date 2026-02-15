@@ -49,3 +49,11 @@ class OfferAction(StrEnum):
 class OverallGameCounts:
     by_time_control: dict[TimeControlKind, int] = field(default_factory=dict)
     total: int = 0
+
+
+class EventKind(StrEnum):
+    PLY = auto()
+    CHAT_MESSAGE = auto()
+    OFFER = auto()
+    TIME_ADDED = auto()
+    ROLLBACK = auto()

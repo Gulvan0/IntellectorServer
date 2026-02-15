@@ -1,8 +1,9 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor, PieceKind
 from common.field_types import CurrentDatetime, Sip
+from game.datatypes import EventKind
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from board.ply import PlyKind
 from utils.custom_model import CustomSQLModel
@@ -65,6 +66,7 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
 
 
 class GamePlyEventPublic(GamePlyEventBase):
+    event_kind: Literal[EventKind.PLY] = EventKind.PLY
     time_update: GameTimeUpdatePublic | None
     is_cancelled: bool = False
 

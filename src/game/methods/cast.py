@@ -62,7 +62,7 @@ async def compose_state_refresh(
     session: AsyncSession,
     game_id: int,
     game: Game,
-    reason: Literal['sub', 'invalid_move'],
+    reason: Literal['SUB', 'INVALID_MOVE'],
     include_spectator_messages: bool
 ) -> GameStateRefresh:
     return GameStateRefresh(

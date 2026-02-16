@@ -1,5 +1,5 @@
 from typing import Any
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Response
 
 from challenge.methods.update import cancel_all_challenges
 from game.methods.get import get_ongoing_finite_game

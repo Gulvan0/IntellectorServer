@@ -22,7 +22,7 @@ from pubsub.outgoing_event.update import NewChatMessage
 router = APIRouter(prefix="/game", route_class=LoggingRoute)
 
 
-@router.get("/current", response_model=list[GamePublic])
+@router.post("/current", response_model=list[GamePublic])
 async def get_current_games_route(
     *,
     session: SessionDependency,
@@ -36,7 +36,7 @@ async def get_current_games_route(
     ]
 
 
-@router.get("/recent", response_model=list[GamePublic])
+@router.post("/recent", response_model=list[GamePublic])
 async def get_recent_games_route(
     *,
     session: SessionDependency,

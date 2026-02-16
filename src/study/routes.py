@@ -4,7 +4,7 @@ from sqlmodel import col, distinct, select
 
 from common.field_types import PlayerLogin
 from net.base_router import LoggingRoute
-from study.models import Study, StudyCreate, StudyPublic, StudyTag, StudyUpdate
+from study.models import ListStudiesPayload, Study, StudyCreate, StudyPublic, StudyTag, StudyUpdate
 from study.datatypes import StudyPublicity
 from common.dependencies import OptionalPlayerLoginDependency, SessionDependency, MandatoryPlayerLoginDependency
 
@@ -23,25 +23,24 @@ async def create_study(*, session: SessionDependency, client_login: MandatoryPla
     return await db_study.to_public(session)
 
 
-@router.get("/list", response_model=list[StudyPublic])
+@router.post("/list", response_model=list[StudyPublic])
 async def list_studies(
     *,
     session: SessionDependency,
-    author_login: PlayerLogin | None = None,
-    tags: list[str] | None = None,
+    payload: ListStudiesPayload,
     offset: int = 0,
     limit: int = Query(default=10, le=50)
 ) -> list[StudyPublic]:
     query = select(Study)
 
-    if author_login is not None:
-        query = query.where(Study.author_login == author_login)
+    if payload.author_login is not None:
+        query = query.where(Study.author_login == payload.author_login)
         query = query.where(col(Study.publicity).in_([StudyPublicity.PUBLIC, StudyPublicity.PROFILE_AND_LINK_ONLY]))
     else:
         query = query.where(Study.publicity == StudyPublicity.PUBLIC)
 
-    if tags:
-        fitting_ids = select(distinct(StudyTag.study_id)).where(col(StudyTag.tag).in_(tags))
+    if payload.tags:
+        fitting_ids = select(distinct(StudyTag.study_id)).where(col(StudyTag.tag).in_(payload.tags))
         query = query.where(col(Study.id).in_(fitting_ids))
 
     query = query.offset(offset).limit(limit)

@@ -4,7 +4,7 @@ from sqlmodel import Field, Relationship
 
 from common.models import UserRefWithNickname
 from board.piece import PieceKind
-from common.field_types import CurrentDatetime, Sip
+from common.field_types import CurrentDatetime, PlayerLogin, Sip
 from player.methods import get_user_ref_with_nickname
 from player.models import Player
 from study.datatypes import StudyPublicity
@@ -164,3 +164,8 @@ class StudyPublic(StudyBase):
     deleted: bool
     tags: list[StudyTagPublic]
     nodes: list[StudyVariationNodePublic]
+
+
+class ListStudiesPayload(CustomModel):
+    author_login: PlayerLogin | None = None,
+    tags: list[str] | None = None

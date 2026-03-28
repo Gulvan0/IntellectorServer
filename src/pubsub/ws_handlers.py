@@ -83,7 +83,7 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
                         tags.add(SubscriberTag.BLACK_PLAYER)
                         is_spectator = False
 
-                await compose_state_refresh(session, game_id, db_game, 'sub', include_spectator_messages=is_spectator)
+                await compose_state_refresh(session, game_id, db_game, 'SUB', include_spectator_messages=is_spectator)
             case StartedPlayerGamesEventChannel(watched_ref=watched_ref):
                 db_games = await get_current_games(session, GameFilter(player_ref=watched_ref))
                 games = [await to_public_game(session, db_game) for db_game in db_games]

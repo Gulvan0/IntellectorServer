@@ -66,7 +66,6 @@ async def compose_state_refresh(
     include_spectator_messages: bool
 ) -> GameStateRefresh:
     return GameStateRefresh(
-        game_id=game_id,
         refresh_reason=reason,
         outcome=game.outcome.to_public() if game.outcome else None,
         events=await collect_game_events(session, game_id, game, include_spectator_messages),

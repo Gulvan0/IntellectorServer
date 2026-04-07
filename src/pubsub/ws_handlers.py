@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 from challenge.methods.cast import to_public_challenge
 from challenge.methods.get import get_active_public_challenges, get_direct_challenges
@@ -21,9 +22,17 @@ from pubsub.models.channel import (
     SubscriberListEventChannel,
 )
 from pubsub.models.other import SubUnsubPayload
-from pubsub.models.state import ChallengeListStateRefresh, GameListChannelsStateRefresh, SubscriberListChannelStateRefresh
-from pubsub.outgoing_event.base import OutgoingEvent
-from pubsub.outgoing_event.refresh import GameListRefresh, IncomingChallengesRefresh, OutgoingChallengesRefresh, PublicChallengeListRefresh, SubscriberListRefresh
+from pubsub.models.state import ChallengeListStateRefresh, GameListChannelsStateRefresh, StartedPlayerGamesStateRefresh, SubscriberListChannelStateRefresh
+from pubsub.outgoing_event.base import RefreshEvent
+from pubsub.outgoing_event.refresh import (
+    GameListRefresh,
+    GameRefresh,
+    IncomingChallengesRefresh,
+    OutgoingChallengesRefresh,
+    PublicChallengeListRefresh,
+    StartedPlayerGamesRefresh,
+    SubscriberListRefresh,
+)
 from pubsub.outgoing_event.update import NewSubscriber, SubscriberLeft
 
 
@@ -39,15 +48,17 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
         match payload.channel:
             case PublicChallengeListEventChannel():
                 public_challenges = await get_active_public_challenges(session)
-                refresh_event: OutgoingEvent[Any, Any] = PublicChallengeListRefresh(ChallengeListStateRefresh(
-                    challenges=public_challenges
-                ))
+                refresh_event: RefreshEvent[Any, Any] = PublicChallengeListRefresh(
+                    payload=ChallengeListStateRefresh(challenges=public_challenges),
+                    target_channel=payload.channel
+                )
             case GameListEventChannel():
                 db_games = await get_current_games(session)
-                games = [await to_public_game(session, db_game) for db_game in db_games]
-                refresh_event = GameListRefresh(GameListChannelsStateRefresh(
-                    games=games
-                ))
+                games = await asyncio.gather(*(to_public_game(session, db_game) for db_game in db_games))
+                refresh_event = GameListRefresh(
+                    payload=GameListChannelsStateRefresh(games=games),
+                    target_channel=payload.channel
+                )
             case IncomingChallengesEventChannel(user_ref=user_ref):
                 if not client or client.reference != user_ref:
                     raise WebSocketException("Forbidden. Make sure you're authorized as a player whose incoming challenges you want to subscribe to")
@@ -57,18 +68,20 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
                     timer.cancel()
 
                 db_challenges = await get_direct_challenges(session, client, include_outgoing=False)
-                incoming_challenges = [await to_public_challenge(session, db_challenge) for db_challenge in db_challenges]
-                refresh_event = IncomingChallengesRefresh(ChallengeListStateRefresh(
-                    challenges=incoming_challenges
-                ))
+                incoming_challenges = await asyncio.gather(*(to_public_challenge(session, db_challenge) for db_challenge in db_challenges))
+                refresh_event = IncomingChallengesRefresh(
+                    payload=ChallengeListStateRefresh(challenges=incoming_challenges),
+                    target_channel=payload.channel
+                )
             case OutgoingChallengesEventChannel(user_ref=user_ref):
                 if not client or client.reference != user_ref:
                     raise WebSocketException("Forbidden. Make sure you're authorized as a player whose outgoing challenges you want to subscribe to")
                 db_challenges = await get_direct_challenges(session, client, include_incoming=False)
-                incoming_challenges = [await to_public_challenge(session, db_challenge) for db_challenge in db_challenges]
-                refresh_event = OutgoingChallengesRefresh(ChallengeListStateRefresh(
-                    challenges=incoming_challenges
-                ))
+                incoming_challenges = await asyncio.gather(*(to_public_challenge(session, db_challenge) for db_challenge in db_challenges))
+                refresh_event = OutgoingChallengesRefresh(
+                    payload=ChallengeListStateRefresh(challenges=incoming_challenges),
+                    target_channel=payload.channel
+                )
             case GameEventChannel(game_id=game_id):
                 db_game = await session.get(Game, game_id)
                 if not db_game:
@@ -83,13 +96,18 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
                         tags.add(SubscriberTag.BLACK_PLAYER)
                         is_spectator = False
 
-                await compose_state_refresh(session, game_id, db_game, 'SUB', include_spectator_messages=is_spectator)
+                actual_state = await compose_state_refresh(session, game_id, db_game, 'SUB', include_spectator_messages=is_spectator)
+                refresh_event = GameRefresh(
+                    payload=actual_state,
+                    target_channel=payload.channel
+                )
             case StartedPlayerGamesEventChannel(watched_ref=watched_ref):
                 db_games = await get_current_games(session, GameFilter(player_ref=watched_ref))
-                games = [await to_public_game(session, db_game) for db_game in db_games]
-                refresh_event = GameListRefresh(GameListChannelsStateRefresh(
-                    games=games
-                ))
+                games = await asyncio.gather(*(to_public_game(session, db_game) for db_game in db_games))
+                refresh_event = StartedPlayerGamesRefresh(
+                    payload=StartedPlayerGamesStateRefresh(current_games=games),
+                    target_channel=payload.channel
+                )
             case SubscriberListEventChannel(channel=channel):
                 subscribers = set()
                 unauthenticated_subs_count = 0
@@ -101,10 +119,13 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
                     else:
                         unauthenticated_subs_count += 1
 
-                refresh_event = SubscriberListRefresh(SubscriberListChannelStateRefresh(
-                    subscribers=list(subscribers),
-                    unauthenticated_subs_count=unauthenticated_subs_count
-                ))
+                refresh_event = SubscriberListRefresh(
+                    payload=SubscriberListChannelStateRefresh(
+                        subscribers=list(subscribers),
+                        unauthenticated_subs_count=unauthenticated_subs_count
+                    ),
+                    target_channel=payload.channel
+                )
 
         perform_actual_subscription = not sub_storage.has_ws_subscriber(ws, payload.channel)
         if perform_actual_subscription:

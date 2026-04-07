@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import col, distinct, select
@@ -45,7 +46,7 @@ async def list_studies(
 
     query = query.offset(offset).limit(limit)
     result = await session.exec(query)
-    return [await db_study.to_public(session) for db_study in result]
+    return await asyncio.gather(*(db_study.to_public(session) for db_study in result))
 
 
 @router.get("/{study_id}", response_model=StudyPublic)

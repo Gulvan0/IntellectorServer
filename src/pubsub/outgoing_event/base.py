@@ -11,7 +11,7 @@ from utils.string import camel_to_snake
 
 
 @dataclass
-class OutgoingEvent[PayloadType: BaseModel | None, TargetChannelType: EventChannel | None]:
+class OutgoingEvent[PayloadType: BaseModel | None, TargetChannelType: EventChannel]:
     payload: PayloadType
     target_channel: TargetChannelType
 
@@ -87,10 +87,7 @@ class OutgoingEvent[PayloadType: BaseModel | None, TargetChannelType: EventChann
         )
 
 
-class RefreshEvent[PayloadType: BaseModel, RefreshedChannelType: EventChannel](OutgoingEvent[PayloadType, None]):
-    def __init__(self, payload: PayloadType) -> None:
-        super().__init__(payload, None)
-
+class RefreshEvent[PayloadType: BaseModel, RefreshedChannelType: EventChannel](OutgoingEvent[PayloadType, RefreshedChannelType]):
     @classmethod
     def name(cls) -> str:
         refreshed_channel: type[RefreshedChannelType] = cls._type_variables()[1]

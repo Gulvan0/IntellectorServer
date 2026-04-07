@@ -16,12 +16,10 @@ class GameListChannelsStateRefresh(CustomModel):
 
 
 class StartedPlayerGamesStateRefresh(CustomModel):
-    player_ref: str
     current_games: list[GamePublic]
 
 
 class GameStateRefresh(CustomModel):
-    game_id: int
     refresh_reason: Literal['SUB', 'INVALID_MOVE']
     outcome: GameOutcomePublic | None
     events: GenericEventList

@@ -7,6 +7,7 @@ from game.models.rollback import GameRollbackEvent
 from game.models.time_added import GameTimeAddedEvent
 from net.core import MutableState
 from net.sub_storage import SubscriberTag
+from player.methods import resolve_player_refs
 from pubsub.models.channel import GameEventChannel
 from pubsub.outgoing_event.base import OutgoingEvent
 from pubsub.outgoing_event.update import NewChatMessage, NewPly, OfferActionPerformed, Rollback, TimeAdded
@@ -24,6 +25,7 @@ async def append_event(
     session.add(event)
     if commit:
         await session.commit()
+        await session.refresh(event)
 
     target_channel = GameEventChannel(game_id=game_id)
     tag_blacklist = set()
@@ -32,7 +34,8 @@ async def append_event(
             ws_event: OutgoingEvent[Any, Any] = NewPly(event.to_broadcasted_data(), target_channel)
             tag_blacklist.add(SubscriberTag.WHITE_PLAYER if event.moving_color == PieceColor.WHITE else SubscriberTag.BLACK_PLAYER)
         case GameChatMessageEvent():
-            ws_event = NewChatMessage(await event.to_broadcasted_data(session), target_channel)
+            resolved_refs = await resolve_player_refs({event.author_ref}, session)
+            ws_event = NewChatMessage(event.to_broadcasted_data(resolved_refs), target_channel)
         case GameOfferEvent():
             ws_event = OfferActionPerformed(event.to_broadcasted_data(), target_channel)
         case GameTimeAddedEvent():
@@ -75,6 +78,7 @@ async def append_rollback_event(
     session.add(event)
     if commit:
         await session.commit()
+        await session.refresh(event)
 
     ws_event = Rollback(event.to_broadcasted_data(updated_sip), GameEventChannel(game_id=game_id))
     await mutable_state.ws_subscribers.broadcast(ws_event)

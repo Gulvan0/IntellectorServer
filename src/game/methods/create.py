@@ -83,6 +83,8 @@ async def create_game(
 
     await session.commit()
 
+    await session.refresh(db_game)
+
     collected_refs = db_game.collect_refs(include_nested=False)
     resolved_refs = await resolve_player_refs(collected_refs, session)
     summary = db_game.to_summary_as_new(resolved_refs, db_time_control)

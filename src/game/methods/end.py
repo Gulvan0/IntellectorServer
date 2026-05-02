@@ -117,6 +117,9 @@ async def end_game(
 
         elo_updates = GameEndedEloUpdates(white=raw_elo_updates[PieceColor.WHITE], black=raw_elo_updates[PieceColor.BLACK])
 
+    await session.refresh(db_outcome)
+    await session.refresh(db_game)
+
     await state.ws_subscribers.broadcast(GameEnded(
         db_outcome.to_broadcasted_data(elo_updates),
         GameEventChannel(game_id=game_id)

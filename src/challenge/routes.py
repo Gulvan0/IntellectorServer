@@ -38,6 +38,8 @@ async def create_open_challenge(
     session.add(db_challenge)
     await session.commit()
 
+    await session.refresh(db_challenge)
+
     collected_refs = db_challenge.collect_refs(include_nested=False)
     resolved_refs = await resolve_player_refs(collected_refs, session)
     public_challenge = db_challenge.to_public_as_fresh(
@@ -79,6 +81,8 @@ async def create_direct_challenge(
     db_challenge = challenge.to_db_challenge(caller.reference)
     session.add(db_challenge)
     await session.commit()
+
+    await session.refresh(db_challenge)
 
     collected_refs = db_challenge.collect_refs(include_nested=False)
     resolved_refs = await resolve_player_refs(collected_refs, session)
@@ -192,6 +196,8 @@ async def decline_challenge(
     if db_challenge.callee_ref != client.reference:
         raise HTTPException(status_code=403, detail="You are not the recepient of this challenge")
 
+    caller_ref = db_challenge.caller_ref  # eager
+
     db_challenge.active = False
     session.add(db_challenge)
 
@@ -203,5 +209,5 @@ async def decline_challenge(
 
     await session.commit()
 
-    event = OutgoingChallengeRejected(Id(id=challenge_id), OutgoingChallengesEventChannel(user_ref=db_challenge.caller_ref))
+    event = OutgoingChallengeRejected(Id(id=challenge_id), OutgoingChallengesEventChannel(user_ref=caller_ref))
     await state.ws_subscribers.broadcast(event)

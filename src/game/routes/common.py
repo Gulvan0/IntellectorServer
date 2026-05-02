@@ -92,6 +92,7 @@ async def send_chat_message(
     )
     session.add(db_event)
     await session.commit()
+    await session.refresh(db_event)
 
     event = NewChatMessage(await db_event.to_broadcasted_data(session), GameEventChannel(game_id=payload.game_id))
     tag_blacklist = set()

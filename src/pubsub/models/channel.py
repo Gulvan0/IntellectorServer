@@ -14,9 +14,9 @@ class PublicChallengeListEventChannel(CustomFrozenModel, frozen=True):
     channel_group: Literal['public_challenge_list'] = 'public_challenge_list'
 
 
-class GameListEventChannel(CustomFrozenModel, frozen=True):
-    group: ClassVar[str] = 'game_list'
-    channel_group: Literal['game_list'] = 'game_list'
+class CurrentGameListEventChannel(CustomFrozenModel, frozen=True):
+    group: ClassVar[str] = 'current_game_list'
+    channel_group: Literal['current_game_list'] = 'current_game_list'
 
 
 class IncomingChallengesEventChannel(CustomFrozenModel, frozen=True):
@@ -54,7 +54,7 @@ class SubscriberListEventChannel(CustomFrozenModel, frozen=True):
     channel: Union[
         EveryoneEventChannel,
         PublicChallengeListEventChannel,
-        GameListEventChannel,
+        CurrentGameListEventChannel,
         IncomingChallengesEventChannel,
         OutgoingChallengesEventChannel,
         GameEventChannel,
@@ -64,7 +64,7 @@ class SubscriberListEventChannel(CustomFrozenModel, frozen=True):
 
 type SubEligibleEventChannel = Union[
     PublicChallengeListEventChannel,
-    GameListEventChannel,
+    CurrentGameListEventChannel,
     IncomingChallengesEventChannel,
     OutgoingChallengesEventChannel,
     GameEventChannel,

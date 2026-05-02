@@ -9,9 +9,9 @@ from game.models.outcome import GameEndedEloUpdate, GameEndedEloUpdates, GameOut
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from net.core import MutableState
 from notification.methods import delete_game_started_notifications
-from player.methods import get_stats_for_time_control, resolve_player_refs
+from player.methods import get_ranked_game_stats_for_time_control, resolve_player_refs
 from player.models import PlayerEloProgress
-from pubsub.models.channel import GameEventChannel, GameListEventChannel
+from pubsub.models.channel import GameEventChannel, CurrentGameListEventChannel
 from pubsub.outgoing_event.update import GameEnded, NewRecentGame
 from board.piece import PieceColor
 from utils.async_orm_session import AsyncSession
@@ -73,7 +73,7 @@ async def end_game(
 
         if players[PieceColor.WHITE].is_player() and players[PieceColor.BLACK].is_player():
             old_stats = {
-                color: await get_stats_for_time_control(session, main_config, player_login.login, db_game.time_control_kind)
+                color: await get_ranked_game_stats_for_time_control(session, main_config, player_login.login, db_game.time_control_kind)
                 for color, player_login in players.items()
             }
 
@@ -87,7 +87,7 @@ async def end_game(
 
                 old_player_elo = old_stats[color].elo or 1200
                 old_opponent_elo = old_stats[color.opposite()].elo or 1200
-                prior_games = old_stats[color].games_cnt
+                prior_games = old_stats[color].ranked_games_cnt
 
                 calibration_games_left = max(main_config.elo.calibration_games - prior_games, 0)
                 calibration_ratio = calibration_games_left / main_config.elo.calibration_games
@@ -129,7 +129,7 @@ async def end_game(
     resolved_refs = await resolve_player_refs(collected_refs, session)
     await state.ws_subscribers.broadcast(NewRecentGame(
         db_game.to_summary(resolved_refs),
-        GameListEventChannel()
+        CurrentGameListEventChannel()
     ))
 
     await delete_game_started_notifications(

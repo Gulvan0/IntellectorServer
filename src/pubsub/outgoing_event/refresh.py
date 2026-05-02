@@ -3,7 +3,7 @@ from common.samples import underscore_str, user_ref_with_nickname, user_ref_with
 from game.samples import game_state_refreshes, minimal_representative_games
 from pubsub.models.channel import (
     GameEventChannel,
-    GameListEventChannel,
+    CurrentGameListEventChannel,
     IncomingChallengesEventChannel,
     OutgoingChallengesEventChannel,
     PublicChallengeListEventChannel,
@@ -12,7 +12,7 @@ from pubsub.models.channel import (
 )
 from pubsub.models.state import (
     ChallengeListStateRefresh,
-    GameListChannelsStateRefresh,
+    CurrentGameListStateRefresh,
     GameStateRefresh,
     StartedPlayerGamesStateRefresh,
     SubscriberListChannelStateRefresh,
@@ -44,12 +44,12 @@ class PublicChallengeListRefresh(RefreshEvent[ChallengeListStateRefresh, PublicC
         ]
 
 
-class GameListRefresh(RefreshEvent[GameListChannelsStateRefresh, GameListEventChannel]):
+class CurrentGameListRefresh(RefreshEvent[CurrentGameListStateRefresh, CurrentGameListEventChannel]):
     @classmethod
-    def payload_examples(cls) -> list[GameListChannelsStateRefresh]:
+    def payload_examples(cls) -> list[CurrentGameListStateRefresh]:
         return [
-            GameListChannelsStateRefresh(games=minimal_representative_games(finished=False)),
-            GameListChannelsStateRefresh(games=[]),
+            CurrentGameListStateRefresh(games=minimal_representative_games(finished=False)),
+            CurrentGameListStateRefresh(games=[]),
         ]
 
 

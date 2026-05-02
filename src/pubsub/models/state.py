@@ -11,7 +11,7 @@ class ChallengeListStateRefresh(CustomModel):
     challenges: list[ChallengePublic]
 
 
-class GameListChannelsStateRefresh(CustomModel):
+class CurrentGameListStateRefresh(CustomModel):
     games: list[GameSummaryPublic]
 
 

@@ -11,7 +11,7 @@ from net.utils.ws_error import WebSocketException
 from player.methods import resolve_player_refs, resolve_player_ref, resolve_optional_player_ref
 from pubsub.models.channel import (
     GameEventChannel,
-    GameListEventChannel,
+    CurrentGameListEventChannel,
     IncomingChallengesEventChannel,
     OutgoingChallengesEventChannel,
     PublicChallengeListEventChannel,
@@ -20,10 +20,10 @@ from pubsub.models.channel import (
     SubscriberListEventChannel,
 )
 from pubsub.models.other import SubUnsubPayload
-from pubsub.models.state import ChallengeListStateRefresh, GameListChannelsStateRefresh, StartedPlayerGamesStateRefresh, SubscriberListChannelStateRefresh
+from pubsub.models.state import ChallengeListStateRefresh, CurrentGameListStateRefresh, StartedPlayerGamesStateRefresh, SubscriberListChannelStateRefresh
 from pubsub.outgoing_event.base import RefreshEvent
 from pubsub.outgoing_event.refresh import (
-    GameListRefresh,
+    CurrentGameListRefresh,
     GameRefresh,
     IncomingChallengesRefresh,
     OutgoingChallengesRefresh,
@@ -43,10 +43,10 @@ async def get_public_challenge_list_refresh(session: AsyncSession, channel: Publ
     )
 
 
-async def get_game_list_refresh(session: AsyncSession, channel: GameListEventChannel) -> GameListRefresh:
+async def get_game_list_refresh(session: AsyncSession, channel: CurrentGameListEventChannel) -> CurrentGameListRefresh:
     games = await get_current_games(session)
-    return GameListRefresh(
-        payload=GameListChannelsStateRefresh(games=games),
+    return CurrentGameListRefresh(
+        payload=CurrentGameListStateRefresh(games=games),
         target_channel=channel
     )
 
@@ -142,7 +142,7 @@ async def get_refresh(
     match channel:
         case PublicChallengeListEventChannel():
             return await get_public_challenge_list_refresh(session, channel)
-        case GameListEventChannel():
+        case CurrentGameListEventChannel():
             return await get_game_list_refresh(session, channel)
         case IncomingChallengesEventChannel():
             return await get_incoming_challenges_refresh(session, channel, client)

@@ -8,7 +8,7 @@ from config.models import SecretConfig
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from notification.methods import delete_new_public_challenge_notifications, send_game_started_notifications
 from player.methods import resolve_player_refs
-from pubsub.models.channel import GameListEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
+from pubsub.models.channel import CurrentGameListEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
 from game.models.main import Game, GameStartedBroadcastedData, GameSummaryPublic
 from game.models.time_control import GameFischerTimeControl
 from net.core import MutableState
@@ -93,7 +93,7 @@ async def create_game(
         game_started_event = GameStarted(summary, StartedPlayerGamesEventChannel(watched_ref=player_ref))
         await state.ws_subscribers.broadcast(game_started_event)
 
-    new_game_event = NewActiveGame(GameStartedBroadcastedData.cast(summary), GameListEventChannel())
+    new_game_event = NewActiveGame(GameStartedBroadcastedData.cast(summary), CurrentGameListEventChannel())
     await state.ws_subscribers.broadcast(new_game_event)
 
     return summary

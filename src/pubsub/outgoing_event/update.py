@@ -23,7 +23,7 @@ from game.samples import (
 from pubsub.models.channel import (
     EveryoneEventChannel,
     GameEventChannel,
-    GameListEventChannel,
+    CurrentGameListEventChannel,
     IncomingChallengesEventChannel,
     OutgoingChallengesEventChannel,
     PublicChallengeListEventChannel,
@@ -86,7 +86,7 @@ class PublicChallengesCancelledByServer(OutgoingEvent[IdList, PublicChallengeLis
         )
 
 
-class NewActiveGame(OutgoingEvent[GameStartedBroadcastedData, GameListEventChannel]):
+class NewActiveGame(OutgoingEvent[GameStartedBroadcastedData, CurrentGameListEventChannel]):
     @classmethod
     def title(cls) -> str:
         return "Game Started (for game lists watchers)"
@@ -100,7 +100,7 @@ class NewActiveGame(OutgoingEvent[GameStartedBroadcastedData, GameListEventChann
         return game_started_data_samples()
 
 
-class NewRecentGame(OutgoingEvent[GameSummaryPublic, GameListEventChannel]):
+class NewRecentGame(OutgoingEvent[GameSummaryPublic, CurrentGameListEventChannel]):
     @classmethod
     def title(cls) -> str:
         return "Game Ended (for game lists watchers)"

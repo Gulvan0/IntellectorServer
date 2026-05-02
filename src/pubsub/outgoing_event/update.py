@@ -4,7 +4,7 @@ from challenge.samples import incoming_challenges, minimal_representative_challe
 from common.models import Id, IdList, UserRefWithNickname
 from common.samples import user_ref_with_nickname
 from game.models.chat import ChatMessageBroadcastedData
-from game.models.main import GamePublic, GameStartedBroadcastedData
+from game.models.main import GameStartedBroadcastedData, GameSummaryPublic
 from game.models.offer import OfferActionBroadcastedData
 from game.models.outcome import GameEndedBroadcastedData
 from game.models.ply import PlyBroadcastedData
@@ -39,7 +39,7 @@ class ServerShutdown(OutgoingEvent[None, EveryoneEventChannel]):
         return "Broadcasted whenever the server starts preparing for the shutdown"
 
 
-class GameStarted(OutgoingEvent[GamePublic, StartedPlayerGamesEventChannel]):
+class GameStarted(OutgoingEvent[GameSummaryPublic, StartedPlayerGamesEventChannel]):
     @classmethod
     def title(cls) -> str:
         return "Game Started (for player's followers)"
@@ -49,8 +49,8 @@ class GameStarted(OutgoingEvent[GamePublic, StartedPlayerGamesEventChannel]):
         return "Broadcasted whenever a new game involving a player starts"
 
     @classmethod
-    def payload_examples(cls) -> list[GamePublic]:
-        return minimal_representative_games()
+    def payload_examples(cls) -> list[GameSummaryPublic]:
+        return minimal_representative_games(finished=False)
 
 
 class NewPublicChallenge(OutgoingEvent[ChallengePublic, PublicChallengeListEventChannel]):
@@ -100,7 +100,7 @@ class NewActiveGame(OutgoingEvent[GameStartedBroadcastedData, GameListEventChann
         return game_started_data_samples()
 
 
-class NewRecentGame(OutgoingEvent[GameEndedBroadcastedData, GameListEventChannel]):
+class NewRecentGame(OutgoingEvent[GameSummaryPublic, GameListEventChannel]):
     @classmethod
     def title(cls) -> str:
         return "Game Ended (for game lists watchers)"
@@ -110,8 +110,8 @@ class NewRecentGame(OutgoingEvent[GameEndedBroadcastedData, GameListEventChannel
         return "Broadcasted whenever a game ends"
 
     @classmethod
-    def payload_examples(cls) -> list[GameEndedBroadcastedData]:
-        return game_ended_data_samples()
+    def payload_examples(cls) -> list[GameSummaryPublic]:
+        return minimal_representative_games(finished=True)
 
 
 class IncomingChallengeReceived(OutgoingEvent[ChallengePublic, IncomingChallengesEventChannel]):

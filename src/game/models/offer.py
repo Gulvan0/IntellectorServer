@@ -33,4 +33,4 @@ class GameOfferEventPublic(GameOfferEventBase):
 
 
 class OfferActionBroadcastedData(GameOfferEventBase):
-    game_id: int
+    pass

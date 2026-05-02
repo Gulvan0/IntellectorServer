@@ -44,7 +44,7 @@ from config.models import MainConfig, SecretConfig
 from log.models import ServerLaunch
 from net.sub_storage import SubscriberStorage
 from config.loader import load
-from player.datatypes import UserStatus
+from common.models import UserActivity
 from utils.bijective_map import BijectiveMap
 from utils.async_orm_session import AsyncSession
 from net.ws_wrapper import WebSocketWrapper
@@ -80,8 +80,8 @@ class MutableState:
     def has_user_subscriber(self, user_ref: UserReference, channel: EventChannel = EveryoneEventChannel()) -> bool:
         return self.ws_subscribers.has_user_subscriber(self.token_to_user, user_ref, channel)
 
-    def get_user_status_in_channel(self, user_ref: UserReference, channel: EventChannel) -> UserStatus:
-        return self.ws_subscribers.get_user_status_in_channel(self.token_to_user, user_ref, channel)
+    def get_user_activity_in_channel(self, user_ref: UserReference, channel: EventChannel) -> UserActivity | None:
+        return self.ws_subscribers.get_user_activity_in_channel(self.token_to_user, user_ref, channel)
 
 
 class App(FastAPI):

@@ -5,12 +5,13 @@ from uuid import UUID, uuid4
 from fastapi import WebSocket
 from pydantic import BaseModel, ValidationError
 from typing import TYPE_CHECKING
+from common.datatypes import UserStatus
+from common.models import UserActivity
 from common.user_ref import UserReference
 from net.models import WebsocketWrapperDump
 from pubsub.models.channel import EventChannel
 from log.models import WSLog
 from net.utils.ws_error import ErrorKind
-from player.datatypes import UserStatus
 from pubsub.outgoing_event.base import OutgoingEvent
 from utils.async_orm_session import AsyncSession
 
@@ -38,7 +39,7 @@ class WebSocketWrapper:
         return WebsocketWrapperDump(
             last_activity=self.last_activity,
             last_message=self.last_message,
-            status=self.get_status(),
+            activity=self.get_activity_data(),
             saved_token=self.saved_token,
             saved_user_ref=self.get_user_ref(),
             tags=tags
@@ -80,10 +81,12 @@ class WebSocketWrapper:
     async def send_validation_error(self, error: ValidationError) -> None:
         await self.send_error(ErrorKind.VALIDATION_ERROR, error.errors())
 
-    def get_status(self) -> UserStatus:
+    def get_activity_data(self) -> UserActivity:
         now_ts = int(time.time())
         if now_ts - self.last_message > 60:  # 1 min
-            return UserStatus.OFFLINE
+            status = UserStatus.OFFLINE
         elif now_ts - self.last_activity > 300:  # 5 min
-            return UserStatus.AWAY
-        return UserStatus.ONLINE
+            status = UserStatus.AWAY
+        else:
+            status = UserStatus.ONLINE
+        return UserActivity(status=status, last_active_unixsecs=self.last_activity)

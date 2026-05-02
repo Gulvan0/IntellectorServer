@@ -5,11 +5,11 @@ from typing import DefaultDict, Iterable
 from uuid import UUID
 from pydantic import BaseModel
 
+from common.models import UserActivity
 from common.user_ref import UserReference
 from net.models import WebsocketWrapperDump
 from net.ws_wrapper import WebSocketWrapper
 from pubsub.models.channel import EventChannel, EveryoneEventChannel
-from player.datatypes import UserStatus
 from pubsub.outgoing_event.base import OutgoingEvent
 from utils.bijective_map import BijectiveMap
 
@@ -91,27 +91,27 @@ class SubscriberStorage:
         token = token_map.get_inverse(user_ref)
         return self.has_token_subscriber(token, channel) if token else False
 
-    def get_user_status_in_channel(
+    def get_user_activity_in_channel(
         self,
         token_map: BijectiveMap[str, UserReference],
         user_ref: UserReference,
         channel: EventChannel
-    ) -> UserStatus:
+    ) -> UserActivity | None:
         token = token_map.get_inverse(user_ref)
         if not token:
-            return UserStatus.OFFLINE
+            return None
 
-        most_active_status_over_connections = UserStatus.OFFLINE
+        most_recent_activity = None
 
         for subscriber in self.get_subscribers(channel):
             if subscriber.ws.saved_token != token:
                 continue
 
-            iterated_status = subscriber.ws.get_status()
-            if iterated_status.is_more_active_than(most_active_status_over_connections):
-                most_active_status_over_connections = iterated_status
+            activity = subscriber.ws.get_activity_data()
+            if activity.last_active_unixsecs > activity:
+                most_recent_activity = activity
 
-        return most_active_status_over_connections
+        return most_recent_activity
 
     async def broadcast[T: BaseModel | None, C: EventChannel](
         self,

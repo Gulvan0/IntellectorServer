@@ -1,15 +1,16 @@
 from fastapi import APIRouter, HTTPException
 from common.dependencies import MainConfigDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
 from game.datatypes import OfferAction, OfferKind, OutcomeKind
-from game.dependencies import GAME_IS_INTERNAL_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency, PlayerColorDependency
+from game.dependencies import GAME_IS_INTERNAL_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, FullGameDependency, GameDependency, PlayerColorDependency
+from game.methods.get import get_latest_time_update
 from game.methods.ply import append_ply
 from game.exceptions import PlyInvalidException, TimeoutReachedException
-from game.methods.cast import compose_state_refresh
 from game.methods.end import end_game
 from game.methods.offer import accept_draw, accept_takeback, cancel_offer, create_offer, decline_offer
 from game.models.rest.internal import InternalGameAppendPlyPayload, InternalGameAppendPlyResponse, InternalGamePerformOfferActionPayload
 from game.models.time_update import GameTimeUpdatePublic
 from net.base_router import LoggingRoute
+from player.methods import resolve_player_refs
 
 
 router = APIRouter(prefix="/game/internal", route_class=LoggingRoute)
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/game/internal", route_class=LoggingRoute)
 async def append_ply_route(
     *,
     payload: InternalGameAppendPlyPayload,
-    db_game: GameDependency,
+    db_game: FullGameDependency,
     client_color: PlayerColorDependency,
     session: SessionDependency,
     state: MutableStateDependency,
@@ -53,11 +54,13 @@ async def append_ply_route(
             pre_retrieved_db_game=db_game,
         )
     except PlyInvalidException as e:
-        game_state = await compose_state_refresh(
-            session=session,
-            game_id=payload.game_id,
-            game=db_game,
-            reason='invalid_move',
+        collected_refs = db_game.collect_refs(include_nested=True)
+        resolved_refs = await resolve_player_refs(collected_refs, session)
+        latest_time_update = await get_latest_time_update(session, payload.game_id)
+        game_state = db_game.to_state_refresh(
+            resolved_refs=resolved_refs,
+            latest_time_update=latest_time_update,
+            reason='INVALID_MOVE',
             include_spectator_messages=False
         )
         raise HTTPException(status_code=422, detail=dict(

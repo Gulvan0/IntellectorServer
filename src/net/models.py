@@ -1,7 +1,7 @@
 from typing import Any
 from pydantic import Field
 
-from player.datatypes import UserStatus
+from common.models import UserActivity
 from utils.custom_model import CustomModel
 
 
@@ -22,7 +22,7 @@ class SubscriberLeftBroadcastedData(CustomModel):
 class WebsocketWrapperDump(CustomModel):
     last_activity: int
     last_message: int
-    status: UserStatus
+    activity: UserActivity
     saved_token: str | None
     saved_user_ref: str | None
     tags: list[str]

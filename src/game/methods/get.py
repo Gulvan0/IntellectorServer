@@ -1,4 +1,3 @@
-from typing import Iterable
 from sqlalchemy import ScalarResult
 from sqlmodel import and_, col, desc, or_, select, func
 from sqlmodel.sql.expression import SelectOfScalar
@@ -6,7 +5,7 @@ from sqlmodel.sql.expression import SelectOfScalar
 from common.sql import count_if
 from common.time_control import TimeControlKind
 from game.datatypes import OfferAction, OfferKind, OverallGameCounts
-from game.models.main import Game
+from game.models.main import Game, GameSummaryPublic
 from game.models.offer import GameOfferEvent
 from game.models.outcome import GameOutcome
 from game.models.ply import GamePlyEvent
@@ -15,6 +14,7 @@ from game.models.time_update import GameTimeUpdate
 from board.constants.sip import DEFAULT_STARTING_SIP
 from board.piece import PieceColor, PieceKind
 from board.ply import PlyKind
+from player.methods import resolve_player_refs
 from utils.async_orm_session import AsyncSession
 
 
@@ -33,6 +33,8 @@ async def get_ply_history(session: AsyncSession, game_id: int, reverse_order: bo
         not GamePlyEvent.is_cancelled
     ).order_by(
         desc(GamePlyEvent.ply_index) if reverse_order else col(GamePlyEvent.ply_index)
+    ).options(
+        *GamePlyEvent.load_options()
     ))
 
 
@@ -98,11 +100,28 @@ async def get_overall_player_game_counts(session: AsyncSession, player_login: st
     return game_counts
 
 
-async def get_current_games(session: AsyncSession, game_filter: GameFilter | None = None, offset: int = 0, limit: int = 10) -> Iterable[Game]:
+async def _query_games_as_public(session: AsyncSession, query: SelectOfScalar[Game]) -> list[GameSummaryPublic]:
+    result = list(await session.exec(query.options(
+        *Game.load_options(just_summary=True)
+    )))
+
+    collected_refs = set()
+    for db_game in result:
+        collected_refs |= db_game.collect_refs(include_nested=False)
+
+    resolved_refs = await resolve_player_refs(collected_refs, session)
+
+    return [
+        db_game.to_summary(resolved_refs)
+        for db_game in result
+    ]
+
+
+async def get_current_games(session: AsyncSession, game_filter: GameFilter | None = None, offset: int = 0, limit: int = 10) -> list[GameSummaryPublic]:
     if not game_filter:
         game_filter = GameFilter()
 
-    result = await session.exec(select(
+    return await _query_games_as_public(session, select(
         Game
     ).where(
         Game.outcome == None,  # noqa
@@ -114,14 +133,13 @@ async def get_current_games(session: AsyncSession, game_filter: GameFilter | Non
     ).limit(
         limit
     ))
-    return result.all()
 
 
-async def get_recent_games(session: AsyncSession, game_filter: GameFilter | None = None, offset: int = 0, limit: int = 10) -> Iterable[Game]:
+async def get_recent_games(session: AsyncSession, game_filter: GameFilter | None = None, offset: int = 0, limit: int = 10) -> list[GameSummaryPublic]:
     if not game_filter:
         game_filter = GameFilter()
 
-    result = await session.exec(select(
+    return await _query_games_as_public(session, select(
         Game
     ).where(
         Game.outcome != None,  # noqa
@@ -133,7 +151,6 @@ async def get_recent_games(session: AsyncSession, game_filter: GameFilter | None
     ).limit(
         limit
     ))
-    return result.all()
 
 
 async def get_ongoing_finite_game(session: AsyncSession) -> Game | None:
@@ -141,7 +158,7 @@ async def get_ongoing_finite_game(session: AsyncSession) -> Game | None:
         select(Game)
         .join(GameOutcome)
         .where(
-            Game.outcome != None,
+            Game.outcome != None,  # noqa
             Game.time_control_kind != TimeControlKind.CORRESPONDENCE
         )
     )
@@ -157,6 +174,8 @@ async def get_last_ply_event(session: AsyncSession, game_id: int) -> GamePlyEven
         )
         .order_by(
             desc(GamePlyEvent.ply_index)
+        ).options(
+            *GamePlyEvent.load_options()
         )
     )
     return result.first()

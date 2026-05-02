@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Literal
+from sqlalchemy.orm import Load, joinedload
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
@@ -27,6 +28,12 @@ class GameTimeAddedEvent(GameTimeAddedEventBase, table=True):
     game: Game = Relationship(back_populates="time_added_events")
     time_update: GameTimeUpdate = Relationship()
 
+    @classmethod
+    def load_options(cls) -> list[Load]:
+        return [
+            joinedload(GameTimeAddedEvent.time_update)
+        ]
+
     def to_public(self) -> GameTimeAddedEventPublic:
         return GameTimeAddedEventPublic(
             occurred_at=self.occurred_at,
@@ -40,7 +47,6 @@ class GameTimeAddedEvent(GameTimeAddedEventBase, table=True):
             occurred_at=self.occurred_at,
             amount_seconds=self.amount_seconds,
             receiver=self.receiver,
-            game_id=self.game_id,
             time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
 
@@ -51,7 +57,6 @@ class GameTimeAddedEventPublic(GameTimeAddedEventBase):
 
 
 class TimeAddedBroadcastedData(GameTimeAddedEventBase):
-    game_id: int
     time_update: GameTimeUpdatePublic
 
 

@@ -76,22 +76,26 @@ for path in iterated_paths:
             player_rated_games[login].append(rated_info)
 
 
-print('Passwords')
-raw_passwords = json.loads(Path('converted_passes.json').read_text(encoding='utf-8'))
-players, passwords = process_passwords_file(raw_passwords, first_games)
-SESSION.add_all(players)
-SESSION.commit()
-SESSION.add_all(passwords)
-SESSION.commit()
-
-
+follow_rows = []
+last_activities = {}
 for path in (root / 'player').iterdir():
     print(f'Player {path.stem}')
 
     data = json.loads(path.read_text(encoding='utf-8'))
-    follow_rows = process_player_file(path.stem, data)
-    SESSION.add_all(follow_rows)
-    SESSION.commit()
+    new_follow_rows, last_active_at = process_player_file(path.stem, data)
+    follow_rows += new_follow_rows
+    last_activities[path.stem] = last_active_at // 1000
+
+
+print('Passwords')
+raw_passwords = json.loads(Path('converted_passes.json').read_text(encoding='utf-8'))
+players, passwords = process_passwords_file(raw_passwords, first_games, last_activities)
+SESSION.add_all(players)
+SESSION.commit()
+SESSION.add_all(passwords)
+SESSION.commit()
+SESSION.add_all(follow_rows)
+SESSION.commit()
 
 
 iterated_paths = sorted(

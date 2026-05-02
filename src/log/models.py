@@ -1,4 +1,3 @@
-from typing import Literal, Optional
 from sqlalchemy import CHAR
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlmodel import Field, Relationship, Column
@@ -17,13 +16,13 @@ class RESTRequestLog(CustomSQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     ts: CurrentDatetime
     client_host: str
-    authorized_as: OptionalPlayerRef
+    authorized_as: OptionalPlayerRef = Field(index=True)
     endpoint: str
     method: str = Field(sa_column=Column(CHAR(5)))
     headers_json: str = Field(sa_column=Column(MEDIUMTEXT))
     payload: str
 
-    response: Optional["RESTResponseLog"] = Relationship(back_populates="request")
+    response: RESTResponseLog | None = Relationship(back_populates="request")
 
 
 # <private>
@@ -41,7 +40,7 @@ class WSLog(CustomSQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     ts: CurrentDatetime
     connection_id: str = Field(sa_column=Column(CHAR(36)))
-    authorized_as: OptionalPlayerRef
+    authorized_as: OptionalPlayerRef = Field(index=True)
     payload: str
     incoming: bool
 

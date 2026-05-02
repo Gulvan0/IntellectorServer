@@ -3,18 +3,18 @@ from fastapi import APIRouter, HTTPException, Query
 
 from board.piece import PieceColor
 from common.dependencies import MainConfigDependency, MandatoryUserDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
-from game.dependencies import CLIENT_IS_UPLOADER_IF_EXTERNAL_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency, OptionalPlayerColorDependency
-from game.methods.cast import to_public_game
+from game.dependencies import CLIENT_IS_UPLOADER_IF_EXTERNAL_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency, GameWithOutcomeDependency, OptionalPlayerColorDependency
 from game.methods.event import append_event
 from game.methods.get import get_current_games, get_latest_time_update, get_recent_games
 from game.methods.timeout import check_timeout, plan_timeout_check
 from game.models.chat import GameChatMessageEvent, GameSendChatMessagePayload
-from game.models.main import Game, GamePublic
+from game.models.main import Game, GamePublic, GameSummaryPublic
 from game.models.rest.common import GameFilter
 from game.models.time_added import GameAddTimePayload, GameTimeAddedEvent
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from net.base_router import LoggingRoute
 from net.sub_storage import SubscriberTag
+from player.methods import resolve_player_refs
 from pubsub.models.channel import GameEventChannel
 from pubsub.outgoing_event.update import NewChatMessage
 
@@ -22,32 +22,26 @@ from pubsub.outgoing_event.update import NewChatMessage
 router = APIRouter(prefix="/game", route_class=LoggingRoute)
 
 
-@router.post("/current", response_model=list[GamePublic])
+@router.post("/current", response_model=list[GameSummaryPublic])
 async def get_current_games_route(
     *,
     session: SessionDependency,
     offset: int = 0,
     limit: int = Query(default=10, le=50),
     game_filter: GameFilter = GameFilter()
-) -> list[GamePublic]:
-    return [
-        await to_public_game(session, game)
-        for game in await get_current_games(session, game_filter, offset, limit)
-    ]
+) -> list[GameSummaryPublic]:
+    return await get_current_games(session, game_filter, offset, limit)
 
 
-@router.post("/recent", response_model=list[GamePublic])
+@router.post("/recent", response_model=list[GameSummaryPublic])
 async def get_recent_games_route(
     *,
     session: SessionDependency,
     offset: int = 0,
     limit: int = Query(default=10, le=50),
     game_filter: GameFilter = GameFilter()
-) -> list[GamePublic]:
-    return [
-        await to_public_game(session, game)
-        for game in await get_recent_games(session, game_filter, offset, limit)
-    ]
+) -> list[GameSummaryPublic]:
+    return await get_recent_games(session, game_filter, offset, limit)
 
 
 @router.get("/{game_id}", response_model=GamePublic)
@@ -56,12 +50,15 @@ async def get_game(
     session: SessionDependency,
     game_id: int
 ) -> GamePublic:
-    db_game = await session.get(Game, game_id)
+    db_game = await session.get(Game, game_id, options=Game.load_options(just_summary=False))
 
     if not db_game:
         raise HTTPException(status_code=404, detail="Game not found")
 
-    return await to_public_game(session, db_game)
+    collected_refs = db_game.collect_refs(include_nested=True)
+    resolved_refs = await resolve_player_refs(collected_refs, session)
+    latest_time_update = await get_latest_time_update(session, game_id)
+    return db_game.to_public(resolved_refs, latest_time_update)
 
 
 @router.get("/{game_id}/check_timeout")
@@ -81,7 +78,7 @@ async def send_chat_message(
     *,
     session: SessionDependency,
     state: MutableStateDependency,
-    db_game: GameDependency,
+    db_game: GameWithOutcomeDependency,
     client: MandatoryUserDependency,
     payload: GameSendChatMessagePayload
 ) -> None:

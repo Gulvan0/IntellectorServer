@@ -1,11 +1,11 @@
-from typing import Iterable
 from sqlmodel import and_, desc, or_, select, func, col
+from sqlmodel.sql.expression import SelectOfScalar
 
 from challenge.datatypes import ChallengeKind
-from challenge.methods.cast import to_public_challenge
 from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic
 from challenge.sql import time_control_equality_conditions
 from common.user_ref import UserReference
+from player.methods import resolve_player_refs
 from utils.async_orm_session import AsyncSession
 
 
@@ -92,21 +92,38 @@ async def get_mergeable_challenge(
     return result.first()
 
 
+async def _query_challenges_as_public(session: AsyncSession, query: SelectOfScalar[Challenge]) -> list[ChallengePublic]:
+    result = list(await session.exec(query.options(
+        *Challenge.load_options()
+    )))
+
+    collected_refs = set()
+    for db_challenge in result:
+        collected_refs |= db_challenge.collect_refs(include_nested=True)
+
+    resolved_refs = await resolve_player_refs(collected_refs, session)
+
+    return [
+        db_challenge.to_public(resolved_refs)
+        for db_challenge in result
+    ]
+
+
 async def get_direct_challenges(
     session: AsyncSession,
     user: UserReference,
     include_incoming: bool = True,
     include_outgoing: bool = True
-) -> Iterable[Challenge]:
-    assert include_incoming or include_outgoing
-
+) -> list[ChallengePublic]:
     user_filters = []
     if include_incoming:
         user_filters.append(Challenge.callee_ref == user.reference)
     if include_outgoing:
         user_filters.append(Challenge.caller_ref == user.reference)
+    if not user_filters:
+        raise ValueError('Either include_incoming or include_outgoing should be True')
 
-    result = await session.exec(select(
+    return await _query_challenges_as_public(session, select(
         Challenge
     ).where(
         Challenge.active == True,  # noqa
@@ -114,20 +131,18 @@ async def get_direct_challenges(
     ).order_by(
         desc(Challenge.created_at)
     ))
-    return result.all()
 
 
-async def get_active_public_challenges(session: AsyncSession) -> list[ChallengePublic]:
-    result = await session.exec(select(
+async def get_active_public_challenges(session: AsyncSession, offset: int = 0, limit: int = 50) -> list[ChallengePublic]:
+    return await _query_challenges_as_public(session, select(
         Challenge
     ).where(
         Challenge.active == True,  # noqa
         Challenge.kind == ChallengeKind.PUBLIC,
+    ).offset(
+        offset
+    ).limit(
+        limit
     ).order_by(
         desc(Challenge.created_at)
     ))
-
-    return [
-        await to_public_challenge(session, db_challenge)
-        for db_challenge in result
-    ]

@@ -1,3 +1,4 @@
+import asyncio
 from collections import defaultdict
 from typing import Any
 from sqlmodel import select
@@ -46,10 +47,12 @@ async def cancel_queried_challenges(query: SelectOfScalar[Challenge], session: A
     cancelled_public_challenges = set()
 
     challenges = await session.exec(query)
-    for challenge in challenges:
-        await cancel_challenge(challenge, session, state, secret_config)
+    coros = [await cancel_challenge(challenge, session, state, secret_config) for challenge in challenges]
+    await asyncio.gather(*coros)
 
-        assert challenge.id
+    for challenge in challenges:
+        if challenge.id is None:
+            continue
 
         cancelled_challenges_by_caller[challenge.caller_ref].add(challenge.id)
         if challenge.callee_ref:

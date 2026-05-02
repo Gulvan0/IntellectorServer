@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Literal
+from sqlalchemy.orm import Load, joinedload
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor, PieceKind
@@ -37,6 +38,12 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
     game: Game = Relationship(back_populates="ply_events")
     time_update: GameTimeUpdate | None = Relationship()
 
+    @classmethod
+    def load_options(cls) -> list[Load]:
+        return [
+            joinedload(GamePlyEvent.time_update)
+        ]
+
     def to_public(self) -> GamePlyEventPublic:
         return GamePlyEventPublic(
             occurred_at=self.occurred_at,
@@ -59,7 +66,6 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
             to_i=self.to_i,
             to_j=self.to_j,
             morph_into=self.morph_into,
-            game_id=self.game_id,
             sip_after=self.sip_after,
             time_update=GameTimeUpdatePublic.cast(self.time_update)
         )
@@ -72,6 +78,5 @@ class GamePlyEventPublic(GamePlyEventBase):
 
 
 class PlyBroadcastedData(GamePlyEventBase):
-    game_id: int
     sip_after: Sip
     time_update: GameTimeUpdatePublic | None

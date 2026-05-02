@@ -8,7 +8,7 @@ from challenge.models import ChallengeFischerTimeControlPublic, ChallengePublic
 from common.models import UserRefWithNickname
 from common.samples import boolean, datetime_after, past_datetime, time_control, uint, user_ref_with_nickname
 from common.time_control import TimeControlKind
-from game.samples import game
+from game.samples import game_summary
 
 
 class ChallengeState(Enum):
@@ -73,7 +73,7 @@ def challenge(
             start_seconds=sample_time_control.start_seconds,
             increment_seconds=sample_time_control.increment_seconds
         ) if sample_time_control.kind != TimeControlKind.CORRESPONDENCE else None,
-        resulting_game=game(
+        resulting_game=game_summary(
             players=players,
             time_control=sample_time_control,
             rated=rated,

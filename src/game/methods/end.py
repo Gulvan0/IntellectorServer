@@ -9,7 +9,7 @@ from game.models.outcome import GameEndedEloUpdate, GameEndedEloUpdates, GameOut
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from net.core import MutableState
 from notification.methods import delete_game_started_notifications
-from player.methods import get_stats_for_time_control
+from player.methods import get_stats_for_time_control, resolve_player_refs
 from player.models import PlayerEloProgress
 from pubsub.models.channel import GameEventChannel, GameListEventChannel
 from pubsub.outgoing_event.update import GameEnded, NewRecentGame
@@ -32,6 +32,7 @@ async def end_game(
     if not ended_at:
         ended_at = datetime.now(UTC)
 
+    # Here we don't make use of any relationships, so no load options are needed
     db_game = pre_retrieved_db_game or await session.get(Game, game_id)
     if not db_game:
         return
@@ -116,9 +117,17 @@ async def end_game(
 
         elo_updates = GameEndedEloUpdates(white=raw_elo_updates[PieceColor.WHITE], black=raw_elo_updates[PieceColor.BLACK])
 
-    broadcasted_data = db_outcome.to_broadcasted_data(elo_updates)
-    await state.ws_subscribers.broadcast(GameEnded(broadcasted_data, GameEventChannel(game_id=game_id)))
-    await state.ws_subscribers.broadcast(NewRecentGame(broadcasted_data, GameListEventChannel()))
+    await state.ws_subscribers.broadcast(GameEnded(
+        db_outcome.to_broadcasted_data(elo_updates),
+        GameEventChannel(game_id=game_id)
+    ))
+
+    collected_refs = db_game.collect_refs(include_nested=False)
+    resolved_refs = await resolve_player_refs(collected_refs, session)
+    await state.ws_subscribers.broadcast(NewRecentGame(
+        db_game.to_summary(resolved_refs),
+        GameListEventChannel()
+    ))
 
     await delete_game_started_notifications(
         game_id=game_id,

@@ -7,7 +7,7 @@ from common.dependencies import (
     SecretConfigDependency,
     SessionDependency,
 )
-from game.dependencies import CLIENT_IS_UPLOADER_DEPENDENCY, GAME_EXISTS_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency
+from game.dependencies import CLIENT_IS_UPLOADER_DEPENDENCY, GAME_EXISTS_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency, SummarizedGameDependency
 from game.methods.ply import append_ply
 from game.exceptions import PlyInvalidException
 from game.methods.create import create_external_game
@@ -20,21 +20,21 @@ from game.models.rest.external import (
     ExternalGameEndPayload,
     ExternalGameRollbackPayload,
 )
-from game.models.main import GamePublic
+from game.models.main import GameSummaryPublic
 from net.base_router import LoggingRoute
 
 
 router = APIRouter(prefix="/game/external", route_class=LoggingRoute)
 
 
-@router.post("/create", response_model=GamePublic)
+@router.post("/create", response_model=GameSummaryPublic)
 async def create(
     *,
     payload: ExternalGameCreatePayload,
     client: MandatoryUserDependency,
     session: SessionDependency,
     state: MutableStateDependency
-) -> GamePublic:
+) -> GameSummaryPublic:
     return await create_external_game(
         uploader=client,
         white_player_ref=payload.white_player_ref,
@@ -53,7 +53,7 @@ async def create(
 async def append_ply_route(
     *,
     payload: ExternalGameAppendPlyPayload,
-    db_game: GameDependency,
+    db_game: SummarizedGameDependency,
     session: SessionDependency,
     state: MutableStateDependency,
     main_config: MainConfigDependency,

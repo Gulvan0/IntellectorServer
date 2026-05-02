@@ -26,11 +26,9 @@ class StartedPlayerGamesRefresh(RefreshEvent[StartedPlayerGamesStateRefresh, Sta
         watched_player = user_ref_with_nickname()
         return [
             StartedPlayerGamesStateRefresh(
-                player_ref=watched_player.user_ref,
-                current_games=minimal_representative_games(watched_player)
+                current_games=minimal_representative_games(watched_player, finished=False)
             ),
             StartedPlayerGamesStateRefresh(
-                player_ref=underscore_str(),
                 current_games=[]
             ),
         ]
@@ -50,7 +48,7 @@ class GameListRefresh(RefreshEvent[GameListChannelsStateRefresh, GameListEventCh
     @classmethod
     def payload_examples(cls) -> list[GameListChannelsStateRefresh]:
         return [
-            GameListChannelsStateRefresh(games=minimal_representative_games()),
+            GameListChannelsStateRefresh(games=minimal_representative_games(finished=False)),
             GameListChannelsStateRefresh(games=[]),
         ]
 

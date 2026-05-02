@@ -1,7 +1,7 @@
 from challenge.datatypes import ChallengeAcceptorColor
 from challenge.models import ChallengePublic
 from common.time_control import FischerTimeControlEntity
-from game.models.main import GamePublic
+from game.models.main import GameSummaryPublic
 
 
 def format_time_control(time_control: FischerTimeControlEntity | None) -> str | None:
@@ -88,7 +88,7 @@ https://intellector.info/game/?p=live/{game_id}
 """
 
 
-def get_vk_new_game_message(game: GamePublic) -> str:
+def get_vk_new_game_message(game: GameSummaryPublic) -> str:
     time_control = format_time_control(game.fischer_time_control) or "По переписке"
 
     return VK_NEW_GAME_MESSAGE_TEMPLATE.format(

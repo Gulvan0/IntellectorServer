@@ -4,8 +4,6 @@ from sqlmodel import Field, Relationship
 from common.field_types import CurrentDatetime, PlayerRef
 from common.models import UserRefWithNickname
 from game.datatypes import EventKind
-from player.methods import get_user_ref_with_nickname
-from utils.async_orm_session import AsyncSession
 from utils.custom_model import CustomModel, CustomSQLModel
 
 
@@ -26,21 +24,20 @@ class GameChatMessageEvent(GameChatMessageEventBase, table=True):
 
     game: Game = Relationship(back_populates="chat_message_events")
 
-    async def to_broadcasted_data(self, session: AsyncSession) -> ChatMessageBroadcastedData:
+    def to_broadcasted_data(self, resolved_refs: dict[str, UserRefWithNickname]) -> ChatMessageBroadcastedData:
         return ChatMessageBroadcastedData(
             occurred_at=self.occurred_at,
             text=self.text,
             spectator=self.spectator,
-            author=await get_user_ref_with_nickname(session, self.author_ref),
-            game_id=self.game_id
+            author=resolved_refs.get(self.author_ref)
         )
 
-    async def to_public(self, session: AsyncSession) -> GameChatMessageEventPublic:
+    def to_public(self, resolved_refs: dict[str, UserRefWithNickname]) -> GameChatMessageEventPublic:
         return GameChatMessageEventPublic(
             occurred_at=self.occurred_at,
             text=self.text,
             spectator=self.spectator,
-            author=await get_user_ref_with_nickname(session, self.author_ref)
+            author=resolved_refs.get(self.author_ref)
         )
 
 
@@ -51,7 +48,6 @@ class GameChatMessageEventPublic(GameChatMessageEventBase):
 
 class ChatMessageBroadcastedData(GameChatMessageEventBase):
     author: UserRefWithNickname
-    game_id: int
 
 
 class GameSendChatMessagePayload(CustomModel):

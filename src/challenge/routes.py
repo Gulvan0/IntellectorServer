@@ -1,19 +1,18 @@
 from fastapi import APIRouter, HTTPException, Query
-from sqlmodel import select
 from challenge.datatypes import ChallengeKind
-from challenge.methods.get import get_direct_challenges
+from challenge.methods.get import get_active_public_challenges, get_direct_challenges
 from challenge.methods.merge import try_merging
 from challenge.methods.validation import perform_common_validations, validate_direct_callee
 from challenge.methods.update import cancel_challenge as cancel_specific_challenge
-from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengeCreateResponse, ChallengePublic
-from challenge.methods.cast import to_public_challenge
+from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengePublic
 from common.dependencies import MainConfigDependency, MandatoryUserDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
 from common.models import Id
 from game.methods.create import create_internal_game
-from game.models.main import GamePublic
+from game.models.main import GameSummaryPublic
 from net.base_router import LoggingRoute
 from net.utils.early_response import supports_early_responses
 from notification.methods import delete_new_public_challenge_notifications, send_new_public_challenge_notifications
+from player.methods import resolve_player_refs
 from pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
 from pubsub.outgoing_event.update import IncomingChallengeReceived, NewPublicChallenge, OutgoingChallengeRejected
 
@@ -39,7 +38,12 @@ async def create_open_challenge(
     session.add(db_challenge)
     await session.commit()
 
-    public_challenge = await to_public_challenge(session, db_challenge)
+    collected_refs = db_challenge.collect_refs(include_nested=False)
+    resolved_refs = await resolve_player_refs(collected_refs, session)
+    public_challenge = db_challenge.to_public_as_fresh(
+        resolved_refs,
+        ChallengeFischerTimeControl.cast(challenge.fischer_time_control)
+    )
 
     if not challenge.link_only:
         event = NewPublicChallenge(public_challenge, PublicChallengeListEventChannel())
@@ -76,7 +80,12 @@ async def create_direct_challenge(
     session.add(db_challenge)
     await session.commit()
 
-    public_challenge = await to_public_challenge(session, db_challenge)
+    collected_refs = db_challenge.collect_refs(include_nested=False)
+    resolved_refs = await resolve_player_refs(collected_refs, session)
+    public_challenge = db_challenge.to_public_as_fresh(
+        resolved_refs,
+        ChallengeFischerTimeControl.cast(challenge.fischer_time_control)
+    )
 
     event = IncomingChallengeReceived(public_challenge, IncomingChallengesEventChannel(user_ref=challenge.callee_ref))
     await state.ws_subscribers.broadcast(event)
@@ -86,35 +95,24 @@ async def create_direct_challenge(
 
 @router.get("/public", response_model=list[ChallengePublic])
 async def get_public_challenges(*, session: SessionDependency, offset: int = 0, limit: int = Query(default=50, le=50)) -> list[ChallengePublic]:
-    challenges_result = await session.exec(select(
-        Challenge
-    ).where(
-        Challenge.active == True,  # noqa
-        Challenge.kind == ChallengeKind.PUBLIC
-    ).offset(offset).limit(limit))
-
-    return [
-        await to_public_challenge(session, challenge)
-        for challenge in challenges_result.all()
-    ]
+    return await get_active_public_challenges(session, offset, limit)
 
 
 @router.get("/my_direct", response_model=list[ChallengePublic])
 async def get_my_direct_challenges(*, session: SessionDependency, client: MandatoryUserDependency) -> list[ChallengePublic]:
-    return [
-        await to_public_challenge(session, challenge)
-        for challenge in await get_direct_challenges(session, client)
-    ]
+    return await get_direct_challenges(session, client)
 
 
 @router.get("/{challenge_id}", response_model=ChallengePublic)
 async def get_challenge(*, session: SessionDependency, challenge_id: int) -> ChallengePublic:
-    db_challenge = await session.get(Challenge, challenge_id)
+    db_challenge = await session.get(Challenge, challenge_id, options=Challenge.load_options())
 
     if not db_challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
 
-    return await to_public_challenge(session, db_challenge)
+    collected_refs = db_challenge.collect_refs(include_nested=True)
+    resolved_refs = await resolve_player_refs(collected_refs, session)
+    return db_challenge.to_public(resolved_refs)
 
 
 @router.delete("/{challenge_id}")
@@ -142,7 +140,7 @@ async def cancel_challenge(
     await session.commit()
 
 
-@router.post("/{challenge_id}/accept", response_model=GamePublic)
+@router.post("/{challenge_id}/accept", response_model=GameSummaryPublic)
 async def accept_challenge(
     *,
     challenge_id: int,
@@ -150,7 +148,7 @@ async def accept_challenge(
     client: MandatoryUserDependency,
     state: MutableStateDependency,
     secret_config: SecretConfigDependency
-) -> GamePublic:
+) -> GameSummaryPublic:
     db_challenge = await session.get(Challenge, challenge_id)
 
     if not db_challenge:

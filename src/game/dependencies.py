@@ -1,3 +1,4 @@
+from enum import Enum, auto
 from typing import Annotated
 from fastapi import Depends, HTTPException, Request
 
@@ -7,22 +8,64 @@ from common.user_ref import UserReference
 from game.models.main import Game
 
 
-async def get_game(session: SessionDependency, request: Request) -> Game:
+class GameLoadOptions(Enum):
+    NONE = auto()
+    JUST_OUTCOME = auto()
+    SUMMARY = auto()
+    FULL = auto()
+
+
+async def __get_game(session: SessionDependency, request: Request, load_options_kind: GameLoadOptions) -> Game:
     payload = await request.json()
     game_id = payload.get('game_id')
     if game_id is None:
         raise HTTPException(500, 'Game dependencies require payloads with game_id field')
 
-    db_game = await session.get(Game, game_id)
+    match load_options_kind:
+        case GameLoadOptions.NONE:
+            options = None
+        case GameLoadOptions.JUST_OUTCOME:
+            options = Game.load_options(just_summary=True, include_time_control=False)
+        case GameLoadOptions.SUMMARY:
+            options = Game.load_options(just_summary=True)
+        case GameLoadOptions.FULL:
+            options = Game.load_options(just_summary=False)
+
+    db_game = await session.get(Game, game_id, options=options)
     if not db_game:
         raise HTTPException(status_code=404, detail="Game not found")
     return db_game
+
+
+async def get_game(session: SessionDependency, request: Request) -> Game:
+    return await __get_game(session, request, GameLoadOptions.NONE)
 
 
 GAME_EXISTS_DEPENDENCY = Depends(get_game)
 
 
 GameDependency = Annotated[Game, GAME_EXISTS_DEPENDENCY]
+
+
+async def get_game_with_outcome(session: SessionDependency, request: Request) -> Game:
+    return await __get_game(session, request, GameLoadOptions.JUST_OUTCOME)
+
+
+GameWithOutcomeDependency = Annotated[Game, Depends(get_game_with_outcome)]
+
+
+async def get_summarized_game(session: SessionDependency, request: Request) -> Game:
+    return await __get_game(session, request, GameLoadOptions.SUMMARY)
+
+
+SummarizedGameDependency = Annotated[Game, Depends(get_summarized_game)]
+
+
+async def get_full_game(session: SessionDependency, request: Request) -> Game:
+    return await __get_game(session, request, GameLoadOptions.FULL)
+
+
+FullGameDependency = Annotated[Game, Depends(get_full_game)]
 
 
 async def client_is_uploader(db_game: GameDependency, client: MandatoryUserDependency) -> None:

@@ -12,7 +12,9 @@ from pubsub import ws_handlers as ws_pubsub
 
 from net.core import App
 
-from uvicorn import Config, Server
+from fastapi.middleware.cors import CORSMiddleware
+from hypercorn.config import Config
+from hypercorn.asyncio import serve
 
 
 app = App(
@@ -30,16 +32,20 @@ app = App(
 )
 
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 async def run_server() -> None:
-    ssl_config = app.secret_config.ssl
-    config = Config(
-        app,
-        host="0.0.0.0",
-        ssl_keyfile=ssl_config.key_path if ssl_config else None,
-        ssl_certfile=ssl_config.cert_path if ssl_config else None
-    )
-    server = Server(config)
-    await server.serve()
+    config = Config()
+    config.bind = ["0.0.0.0:8443"]
+    config.keyfile = app.secret_config.ssl.key_path
+    config.certfile = app.secret_config.ssl.cert_path
+    await serve(app, config)  # type: ignore
 
 
 if __name__ == "__main__":

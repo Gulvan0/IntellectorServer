@@ -1,14 +1,13 @@
 from datetime import datetime
 from typing import Any
+from sqlalchemy.orm import Load, selectinload
 from sqlmodel import Field, Relationship
 
 from common.models import UserRefWithNickname
 from board.piece import PieceKind
 from common.field_types import CurrentDatetime, PlayerLogin, Sip
-from player.methods import get_user_ref_with_nickname
 from player.models import Player
 from study.datatypes import StudyPublicity
-from utils.async_orm_session import AsyncSession
 from utils.custom_model import CustomModel, CustomSQLModel
 
 
@@ -91,8 +90,18 @@ class Study(StudyBase, table=True):
     tags: list[StudyTag] = Relationship(back_populates="study", cascade_delete=True)
     nodes: list[StudyVariationNode] = Relationship(back_populates="study", cascade_delete=True)
 
-    async def to_public(self, session: AsyncSession) -> StudyPublic:
-        return StudyPublic(
+    @classmethod
+    def load_options(cls) -> list[Load]:
+        return [
+            selectinload(Study.tags),
+            selectinload(Study.nodes),
+        ]
+
+    def collect_refs(self) -> set[str]:
+        return {self.author_login}
+
+    def to_summary(self, resolved_refs: dict[str, UserRefWithNickname]) -> StudySummaryPublic:
+        return StudySummaryPublic(
             name=self.name,
             description=self.description,
             publicity=self.publicity,
@@ -101,7 +110,12 @@ class Study(StudyBase, table=True):
             id=self.id,
             created_at=self.created_at,
             modified_at=self.modified_at,
-            author=await get_user_ref_with_nickname(session, self.author_login),
+            author=resolved_refs.get(self.author_login),
+        )
+
+    def to_public(self, resolved_refs: dict[str, UserRefWithNickname]) -> StudyPublic:
+        return StudyPublic(
+            **self.to_summary(resolved_refs).model_dump(),
             deleted=self.deleted,
             tags=[StudyTagPublic.cast(tag) for tag in self.tags],
             nodes=[StudyVariationNodePublic.cast(node) for node in self.nodes]
@@ -154,6 +168,13 @@ class StudyUpdate(CustomSQLModel):
             ]
 
         return result
+
+
+class StudySummaryPublic(StudyBase):
+    id: int
+    created_at: datetime
+    modified_at: datetime
+    author: UserRefWithNickname
 
 
 class StudyPublic(StudyBase):

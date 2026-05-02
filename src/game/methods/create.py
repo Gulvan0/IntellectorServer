@@ -5,11 +5,11 @@ from challenge.models import Challenge
 from common.models import Id
 from common.user_ref import UserReference
 from config.models import SecretConfig
-from game.methods.cast import to_public_game
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from notification.methods import delete_new_public_challenge_notifications, send_game_started_notifications
+from player.methods import resolve_player_refs
 from pubsub.models.channel import GameListEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
-from game.models.main import Game, GamePublic, GameStartedBroadcastedData
+from game.models.main import Game, GameStartedBroadcastedData, GameSummaryPublic
 from game.models.time_control import GameFischerTimeControl
 from net.core import MutableState
 from common.time_control import FischerTimeControlEntity, TimeControlKind
@@ -46,8 +46,13 @@ async def create_game(
     session: AsyncSession,
     state: MutableState,
     deactivated_challenge: Challenge | None = None
-) -> GamePublic:
+) -> GameSummaryPublic:
     started_at = datetime.now(UTC)
+
+    db_time_control = GameFischerTimeControl(
+        start_seconds=time_control.start_seconds,
+        increment_seconds=time_control.increment_seconds
+    ) if time_control else None
 
     db_game = Game(
         started_at=started_at,
@@ -57,10 +62,7 @@ async def create_game(
         rated=rated,
         custom_starting_sip=custom_starting_sip,
         external_uploader_ref=external_uploader_ref,
-        fischer_time_control=GameFischerTimeControl(
-            start_seconds=time_control.start_seconds,
-            increment_seconds=time_control.increment_seconds
-        ) if time_control else None
+        fischer_time_control=db_time_control
     )
     session.add(db_game)
 
@@ -81,16 +83,18 @@ async def create_game(
 
     await session.commit()
 
-    public_game = await to_public_game(session, db_game)
+    collected_refs = db_game.collect_refs(include_nested=False)
+    resolved_refs = await resolve_player_refs(collected_refs, session)
+    summary = db_game.to_summary_as_new(resolved_refs, db_time_control)
 
     for player_ref in [white_player_ref, black_player_ref]:
-        game_started_event = GameStarted(public_game, StartedPlayerGamesEventChannel(watched_ref=player_ref))
+        game_started_event = GameStarted(summary, StartedPlayerGamesEventChannel(watched_ref=player_ref))
         await state.ws_subscribers.broadcast(game_started_event)
 
-    new_game_event = NewActiveGame(GameStartedBroadcastedData.cast(public_game), GameListEventChannel())
+    new_game_event = NewActiveGame(GameStartedBroadcastedData.cast(summary), GameListEventChannel())
     await state.ws_subscribers.broadcast(new_game_event)
 
-    return public_game
+    return summary
 
 
 async def create_internal_game(
@@ -99,7 +103,7 @@ async def create_internal_game(
     session: AsyncSession,
     state: MutableState,
     secret_config: SecretConfig
-) -> GamePublic:
+) -> GameSummaryPublic:
     white_player_ref, black_player_ref = assign_player_colors(challenge.acceptor_color, challenge.caller_ref, acceptor.reference)
 
     public_game = await create_game(
@@ -150,7 +154,7 @@ async def create_external_game(
     custom_starting_sip: str | None,
     session: AsyncSession,
     state: MutableState
-) -> GamePublic:
+) -> GameSummaryPublic:
     return await create_game(
         white_player_ref=white_player_ref,
         black_player_ref=black_player_ref,

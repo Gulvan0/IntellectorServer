@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING
+from sqlalchemy.orm import Load, joinedload
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
@@ -36,6 +37,12 @@ class GameOutcome(GameOutcomeBase, table=True):
     game: Game = Relationship(back_populates="outcome")
     time_update: GameTimeUpdate | None = Relationship()
 
+    @classmethod
+    def load_options(cls) -> list[Load]:
+        return [
+            joinedload(GameOutcome.time_update)
+        ]
+
     def to_public(self) -> GameOutcomePublic:
         return GameOutcomePublic(
             game_ended_at=self.game_ended_at,
@@ -49,7 +56,6 @@ class GameOutcome(GameOutcomeBase, table=True):
             game_ended_at=self.game_ended_at,
             kind=self.kind,
             winner=self.winner,
-            game_id=self.game_id,
             time_update=GameTimeUpdatePublic.cast(self.time_update),
             elo=elo_updates
         )
@@ -60,6 +66,5 @@ class GameOutcomePublic(GameOutcomeBase):
 
 
 class GameEndedBroadcastedData(GameOutcomeBase):
-    game_id: int
     time_update: GameTimeUpdatePublic | None
     elo: GameEndedEloUpdates | None

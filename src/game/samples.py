@@ -23,7 +23,7 @@ from common.samples import (
 from common.time_control import TimeControlKind
 from game.datatypes import OfferAction, OfferKind, OutcomeKind
 from game.models.chat import ChatMessageBroadcastedData, GameChatMessageEventPublic
-from game.models.main import GamePublic, GameStartedBroadcastedData, GenericEventList
+from game.models.main import GamePublic, GameStartedBroadcastedData, GameSummaryPublic, GenericEventList
 from board.samples import non_default_starting_position, piece_color, playthrough, valid_non_final_sip
 from board.piece import PieceColor
 from game.models.offer import GameOfferEventPublic, OfferActionBroadcastedData
@@ -65,7 +65,6 @@ def ply_broadcasted_data() -> PlyBroadcastedData:
         to_i=ply.destination.i,
         to_j=ply.destination.j,
         morph_into=ply.morph_into,
-        game_id=uint(),
         sip_after=new_sip
     )
 
@@ -78,8 +77,7 @@ def chat_message_broadcasted_data(is_author_guest: bool | None = None) -> ChatMe
         occurred_at=past_datetime(min_offset_secs=3, max_offset_secs=600),
         text=string(),
         spectator=boolean(),
-        author=guest_ref_with_nickname() if is_author_guest else user_ref_with_nickname(),
-        game_id=uint()
+        author=guest_ref_with_nickname() if is_author_guest else user_ref_with_nickname()
     )
 
 
@@ -88,8 +86,7 @@ def offer_action_broadcasted_data() -> OfferActionBroadcastedData:
         occurred_at=past_datetime(min_offset_secs=3, max_offset_secs=600),
         action=choice(list(OfferAction)),
         offer_kind=choice(list(OfferKind)),
-        offer_author=piece_color(),
-        game_id=uint()
+        offer_author=piece_color()
     )
 
 
@@ -98,7 +95,6 @@ def time_added_broadcasted_data() -> TimeAddedBroadcastedData:
         occurred_at=past_datetime(min_offset_secs=3, max_offset_secs=600),
         amount_seconds=randint(10, 15),
         receiver=piece_color(),
-        game_id=uint(),
         time_update=sample_time_update(GameTimeUpdateReason.TIME_ADDED)
     )
 
@@ -110,7 +106,6 @@ def rollback_broadcasted_data() -> RollbackBroadcastedData:
         ply_cnt_before=ply_cnt_before,
         ply_cnt_after=max(0, ply_cnt_before - randint(1, 2)),
         requested_by=piece_color(),
-        game_id=uint(),
         time_update=sample_time_update(GameTimeUpdateReason.ROLLBACK),
         updated_sip=valid_non_final_sip()
     )
@@ -394,23 +389,43 @@ def game(
     )
 
 
-def minimal_representative_games(common_player: UserRefWithNickname | None = None) -> list[GamePublic]:
+def game_summary(
+    players: tuple[UserRefWithNickname | None, UserRefWithNickname] | None = None,
+    time_control: SampleTimeControl | None = None,
+    rated: bool | None = None,
+    custom_starting_sip: str | Literal['AUTO'] | None = 'AUTO',
+    external_uploader_login: str | Literal['GENERATE'] | None = None,
+    finished: bool | None = None,
+    started_at: datetime | None = None
+) -> GameSummaryPublic:
+    return GameSummaryPublic.cast(game(
+        players,
+        time_control,
+        rated,
+        custom_starting_sip,
+        external_uploader_login,
+        finished,
+        started_at
+    ))
+
+
+def minimal_representative_games(common_player: UserRefWithNickname | None = None, finished: bool | None = None) -> list[GameSummaryPublic]:
     bot_game_player = common_player or user_ref_with_nickname()
     return [
-        game(
+        game_summary(
             players=(bot_game_player, bot_user_ref_with_nickname()),
             time_control=sample_time_control(TimeControlKind.CORRESPONDENCE),
             rated=False,
             custom_starting_sip='AUTO',
             external_uploader_login=bot_game_player.user_ref,
-            finished=True
+            finished=finished is not False,
         ),
-        game(
+        game_summary(
             players=(None, common_player) if common_player else None,
             time_control=sample_time_control(TimeControlKind.RAPID),
             rated=True,
             custom_starting_sip=None,
-            finished=False
+            finished=finished is True,
         ),
     ]
 
@@ -420,8 +435,7 @@ def game_state_refreshes(count: int = 3) -> list[GameStateRefresh]:
     for i in range(count):
         state = game_state(finished=i != 1 and (i == 0 or boolean()))  # First game is guaranteed to be finished, second one - in-progress
         result.append(GameStateRefresh(
-            game_id=uint(),
-            refresh_reason=choice(['invalid_move', 'sub']),
+            refresh_reason=choice(['INVALID_MOVE', 'SUB']),
             outcome=state.outcome,
             events=state.events,
             latest_time_update=state.latest_time_update
@@ -449,7 +463,6 @@ def game_ended_data_samples(count: int = 3) -> list[GameEndedBroadcastedData]:
         result.append(GameEndedBroadcastedData(
             kind=outcome_kind,
             winner=None if outcome_kind.drawish else choice([PieceColor.WHITE, PieceColor.BLACK]),
-            game_id=uint(),
             time_update=sample_time_update(GameTimeUpdateReason.GAME_ENDED),
             elo=GameEndedEloUpdates(
                 white=GameEndedEloUpdate(new_value=randint(100, 2500), delta=randint(-50, 50)),

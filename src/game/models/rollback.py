@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Literal
+from sqlalchemy.orm import Load, joinedload
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
@@ -28,6 +29,12 @@ class GameRollbackEvent(GameRollbackEventBase, table=True):
     game: Game = Relationship(back_populates="rollback_events")
     time_update: GameTimeUpdate | None = Relationship()
 
+    @classmethod
+    def load_options(cls) -> list[Load]:
+        return [
+            joinedload(GameTimeUpdate.time_update)
+        ]
+
     def to_public(self) -> GameRollbackEventPublic:
         return GameRollbackEventPublic(
             occurred_at=self.occurred_at,
@@ -44,7 +51,6 @@ class GameRollbackEvent(GameRollbackEventBase, table=True):
             ply_cnt_after=self.ply_cnt_after,
             requested_by=self.requested_by,
             time_update=GameTimeUpdatePublic.cast(self.time_update),
-            game_id=self.game_id,
             updated_sip=updated_sip
         )
 
@@ -55,6 +61,5 @@ class GameRollbackEventPublic(GameRollbackEventBase):
 
 
 class RollbackBroadcastedData(GameRollbackEventBase):
-    game_id: int
     time_update: GameTimeUpdatePublic | None
     updated_sip: Sip

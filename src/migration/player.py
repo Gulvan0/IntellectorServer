@@ -4,14 +4,14 @@ from player.datatypes import UserRole
 from player.models import Player, PlayerFollowedPlayer, PlayerRole
 
 
-def process_player_file(login: str, data: dict) -> list[PlayerFollowedPlayer]:
+def process_player_file(login: str, data: dict) -> tuple[list[PlayerFollowedPlayer], int | None]:
     return [
         PlayerFollowedPlayer(follower_login=login, followed_login=followed_login)
         for followed_login in data.get("friends", [])
-    ]
+    ], data.get("lastMessageTimestamp")
 
 
-def process_passwords_file(data: dict[str, str], first_games: dict[str, datetime]) -> tuple[list[Player], list[PlayerPassword]]:
+def process_passwords_file(data: dict[str, str], first_games: dict[str, datetime], last_activity: dict[str, int | None]) -> tuple[list[Player], list[PlayerPassword]]:
     players = []
     passwords = []
 
@@ -24,7 +24,7 @@ def process_passwords_file(data: dict[str, str], first_games: dict[str, datetime
         roles = []
         if login == "gulvan":
             roles = [UserRole.ADMIN]
-        elif login in ("mrolegus", "agent", "pike", "lesha181", "canaconda"):
+        elif login in ("mrolegus", "agent", "pike", "lesha181", "canaconda", "grizzly"):
             roles = [UserRole.ANACONDA_DEVELOPER]
 
         nickname = login
@@ -35,10 +35,13 @@ def process_passwords_file(data: dict[str, str], first_games: dict[str, datetime
         elif login == "paulnotintellector":
             nickname = "PaulNotIntellector"
 
+        joined_at = first_games.get(login, datetime.now(UTC))
+
         players.append(
             Player(
                 login=login,
-                joined_at=first_games.get(login, datetime.now(UTC)),
+                joined_at=joined_at,
+                last_recorded_activity_before_v3=last_activity.get(login) or int(joined_at.timestamp()),
                 nickname=nickname,
                 roles=[PlayerRole(role=role) for role in roles]
             )

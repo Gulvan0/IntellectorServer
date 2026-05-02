@@ -1,14 +1,14 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 
+from common.time_control import TimeControlKind
 from config.models import MainConfig, SecretConfig
 from game.datatypes import OutcomeKind, SimpleOutcome, TimeRemainders
-from game.exceptions import PlyInvalidException
-from game.methods.cast import construct_new_ply_time_update
+from game.exceptions import PlyInvalidException, TimeoutReachedException
 from game.methods.event import append_event
-from game.methods.get import get_current_sip_and_ply_cnt, get_last_ply_event, has_occured_thrice, is_stale
+from game.methods.get import get_current_sip_and_ply_cnt, get_last_ply_event, get_latest_time_update, has_occured_thrice, is_stale
 from game.methods.offer import cancel_all_active_offers
 from game.methods.timeout import plan_timeout_check
 from game.methods.end import end_game
@@ -49,6 +49,45 @@ def _get_simple_outcome(session: AsyncSession, game_id: int, new_position: Posit
     return None
 
 
+async def _construct_new_ply_time_update(
+    session: AsyncSession,
+    game_id: int,
+    ply_dt: datetime,
+    new_ply_index: int,
+    color_to_move: PieceColor,
+    timeout_grace_ms: int,
+    bonus_secs: int = 0,
+) -> GameTimeUpdate | None:
+    latest_time_update = await get_latest_time_update(session, game_id)
+    if not latest_time_update:
+        return None
+
+    new_time_update = GameTimeUpdate(
+        updated_at=ply_dt,
+        white_ms=latest_time_update.white_ms,
+        black_ms=latest_time_update.black_ms,
+        ticking_side=color_to_move if new_ply_index >= 1 else None,
+        reason=GameTimeUpdateReason.PLY
+    )
+
+    if latest_time_update.ticking_side:
+        ms_passed = int((ply_dt - latest_time_update.updated_at).total_seconds() * 1000)
+        if latest_time_update.ticking_side == PieceColor.WHITE:
+            new_time_update.white_ms -= ms_passed
+            remaining_time_at_check = new_time_update.white_ms
+            new_time_update.white_ms += bonus_secs * 1000
+        else:
+            new_time_update.black_ms -= ms_passed
+            remaining_time_at_check = new_time_update.black_ms
+            new_time_update.black_ms += bonus_secs * 1000
+
+        if remaining_time_at_check <= -timeout_grace_ms:
+            timed_out_at = ply_dt + timedelta(milliseconds=remaining_time_at_check)
+            raise TimeoutReachedException(winner=latest_time_update.ticking_side.opposite(), reached_at=timed_out_at)
+
+    return new_time_update
+
+
 async def append_ply(
     session: AsyncSession,
     mutable_state: MutableState,
@@ -85,7 +124,7 @@ async def append_ply(
         await cancel_all_active_offers(session, mutable_state, payload.game_id, ply_dt)
 
     if time_remainders:
-        if not db_game.fischer_time_control:
+        if db_game.time_control_kind == TimeControlKind.CORRESPONDENCE:
             raise HTTPException(422, f"Game {payload.game_id} is a correspondence one")
         if not db_game.external_uploader_ref:
             raise HTTPException(422, f"Game {payload.game_id} is not external, therefore it's not possible to assign time remainders directly")
@@ -97,15 +136,18 @@ async def append_ply(
             reason=GameTimeUpdateReason.PLY,
             game_id=payload.game_id
         )
-    else:
-        new_time_update = await construct_new_ply_time_update(
+    elif db_game.fischer_time_control:
+        new_time_update = await _construct_new_ply_time_update(
             session,
             payload.game_id,
             ply_dt,
             new_ply_index,
             color_to_move=perform_ply_result.new_position.color_to_move,
-            timeout_grace_ms=0
+            timeout_grace_ms=0,
+            bonus_secs=db_game.fischer_time_control.increment_seconds
         )
+    else:
+        new_time_update = None
 
     event = GamePlyEvent(
         occurred_at=ply_dt,

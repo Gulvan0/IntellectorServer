@@ -1,12 +1,14 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal, Optional
+from sqlalchemy.orm import Load, joinedload
 from sqlmodel import Field, Relationship
 
 from challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
 from common.models import UserRefWithNickname
 from common.time_control import FischerTimeControlEntity, TimeControlKind
 from common.field_types import CurrentDatetime, PlayerRef, OptionalSip, OptionalPlayerRef
-from game.models.main import Game, GamePublic
+from game.models.main import Game, GameSummaryPublic
+from game.models.time_update import GameTimeUpdate
 from utils.custom_model import CustomModel, CustomSQLModel
 
 
@@ -28,6 +30,53 @@ class Challenge(ChallengeBase, table=True):
 
     resulting_game: Game | None = Relationship()
     fischer_time_control: Optional["ChallengeFischerTimeControl"] = Relationship(back_populates="challenge", cascade_delete=True)
+
+    @classmethod
+    def load_options(cls) -> list[Load]:
+        return [
+            joinedload(Challenge.resulting_game)
+                .options(*Game.load_options(just_summary=True)),  # noqa: E131
+            joinedload(Challenge.fischer_time_control),
+        ]
+
+    def collect_refs(self, include_nested: bool) -> set[str]:
+        refs = {self.caller_ref}
+        if self.callee_ref:
+            refs.add(self.callee_ref)
+        if include_nested and self.resulting_game:
+            refs |= self.resulting_game.collect_refs(include_nested=False)
+        return refs
+
+    def __to_public_generic(
+        self,
+        resolved_refs: dict[str, UserRefWithNickname],
+        fischer_time_control: ChallengeFischerTimeControl | None,
+        resulting_game: GameSummaryPublic | None
+    ) -> ChallengePublic:
+        return ChallengePublic(
+            acceptor_color=self.acceptor_color,
+            custom_starting_sip=self.custom_starting_sip,
+            rated=self.rated,
+            id=self.id,
+            created_at=self.created_at,
+            caller=resolved_refs.get(self.caller_ref),
+            callee=resolved_refs.get(self.callee_ref) if self.callee_ref else None,
+            kind=self.kind,
+            time_control_kind=self.time_control_kind,
+            active=self.active,
+            fischer_time_control=ChallengeFischerTimeControlPublic.cast(fischer_time_control),
+            resulting_game=resulting_game
+        )
+
+    def to_public(self, resolved_refs: dict[str, UserRefWithNickname]) -> ChallengePublic:
+        return self.__to_public_generic(
+            resolved_refs,
+            self.fischer_time_control,
+            self.resulting_game.to_summary(resolved_refs) if self.resulting_game else None
+        )
+
+    def to_public_as_fresh(self, resolved_refs: dict[str, UserRefWithNickname], fischer_time_control: ChallengeFischerTimeControl | None) -> ChallengePublic:
+        return self.__to_public_generic(resolved_refs, fischer_time_control, None)
 
 
 class ChallengeFischerTimeControlBase(CustomSQLModel):
@@ -97,11 +146,11 @@ class ChallengePublic(ChallengeBase):
     time_control_kind: TimeControlKind
     active: bool
     fischer_time_control: ChallengeFischerTimeControlPublic | None = None
-    resulting_game: GamePublic | None = None
+    resulting_game: GameSummaryPublic | None = None
 
 
 class ChallengeCreateResponse(CustomModel):
     result: Literal["CREATED", "MERGED"]
     challenge: ChallengePublic | None = None
     callee_online: bool | None = None
-    game: GamePublic | None = None
+    game: GameSummaryPublic | None = None

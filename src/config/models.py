@@ -71,4 +71,4 @@ class SSLParams(CustomModel):
 class SecretConfig(CustomModel):
     db: DBParams
     integrations: IntegrationParams
-    ssl: SSLParams | None = None
+    ssl: SSLParams

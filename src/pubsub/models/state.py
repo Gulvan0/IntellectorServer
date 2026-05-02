@@ -1,7 +1,7 @@
 from typing import Literal
 from challenge.models import ChallengePublic
 from common.models import UserRefWithNickname
-from game.models.main import GamePublic, GenericEventList
+from game.models.main import GameSummaryPublic, GenericEventList
 from game.models.outcome import GameOutcomePublic
 from game.models.time_update import GameTimeUpdatePublic
 from utils.custom_model import CustomModel
@@ -12,11 +12,11 @@ class ChallengeListStateRefresh(CustomModel):
 
 
 class GameListChannelsStateRefresh(CustomModel):
-    games: list[GamePublic]
+    games: list[GameSummaryPublic]
 
 
 class StartedPlayerGamesStateRefresh(CustomModel):
-    current_games: list[GamePublic]
+    current_games: list[GameSummaryPublic]
 
 
 class GameStateRefresh(CustomModel):

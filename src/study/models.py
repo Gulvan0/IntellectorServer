@@ -6,6 +6,7 @@ from sqlmodel import Field, Relationship
 from common.models import UserRefWithNickname
 from board.piece import PieceKind
 from common.field_types import CurrentDatetime, PlayerLogin, Sip
+from common.resolved_refs import ResolvedRefs
 from player.models import Player
 from study.datatypes import StudyPublicity
 from utils.custom_model import CustomModel, CustomSQLModel
@@ -100,7 +101,7 @@ class Study(StudyBase, table=True):
     def collect_refs(self) -> set[str]:
         return {self.author_login}
 
-    def to_summary(self, resolved_refs: dict[str, UserRefWithNickname]) -> StudySummaryPublic:
+    def to_summary(self, resolved_refs: ResolvedRefs) -> StudySummaryPublic:
         return StudySummaryPublic(
             name=self.name,
             description=self.description,
@@ -113,7 +114,7 @@ class Study(StudyBase, table=True):
             author=resolved_refs.get(self.author_login),
         )
 
-    def to_public(self, resolved_refs: dict[str, UserRefWithNickname]) -> StudyPublic:
+    def to_public(self, resolved_refs: ResolvedRefs) -> StudyPublic:
         return StudyPublic(
             **self.to_summary(resolved_refs).model_dump(),
             deleted=self.deleted,

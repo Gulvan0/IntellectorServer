@@ -125,7 +125,7 @@ async def get_subscriber_list_refresh(session: AsyncSession, channel: Subscriber
 
     return SubscriberListRefresh(
         payload=SubscriberListChannelStateRefresh(
-            subscribers=list(resolved_refs.values()),
+            subscribers=resolved_refs.all_values(),
             unauthenticated_subs_count=unauthenticated_subs_count
         ),
         target_channel=channel

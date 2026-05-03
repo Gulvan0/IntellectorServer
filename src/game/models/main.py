@@ -6,6 +6,7 @@ from sqlmodel import Field, Relationship
 
 from common.field_types import CurrentDatetime, OptionalSip, PlayerRef, OptionalPlayerRef
 from common.models import UserRefWithNickname
+from common.resolved_refs import ResolvedRefs
 from common.time_control import TimeControlKind
 from game.models.time_control import GameFischerTimeControl, GameFischerTimeControlPublic
 from game.models.outcome import GameOutcome, GameOutcomePublic
@@ -78,7 +79,7 @@ class Game(GameBase, table=True):
                 result.add(chat_event.author_ref)
         return result
 
-    def _collect_events(self, resolved_refs: dict[str, UserRefWithNickname], include_spectator_messages: bool = True) -> GenericEventList:
+    def _collect_events(self, resolved_refs: ResolvedRefs, include_spectator_messages: bool = True) -> GenericEventList:
         events: GenericEventList = []
 
         for ply_event in self.ply_events:
@@ -104,7 +105,7 @@ class Game(GameBase, table=True):
 
     def to_state_refresh(
         self,
-        resolved_refs: dict[str, UserRefWithNickname],
+        resolved_refs: ResolvedRefs,
         latest_time_update: GameTimeUpdate | None,
         reason: Literal['SUB', 'INVALID_MOVE'],
         include_spectator_messages: bool = True
@@ -118,7 +119,7 @@ class Game(GameBase, table=True):
 
     def _to_summary_generic(
         self,
-        resolved_refs: dict[str, UserRefWithNickname],
+        resolved_refs: ResolvedRefs,
         fischer_time_control: GameFischerTimeControl | None,
         outcome: GameOutcome | None,
     ) -> GameSummaryPublic:
@@ -136,13 +137,13 @@ class Game(GameBase, table=True):
             outcome=outcome.to_public() if outcome else None,
         )
 
-    def to_summary(self, resolved_refs: dict[str, UserRefWithNickname]) -> GameSummaryPublic:
+    def to_summary(self, resolved_refs: ResolvedRefs) -> GameSummaryPublic:
         return self._to_summary_generic(resolved_refs, self.fischer_time_control, self.outcome)
 
-    def to_summary_as_new(self, resolved_refs: dict[str, UserRefWithNickname], fischer_time_control: GameFischerTimeControl | None) -> GameSummaryPublic:
+    def to_summary_as_new(self, resolved_refs: ResolvedRefs, fischer_time_control: GameFischerTimeControl | None) -> GameSummaryPublic:
         return self._to_summary_generic(resolved_refs, fischer_time_control, None)
 
-    def to_public(self, resolved_refs: dict[str, UserRefWithNickname], latest_time_update: GameTimeUpdate | None) -> GamePublic:
+    def to_public(self, resolved_refs: ResolvedRefs, latest_time_update: GameTimeUpdate | None) -> GamePublic:
         return GamePublic(
             **self.to_summary(resolved_refs).model_dump(),
             events=self._collect_events(resolved_refs),

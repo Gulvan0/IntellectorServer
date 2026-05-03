@@ -5,6 +5,7 @@ from sqlmodel import Field, Relationship
 
 from challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
 from common.models import UserRefWithNickname
+from common.resolved_refs import ResolvedRefs
 from common.time_control import FischerTimeControlEntity, TimeControlKind
 from common.field_types import CurrentDatetime, PlayerRef, OptionalSip, OptionalPlayerRef
 from game.models.main import Game, GameSummaryPublic
@@ -49,7 +50,7 @@ class Challenge(ChallengeBase, table=True):
 
     def __to_public_generic(
         self,
-        resolved_refs: dict[str, UserRefWithNickname],
+        resolved_refs: ResolvedRefs,
         fischer_time_control: ChallengeFischerTimeControl | None,
         resulting_game: GameSummaryPublic | None
     ) -> ChallengePublic:
@@ -68,14 +69,14 @@ class Challenge(ChallengeBase, table=True):
             resulting_game=resulting_game
         )
 
-    def to_public(self, resolved_refs: dict[str, UserRefWithNickname]) -> ChallengePublic:
+    def to_public(self, resolved_refs: ResolvedRefs) -> ChallengePublic:
         return self.__to_public_generic(
             resolved_refs,
             self.fischer_time_control,
             self.resulting_game.to_summary(resolved_refs) if self.resulting_game else None
         )
 
-    def to_public_as_fresh(self, resolved_refs: dict[str, UserRefWithNickname], fischer_time_control: ChallengeFischerTimeControl | None) -> ChallengePublic:
+    def to_public_as_fresh(self, resolved_refs: ResolvedRefs, fischer_time_control: ChallengeFischerTimeControl | None) -> ChallengePublic:
         return self.__to_public_generic(resolved_refs, fischer_time_control, None)
 
 

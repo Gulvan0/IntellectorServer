@@ -2,43 +2,39 @@ from collections.abc import Iterable
 
 from sqlmodel import col, desc, select, func
 from common.models import UserRefWithNickname
+from common.resolved_refs import ResolvedRefs
 from common.sql import exists, not_expired
 from common.time_control import TimeControlKind
 from common.user_ref import UserReference
 from config.models import MainConfig
-from player.models import Player, PlayerEloProgress, PlayerFollowedPlayer, PlayerRestriction, PlayerRestrictionPublic, PlayerRole, PlayerRolePublic
-from player.datatypes import RankedGameStats, OverallRankedGameStats, UserRestrictionKind, UserRole
+from player.models import Player, PlayerEloProgress, PlayerFollowedPlayer, PlayerRestriction
+from player.datatypes import RankedGameStats, OverallRankedGameStats, UserRestrictionKind
 from utils.async_orm_session import AsyncSession
 
 
-async def resolve_player_refs(refs: Iterable[str | UserReference], session: AsyncSession) -> dict[str, UserRefWithNickname]:
-    result = {}
+async def resolve_player_refs(refs: Iterable[str | UserReference], session: AsyncSession) -> ResolvedRefs:
+    result = ResolvedRefs()
     logins = set()
 
     for ref in refs:
         ref_object = UserReference(ref) if isinstance(ref, str) else ref
         ref_str = ref_object.reference
-        if ref_object.is_guest():
-            result[ref_str] = UserRefWithNickname(user_ref=ref_str, nickname=f"Guest {ref_object.guest_id}")
-        elif ref_object.is_bot():
-            result[ref_str] = UserRefWithNickname(user_ref=ref_str, nickname=f"{ref_object.bot_name} (bot)")
-        else:
-            logins.add(ref)
+        if ref_object.is_player():
+            logins.add(ref_str)
 
     if logins:
         players = await session.exec(
             select(Player).where(col(Player.login).in_(logins))
         )
         for player in players:
-            result[player.login] = UserRefWithNickname(user_ref=player.login, nickname=player.nickname)
+            result.set(player.login, UserRefWithNickname(user_ref=player.login, nickname=player.nickname))
 
     return result
 
 
 async def resolve_player_ref(ref: str | UserReference, session: AsyncSession) -> UserRefWithNickname:
     mapping = await resolve_player_refs([ref], session)
-    str_ref = ref.reference if isinstance(ref, UserReference) else ref
-    return mapping.get(str_ref) or UserRefWithNickname(user_ref=str_ref, nickname="UNKNOWN")
+    return mapping.get(ref)
 
 
 async def resolve_optional_player_ref(ref: str | UserReference | None, session: AsyncSession) -> UserRefWithNickname | None:

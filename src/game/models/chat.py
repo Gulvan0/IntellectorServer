@@ -3,6 +3,7 @@ from sqlmodel import Field, Relationship
 
 from common.field_types import CurrentDatetime, PlayerRef
 from common.models import UserRefWithNickname
+from common.resolved_refs import ResolvedRefs
 from game.datatypes import EventKind
 from utils.custom_model import CustomModel, CustomSQLModel
 
@@ -24,7 +25,7 @@ class GameChatMessageEvent(GameChatMessageEventBase, table=True):
 
     game: Game = Relationship(back_populates="chat_message_events")
 
-    def to_broadcasted_data(self, resolved_refs: dict[str, UserRefWithNickname]) -> ChatMessageBroadcastedData:
+    def to_broadcasted_data(self, resolved_refs: ResolvedRefs) -> ChatMessageBroadcastedData:
         return ChatMessageBroadcastedData(
             occurred_at=self.occurred_at,
             text=self.text,
@@ -32,7 +33,7 @@ class GameChatMessageEvent(GameChatMessageEventBase, table=True):
             author=resolved_refs.get(self.author_ref)
         )
 
-    def to_public(self, resolved_refs: dict[str, UserRefWithNickname]) -> GameChatMessageEventPublic:
+    def to_public(self, resolved_refs: ResolvedRefs) -> GameChatMessageEventPublic:
         return GameChatMessageEventPublic(
             occurred_at=self.occurred_at,
             text=self.text,

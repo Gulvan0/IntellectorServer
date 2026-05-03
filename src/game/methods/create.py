@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from board.constants.sip import DEFAULT_STARTING_SIP
 from challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
 from challenge.models import Challenge
 from common.models import Id
@@ -62,6 +63,7 @@ async def create_game(
         rated=rated,
         custom_starting_sip=custom_starting_sip,
         external_uploader_ref=external_uploader_ref,
+        latest_sip=custom_starting_sip or DEFAULT_STARTING_SIP,
         fischer_time_control=db_time_control
     )
     session.add(db_game)

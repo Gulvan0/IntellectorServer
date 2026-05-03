@@ -165,7 +165,12 @@ async def append_ply(
         sip_after=new_sip,
         time_update=new_time_update
     )
-    await append_event(session, mutable_state, event, payload.game_id)
+    await append_event(session, mutable_state, event, payload.game_id, commit=False)
+
+    db_game.latest_sip = new_sip
+    session.add(db_game)
+    await session.commit()
+    await session.refresh(db_game)
 
     outcome = _get_simple_outcome(session, payload.game_id, perform_ply_result.new_position, new_sip, new_ply_index)
     if outcome:

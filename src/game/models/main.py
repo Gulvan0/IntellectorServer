@@ -4,7 +4,7 @@ from typing import Literal
 from sqlalchemy.orm import Load, joinedload, selectinload
 from sqlmodel import Field, Relationship
 
-from common.field_types import CurrentDatetime, OptionalSip, PlayerRef, OptionalPlayerRef
+from common.field_types import CurrentDatetime, OptionalSip, PlayerRef, OptionalPlayerRef, Sip
 from common.models import UserRefWithNickname
 from common.resolved_refs import ResolvedRefs
 from common.time_control import TimeControlKind
@@ -37,6 +37,7 @@ class Game(GameBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     white_player_ref: PlayerRef
     black_player_ref: PlayerRef
+    latest_sip: Sip
 
     fischer_time_control: GameFischerTimeControl | None = Relationship(back_populates="game", cascade_delete=True)
     outcome: GameOutcome | None = Relationship(back_populates="game", cascade_delete=True)
@@ -133,6 +134,7 @@ class Game(GameBase, table=True):
             external_uploader_ref=self.external_uploader_ref,
             id=self.id,
             opening="TODO",  # TODO: identify
+            latest_sip=self.latest_sip,
             fischer_time_control=GameFischerTimeControlPublic.cast(fischer_time_control),
             outcome=outcome.to_public() if outcome else None,
         )
@@ -156,6 +158,7 @@ class GameSummaryPublic(GameBase):
     white_player: UserRefWithNickname
     black_player: UserRefWithNickname
     opening: str
+    latest_sip: Sip
 
     fischer_time_control: GameFischerTimeControlPublic | None
     outcome: GameOutcomePublic | None

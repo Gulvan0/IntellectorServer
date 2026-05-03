@@ -23,9 +23,6 @@ async def append_event(
     commit: bool = True
 ) -> None:
     session.add(event)
-    if commit:
-        await session.commit()
-        await session.refresh(event)
 
     target_channel = GameEventChannel(game_id=game_id)
     tag_blacklist = set()
@@ -40,6 +37,9 @@ async def append_event(
             ws_event = OfferActionPerformed(event.to_broadcasted_data(), target_channel)
         case GameTimeAddedEvent():
             ws_event = TimeAdded(event.to_broadcasted_data(), target_channel)
+
+    if commit:
+        await session.commit()
 
     await mutable_state.ws_subscribers.broadcast(ws_event, tag_blacklist=tag_blacklist)
 

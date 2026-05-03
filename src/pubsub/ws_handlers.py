@@ -20,7 +20,7 @@ from pubsub.models.channel import (
     SubscriberListEventChannel,
 )
 from pubsub.models.other import SubUnsubPayload
-from pubsub.models.state import ChallengeListStateRefresh, CurrentGameListStateRefresh, StartedPlayerGamesStateRefresh, SubscriberListChannelStateRefresh
+from pubsub.models.state import ChallengeListStateRefresh, CurrentGameListStateRefresh, GameStateRefresh, StartedPlayerGamesStateRefresh, SubscriberListChannelStateRefresh
 from pubsub.outgoing_event.base import RefreshEvent
 from pubsub.outgoing_event.refresh import (
     CurrentGameListRefresh,
@@ -90,7 +90,8 @@ async def get_game_refresh(session: AsyncSession, channel: GameEventChannel, cli
     collected_refs = db_game.collect_refs(include_nested=True)
     resolved_refs = await resolve_player_refs(collected_refs, session)
     latest_time_update = await get_latest_time_update(session, channel.game_id)
-    game_state = db_game.to_state_refresh(
+    game_state = GameStateRefresh.construct_from_game(
+        game=db_game,
         resolved_refs=resolved_refs,
         latest_time_update=latest_time_update,
         reason='SUB',

@@ -16,7 +16,6 @@ from game.models.offer import GameOfferEvent, GameOfferEventPublic
 from game.models.rollback import GameRollbackEvent, GameRollbackEventPublic
 from game.models.time_added import GameTimeAddedEvent, GameTimeAddedEventPublic
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
-from pubsub.models.state import GameStateRefresh
 from utils.custom_model import CustomSQLModel
 
 
@@ -104,20 +103,6 @@ class Game(GameBase, table=True):
             return key
 
         return sorted(events, key=get_soring_key)
-
-    def to_state_refresh(
-        self,
-        resolved_refs: ResolvedRefs,
-        latest_time_update: GameTimeUpdate | None,
-        reason: Literal['SUB', 'INVALID_MOVE'],
-        include_spectator_messages: bool = True
-    ) -> GameStateRefresh:
-        return GameStateRefresh(
-            refresh_reason=reason,
-            outcome=self.outcome.to_public() if self.outcome else None,
-            events=self._collect_events(resolved_refs, include_spectator_messages),
-            latest_time_update=GameTimeUpdatePublic.cast(latest_time_update)
-        )
 
     def _to_summary_generic(
         self,

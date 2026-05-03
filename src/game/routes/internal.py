@@ -11,6 +11,7 @@ from game.models.rest.internal import InternalGameAppendPlyPayload, InternalGame
 from game.models.time_update import GameTimeUpdatePublic
 from net.base_router import LoggingRoute
 from player.methods import resolve_player_refs
+from pubsub.models.state import GameStateRefresh
 
 
 router = APIRouter(prefix="/game/internal", route_class=LoggingRoute)
@@ -59,7 +60,8 @@ async def append_ply_route(
         collected_refs = db_game.collect_refs(include_nested=True)
         resolved_refs = await resolve_player_refs(collected_refs, session)
         latest_time_update = await get_latest_time_update(session, payload.game_id)
-        game_state = db_game.to_state_refresh(
+        game_state = GameStateRefresh.construct_from_game(
+            game=db_game,
             resolved_refs=resolved_refs,
             latest_time_update=latest_time_update,
             reason='INVALID_MOVE',

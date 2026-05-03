@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlalchemy import CHAR
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlmodel import Field, Relationship, Column
@@ -22,7 +24,7 @@ class RESTRequestLog(CustomSQLModel, table=True):
     headers_json: str = Field(sa_column=Column(MEDIUMTEXT))
     payload: str
 
-    response: RESTResponseLog | None = Relationship(back_populates="request")
+    response: Optional["RESTResponseLog"] = Relationship(back_populates="request")  # String annotation is still needed because of SQLModel intricacies
 
 
 # <private>

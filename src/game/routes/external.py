@@ -4,6 +4,7 @@ from common.dependencies import (
     MainConfigDependency,
     MandatoryUserDependency,
     MutableStateDependency,
+    OpeningMappingDepencency,
     SecretConfigDependency,
     SessionDependency,
 )
@@ -57,7 +58,8 @@ async def append_ply_route(
     session: SessionDependency,
     state: MutableStateDependency,
     main_config: MainConfigDependency,
-    secret_config: SecretConfigDependency
+    secret_config: SecretConfigDependency,
+    openings: OpeningMappingDepencency,
 ) -> ExternalGameAppendPlyResponse:
     try:
         outcome, _, _ = await append_ply(
@@ -65,6 +67,7 @@ async def append_ply_route(
             state,
             main_config,
             secret_config,
+            openings,
             payload,
             db_game,
             payload.time_remainders

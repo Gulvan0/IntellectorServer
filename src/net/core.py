@@ -26,6 +26,8 @@ from pubsub.models.other import *  # noqa: F401, F403
 from pubsub.models.state import *  # noqa: F401, F403
 from study.models import *  # noqa: F401, F403
 
+from board.opening import OpeningMapping, generate_mapping
+
 from asyncio import TimerHandle
 import asyncio
 from contextlib import asynccontextmanager
@@ -113,6 +115,7 @@ class App(FastAPI):
 
         self.main_config: MainConfig = load('main', MainConfig)
         self.secret_config: SecretConfig = load('secret', SecretConfig)
+        self.openings: OpeningMapping = generate_mapping()
 
         self.db_engine: AsyncEngine = create_async_engine(self.secret_config.db.url)
 

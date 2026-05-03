@@ -2,6 +2,7 @@ from typing import Annotated, AsyncGenerator
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import APIKeyHeader
 
+from board.opening import OpeningMapping
 from common.constants import USER_TOKEN_HEADER
 from common.user_ref import UserReference
 from config.models import MainConfig, SecretConfig
@@ -49,6 +50,13 @@ async def get_secret_config(app: AppDependency) -> SecretConfig:
 
 
 SecretConfigDependency = Annotated[SecretConfig, Depends(get_secret_config)]
+
+
+async def get_openings(app: AppDependency) -> OpeningMapping:
+    return app.openings
+
+
+OpeningMappingDepencency = Annotated[OpeningMapping, Depends(get_openings)]
 
 
 async def get_mandatory_user(state: MutableStateDependency, token: UserTokenHeaderDependency) -> UserReference:

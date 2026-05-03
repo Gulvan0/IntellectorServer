@@ -49,6 +49,7 @@ async def create_game(
     deactivated_challenge: Challenge | None = None
 ) -> GameSummaryPublic:
     started_at = datetime.now(UTC)
+    starting_sip = custom_starting_sip or DEFAULT_STARTING_SIP
 
     db_time_control = GameFischerTimeControl(
         start_seconds=time_control.start_seconds,
@@ -63,7 +64,8 @@ async def create_game(
         rated=rated,
         custom_starting_sip=custom_starting_sip,
         external_uploader_ref=external_uploader_ref,
-        latest_sip=custom_starting_sip or DEFAULT_STARTING_SIP,
+        latest_sip=starting_sip,
+        opening_sip=starting_sip,
         fischer_time_control=db_time_control
     )
     session.add(db_game)

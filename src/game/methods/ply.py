@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 
+from board.opening import OpeningMapping
 from common.time_control import TimeControlKind
 from config.models import MainConfig, SecretConfig
 from game.datatypes import OutcomeKind, SimpleOutcome, TimeRemainders
@@ -93,6 +94,7 @@ async def append_ply(
     mutable_state: MutableState,
     main_config: MainConfig,
     secret_config: SecretConfig,
+    openings: OpeningMapping,
     payload: PlyPayload,
     db_game: Game,
     time_remainders: TimeRemainders | None,
@@ -168,6 +170,8 @@ async def append_ply(
     await append_event(session, mutable_state, event, payload.game_id, commit=False)
 
     db_game.latest_sip = new_sip
+    if new_sip in openings.mapping:
+        db_game.opening_sip = new_sip
     session.add(db_game)
     await session.commit()
     await session.refresh(db_game)

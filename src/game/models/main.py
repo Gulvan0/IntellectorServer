@@ -38,6 +38,7 @@ class Game(GameBase, table=True):
     white_player_ref: PlayerRef
     black_player_ref: PlayerRef
     latest_sip: Sip
+    opening_sip: Sip
 
     fischer_time_control: GameFischerTimeControl | None = Relationship(back_populates="game", cascade_delete=True)
     outcome: GameOutcome | None = Relationship(back_populates="game", cascade_delete=True)
@@ -133,7 +134,7 @@ class Game(GameBase, table=True):
             custom_starting_sip=self.custom_starting_sip,
             external_uploader_ref=self.external_uploader_ref,
             id=self.id,
-            opening="TODO",  # TODO: identify
+            opening_sip=self.opening_sip,
             latest_sip=self.latest_sip,
             fischer_time_control=GameFischerTimeControlPublic.cast(fischer_time_control),
             outcome=outcome.to_public() if outcome else None,
@@ -157,8 +158,8 @@ class GameSummaryPublic(GameBase):
     id: int
     white_player: UserRefWithNickname
     black_player: UserRefWithNickname
-    opening: str
     latest_sip: Sip
+    opening_sip: Sip
 
     fischer_time_control: GameFischerTimeControlPublic | None
     outcome: GameOutcomePublic | None

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from common.dependencies import MainConfigDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
+from common.dependencies import MainConfigDependency, MutableStateDependency, OpeningMappingDepencency, SecretConfigDependency, SessionDependency
 from game.datatypes import OfferAction, OfferKind, OutcomeKind
 from game.dependencies import GAME_IS_INTERNAL_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, FullGameDependency, GameDependency, PlayerColorDependency
 from game.methods.get import get_latest_time_update
@@ -28,7 +28,8 @@ async def append_ply_route(
     session: SessionDependency,
     state: MutableStateDependency,
     main_config: MainConfigDependency,
-    secret_config: SecretConfigDependency
+    secret_config: SecretConfigDependency,
+    openings: OpeningMappingDepencency,
 ) -> InternalGameAppendPlyResponse:
     try:
         outcome, sip_after, time_update = await append_ply(
@@ -36,6 +37,7 @@ async def append_ply_route(
             state,
             main_config,
             secret_config,
+            openings,
             payload,
             db_game,
             None,

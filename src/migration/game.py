@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from board.constants.sip import DEFAULT_STARTING_SIP_V1
 from board.coords import HexCoordinates
 from board.deserializers.sip import position_from_sip
+from board.opening import OpeningMapping, generate_mapping
 from board.piece import PieceColor, PieceKind
 from board.ply import Ply
 from board.ply_validation import PlyImpossibleException
@@ -40,6 +41,8 @@ SIP_PATTERN = re.compile(r'#S\|(.+?);')
 REMAINDERS_PATTERN = re.compile(r'#L\|(\d+?)/(\d+?)(\s*$|;)')
 
 MSK_TZ = timezone(timedelta(hours=3))
+
+OPENINGS = generate_mapping()
 
 
 def cast_ref(raw_ref: str) -> str:
@@ -186,6 +189,8 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
         starting_sip = get_sip(position)  # to v2
 
     move_cnt = 0
+    opening_sip = starting_sip
+    latest_sip = starting_sip
 
     ply_events: list[GamePlyEvent] = []
     chat_message_events: list[GameChatMessageEvent] = []
@@ -352,6 +357,11 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
                 time_update.white_ms = int(parts[1])
                 time_update.black_ms = int(parts[2])
 
+        new_sip = get_sip(position)
+        latest_sip = new_sip
+        if new_sip in OPENINGS.mapping:
+            opening_sip = new_sip
+
         ply_events.append(GamePlyEvent(
             occurred_at=event_time,
             ply_index=move_cnt - 1,
@@ -364,7 +374,7 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
             moving_color=ply_output.properties.moving_piece.color,
             moved_piece=ply_output.properties.moving_piece.kind,
             target_piece=ply_output.properties.target_piece.kind if ply_output.properties.target_piece else None,
-            sip_after=get_sip(position),
+            sip_after=new_sip,
             time_update=time_update
         ))
 
@@ -392,6 +402,8 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
             id=game_id,
             white_player_ref=white_ref,
             black_player_ref=black_ref,
+            latest_sip=latest_sip,
+            opening_sip=opening_sip,
             fischer_time_control=time_control,
             outcome=outcome,
             ply_events=ply_events,

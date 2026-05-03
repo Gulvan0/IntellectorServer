@@ -34,15 +34,15 @@ class OutgoingChallengesEventChannel(CustomFrozenModel, frozen=True):
 
 
 class GameEventChannel(CustomFrozenModel, frozen=True):
-    group: ClassVar[str] = 'game.main'
-    channel_group: Literal['game.main'] = 'game.main'
+    group: ClassVar[str] = 'game'
+    channel_group: Literal['game'] = 'game'
 
     game_id: int
 
 
 class StartedPlayerGamesEventChannel(CustomFrozenModel, frozen=True):
-    group: ClassVar[str] = 'player.started_games'
-    channel_group: Literal['player.started_games'] = 'player.started_games'
+    group: ClassVar[str] = 'started_player_games'
+    channel_group: Literal['started_player_games'] = 'started_player_games'
 
     watched_ref: str
 

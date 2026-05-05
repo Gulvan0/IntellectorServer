@@ -5,7 +5,7 @@ from typing import Iterable
 
 from fastapi import HTTPException
 
-from game.methods.event import append_rollback_event
+from game.methods.event import append_rollback_event, get_next_event_index
 from game.methods.get import get_initial_time, get_ply_history
 from game.methods.timeout import plan_timeout_check
 from game.models.main import Game
@@ -115,6 +115,7 @@ async def perform_rollback(
 
     event = GameRollbackEvent(
         occurred_at=rollback_dt,
+        event_index=await get_next_event_index(session, game_id),
         ply_cnt_before=validation_results.old_ply_cnt,
         ply_cnt_after=validation_results.new_ply_cnt,
         requested_by=validation_results.requested_by,

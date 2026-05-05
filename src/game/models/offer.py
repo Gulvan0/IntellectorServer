@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 class GameOfferEventBase(CustomSQLModel):
     occurred_at: CurrentDatetime
+    event_index: int
     action: OfferAction
     offer_kind: OfferKind
     offer_author: PieceColor

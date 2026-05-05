@@ -16,7 +16,7 @@ def process_passwords_file(data: dict[str, str], first_games: dict[str, datetime
     passwords = []
 
     for login, md5hash in data.items():
-        if login == "aleksandragabdrahmanova79gmailcom" or login == "PaulNotIntellector":  # Too long (first) and duplicate (second)
+        if login == "aleksandragabdrahmanova79gmailcom" or login in ("PaulNotIntellector", "Leo169", "KatziRina", "Kirill123"):  # Too long (first) and duplicate (second)
             continue
         if len(login) > 32:
             raise ValueError(login)

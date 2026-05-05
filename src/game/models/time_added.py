@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 class GameTimeAddedEventBase(CustomSQLModel):
     occurred_at: CurrentDatetime
+    event_index: int
     amount_seconds: int
     receiver: PieceColor
 
@@ -37,6 +38,7 @@ class GameTimeAddedEvent(GameTimeAddedEventBase, table=True):
     def to_public(self) -> GameTimeAddedEventPublic:
         return GameTimeAddedEventPublic(
             occurred_at=self.occurred_at,
+            event_index=self.event_index,
             amount_seconds=self.amount_seconds,
             receiver=self.receiver,
             time_update=GameTimeUpdatePublic.cast(self.time_update)
@@ -45,6 +47,7 @@ class GameTimeAddedEvent(GameTimeAddedEventBase, table=True):
     def to_broadcasted_data(self) -> TimeAddedBroadcastedData:
         return TimeAddedBroadcastedData(
             occurred_at=self.occurred_at,
+            event_index=self.event_index,
             amount_seconds=self.amount_seconds,
             receiver=self.receiver,
             time_update=GameTimeUpdatePublic.cast(self.time_update)

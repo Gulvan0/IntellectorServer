@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 class GameChatMessageEventBase(CustomSQLModel):
     occurred_at: CurrentDatetime
+    event_index: int
     text: str
     spectator: bool
 
@@ -28,6 +29,7 @@ class GameChatMessageEvent(GameChatMessageEventBase, table=True):
     def to_broadcasted_data(self, resolved_refs: ResolvedRefs) -> ChatMessageBroadcastedData:
         return ChatMessageBroadcastedData(
             occurred_at=self.occurred_at,
+            event_index=self.event_index,
             text=self.text,
             spectator=self.spectator,
             author=resolved_refs.get(self.author_ref)
@@ -36,6 +38,7 @@ class GameChatMessageEvent(GameChatMessageEventBase, table=True):
     def to_public(self, resolved_refs: ResolvedRefs) -> GameChatMessageEventPublic:
         return GameChatMessageEventPublic(
             occurred_at=self.occurred_at,
+            event_index=self.event_index,
             text=self.text,
             spectator=self.spectator,
             author=resolved_refs.get(self.author_ref)

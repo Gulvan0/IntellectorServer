@@ -1,6 +1,7 @@
 from typing import Any
 from game.datatypes import OfferAction, OfferKind
 from game.models.chat import GameChatMessageEvent
+from game.models.main import Game
 from game.models.offer import GameOfferEvent
 from game.models.ply import GamePlyEvent
 from game.models.rollback import GameRollbackEvent
@@ -13,6 +14,22 @@ from pubsub.outgoing_event.base import OutgoingEvent
 from pubsub.outgoing_event.update import NewChatMessage, NewPly, OfferActionPerformed, Rollback, TimeAdded
 from board.piece import PieceColor
 from utils.async_orm_session import AsyncSession
+
+from sqlmodel import update
+
+
+async def get_next_event_index(
+    session: AsyncSession,
+    game_id: int,
+) -> int:
+    result = await session.execute(
+        update(Game)
+        .where(Game.id == game_id)  # type: ignore
+        .values(event_cnt=Game.event_cnt + 1)
+        .returning(Game.event_cnt)
+    )
+    await session.commit()
+    return result.scalar_one() - 1
 
 
 async def append_event(
@@ -57,6 +74,7 @@ async def append_offer_event(
         session=session,
         mutable_state=mutable_state,
         event=GameOfferEvent(
+            event_index=await get_next_event_index(session, game_id),
             action=action,
             offer_kind=offer_kind,
             offer_author=offer_author,

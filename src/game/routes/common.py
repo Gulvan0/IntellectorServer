@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 from board.piece import PieceColor
 from common.dependencies import MainConfigDependency, MandatoryUserDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
 from game.dependencies import CLIENT_IS_UPLOADER_IF_EXTERNAL_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency, GameWithOutcomeDependency, OptionalPlayerColorDependency
-from game.methods.event import append_event
+from game.methods.event import append_event, get_next_event_index
 from game.methods.get import get_current_games, get_latest_time_update, get_recent_games
 from game.methods.timeout import check_timeout, plan_timeout_check
 from game.models.chat import GameChatMessageEvent, GameSendChatMessagePayload
@@ -85,6 +85,7 @@ async def send_chat_message(
     is_spectator = db_game.outcome or client.reference not in (db_game.white_player_ref, db_game.black_player_ref)
 
     db_event = GameChatMessageEvent(
+        event_index=await get_next_event_index(session, payload.game_id),
         author_ref=client.reference,
         text=payload.text[:255],
         game_id=payload.game_id,
@@ -151,6 +152,7 @@ async def add_time(
 
     event = GameTimeAddedEvent(
         occurred_at=addition_dt,
+        event_index=await get_next_event_index(session, payload.game_id),
         amount_seconds=secs_added,
         receiver=receiver,
         game_id=payload.game_id,

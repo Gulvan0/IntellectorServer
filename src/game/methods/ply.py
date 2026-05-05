@@ -8,7 +8,7 @@ from common.time_control import TimeControlKind
 from config.models import MainConfig, SecretConfig
 from game.datatypes import OutcomeKind, SimpleOutcome, TimeRemainders
 from game.exceptions import PlyInvalidException, TimeoutReachedException
-from game.methods.event import append_event
+from game.methods.event import append_event, get_next_event_index
 from game.methods.get import get_current_sip_and_ply_cnt, get_last_ply_event, get_latest_time_update, has_occured_thrice, is_stale
 from game.methods.offer import cancel_all_active_offers
 from game.methods.timeout import plan_timeout_check
@@ -153,6 +153,7 @@ async def append_ply(
 
     event = GamePlyEvent(
         occurred_at=ply_dt,
+        event_index=await get_next_event_index(session, payload.game_id),
         ply_index=new_ply_index,
         from_i=ply.departure.i,
         from_j=ply.departure.j,

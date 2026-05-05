@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from datetime import UTC, datetime
 from enum import StrEnum, auto
 from sqlmodel import Field, Relationship

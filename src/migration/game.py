@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone
-from board.constants.sip import DEFAULT_STARTING_SIP_V1
+from board.constants.sip import DEFAULT_STARTING_SIP, DEFAULT_STARTING_SIP_V1
 from board.coords import HexCoordinates
 from board.deserializers.sip import position_from_sip
 from board.opening import OpeningMapping, generate_mapping
@@ -41,6 +41,7 @@ SIP_PATTERN = re.compile(r'#S\|(.+?);')
 REMAINDERS_PATTERN = re.compile(r'#L\|(\d+?)/(\d+?)(\s*$|;)')
 
 MSK_TZ = timezone(timedelta(hours=3))
+NULL_DATETIME = datetime.fromtimestamp(1_500_000_000, UTC)
 
 OPENINGS = generate_mapping()
 
@@ -189,8 +190,8 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
         starting_sip = get_sip(position)  # to v2
 
     move_cnt = 0
-    opening_sip = starting_sip
-    latest_sip = starting_sip
+    opening_sip = starting_sip or DEFAULT_STARTING_SIP
+    latest_sip = starting_sip or DEFAULT_STARTING_SIP
 
     ply_events: list[GamePlyEvent] = []
     chat_message_events: list[GameChatMessageEvent] = []
@@ -198,10 +199,10 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
     time_added_events: list[GameTimeAddedEvent] = []
     rollback_events: list[GameRollbackEvent] = []
 
-    started_at = get_datetime(full_log) or (datetime.fromisoformat(revived_dt) if revived_dt else None) or datetime.fromtimestamp(0, UTC)
-    event_time = started_at
+    started_at = get_datetime(full_log) or (datetime.fromisoformat(revived_dt) if revived_dt else None) or NULL_DATETIME
+    event_index = 0
     time_update = GameTimeUpdate(
-        updated_at=event_time,
+        updated_at=started_at,
         white_ms=time_control.start_seconds * 1000,
         black_ms=time_control.start_seconds * 1000,
         ticking_side=None,
@@ -219,20 +220,20 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
             code, remainder = line.removeprefix("#").split("|", 1)
             args = remainder.split("/")
             if code == "C":
-                event_time += timedelta(seconds=1)
                 chat_message_events.append(GameChatMessageEvent(
-                    occurred_at=event_time,
+                    occurred_at=started_at,
+                    event_index=event_index,
                     text=args[1][:255],
                     spectator=False,
                     author_ref=white_ref if args[0] == "w" else black_ref
                 ))
+                event_index += 1
             elif code == "E":
                 if args[0] == "tad":
-                    event_time += timedelta(seconds=1)
                     if not time_update:
                         continue
 
-                    time_update.updated_at = event_time
+                    time_update.updated_at = started_at
                     time_update.reason = GameTimeUpdateReason.TIME_ADDED
                     if args[1] == 'w':
                         time_update.white_ms += 15000
@@ -242,11 +243,13 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
                         receiver = PieceColor.BLACK
 
                     time_added_events.append(GameTimeAddedEvent(
-                        occurred_at=event_time,
+                        occurred_at=started_at,
+                        event_index=event_index,
                         amount_seconds=15,
                         receiver=receiver,
                         time_update=time_update
                     ))
+                    event_index += 1
                     time_update = clone_time_update(time_update)
                     continue
 
@@ -275,26 +278,28 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
                 else:
                     raise ValueError(f'Unknown event: {line}')
 
-                event_time += timedelta(seconds=1)
                 offer_events.append(GameOfferEvent(
-                    occurred_at=event_time,
+                    occurred_at=started_at,
+                    event_index=event_index,
                     action=offer_action,
                     offer_kind=offer_kind,
                     offer_author=offer_author
                 ))
+                event_index += 1
 
                 if offer_action == OfferAction.ACCEPT and offer_kind == OfferKind.TAKEBACK:
-                    event_time += timedelta(seconds=1)
                     if time_update:
-                        time_update.updated_at = event_time
+                        time_update.updated_at = started_at
                         time_update.reason = GameTimeUpdateReason.ROLLBACK
                     rollback_events.append(GameRollbackEvent(
-                        occurred_at=event_time,
+                        occurred_at=started_at,
+                        event_index=event_index,
                         ply_cnt_before=move_cnt + 1,
                         ply_cnt_after=move_cnt,
                         requested_by=offer_author,
                         time_update=time_update
                     ))
+                    event_index += 1
                     if time_update:
                         time_update = clone_time_update(time_update)
             continue
@@ -348,9 +353,8 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
 
         move_cnt += 1
 
-        event_time += timedelta(seconds=1)
         if time_update:
-            time_update.updated_at = event_time
+            time_update.updated_at = started_at
             time_update.reason = GameTimeUpdateReason.PLY
             time_update.ticking_side = position.color_to_move if move_cnt >= 2 else None
             if len(parts) == 3:
@@ -363,7 +367,8 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
             opening_sip = new_sip
 
         ply_events.append(GamePlyEvent(
-            occurred_at=event_time,
+            occurred_at=started_at,
+            event_index=event_index,
             ply_index=move_cnt - 1,
             from_i=ply.departure.i,
             from_j=ply.departure.j,
@@ -377,20 +382,20 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
             sip_after=new_sip,
             time_update=time_update
         ))
+        event_index += 1
 
         if time_update:
             time_update = clone_time_update(time_update)
 
     last_remainders = get_remainders(full_log)
-    event_time += timedelta(seconds=1)
     if time_update:
-        time_update.updated_at = event_time
+        time_update.updated_at = started_at
         time_update.reason = GameTimeUpdateReason.GAME_ENDED
         time_update.ticking_side = None
         if last_remainders:
             time_update.white_ms = last_remainders[0]
             time_update.black_ms = last_remainders[1]
-    outcome = get_outcome(game_id, full_log, event_time, time_update)
+    outcome = get_outcome(game_id, full_log, started_at, time_update)
 
     added_objects.append(
         Game(
@@ -404,6 +409,7 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
             black_player_ref=black_ref,
             latest_sip=latest_sip,
             opening_sip=opening_sip,
+            event_cnt=event_index,
             fischer_time_control=time_control,
             outcome=outcome,
             ply_events=ply_events,

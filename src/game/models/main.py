@@ -38,6 +38,7 @@ class Game(GameBase, table=True):
     black_player_ref: PlayerRef
     latest_sip: Sip
     opening_sip: Sip
+    event_cnt: int
 
     fischer_time_control: GameFischerTimeControl | None = Relationship(back_populates="game", cascade_delete=True)
     outcome: GameOutcome | None = Relationship(back_populates="game", cascade_delete=True)
@@ -96,13 +97,7 @@ class Game(GameBase, table=True):
         for rollback_event in self.rollback_events:
             events.append(rollback_event.to_public())
 
-        def get_soring_key(event: GenericEvent) -> datetime:
-            key = event.occurred_at.timestamp()
-            if isinstance(event, GameRollbackEventPublic):
-                key += 0.0000001
-            return key
-
-        return sorted(events, key=get_soring_key)
+        return sorted(events, key=lambda event: event.event_index)
 
     def _to_summary_generic(
         self,

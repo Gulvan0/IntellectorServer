@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 class GameRollbackEventBase(CustomSQLModel):
     occurred_at: CurrentDatetime
+    event_index: int
     ply_cnt_before: int
     ply_cnt_after: int
     requested_by: PieceColor
@@ -32,12 +33,13 @@ class GameRollbackEvent(GameRollbackEventBase, table=True):
     @classmethod
     def load_options(cls) -> list[Load]:
         return [
-            joinedload(GameTimeUpdate.time_update)
+            joinedload(GameRollbackEvent.time_update)
         ]
 
     def to_public(self) -> GameRollbackEventPublic:
         return GameRollbackEventPublic(
             occurred_at=self.occurred_at,
+            event_index=self.event_index,
             ply_cnt_before=self.ply_cnt_before,
             ply_cnt_after=self.ply_cnt_after,
             requested_by=self.requested_by,
@@ -47,6 +49,7 @@ class GameRollbackEvent(GameRollbackEventBase, table=True):
     def to_broadcasted_data(self, updated_sip: str) -> RollbackBroadcastedData:
         return RollbackBroadcastedData(
             occurred_at=self.occurred_at,
+            event_index=self.event_index,
             ply_cnt_before=self.ply_cnt_before,
             ply_cnt_after=self.ply_cnt_after,
             requested_by=self.requested_by,

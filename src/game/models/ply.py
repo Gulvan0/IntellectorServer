@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 class GamePlyEventBase(CustomSQLModel):
     occurred_at: CurrentDatetime
+    event_index: int
     ply_index: int
     from_i: int
     from_j: int
@@ -47,6 +48,7 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
     def to_public(self) -> GamePlyEventPublic:
         return GamePlyEventPublic(
             occurred_at=self.occurred_at,
+            event_index=self.event_index,
             ply_index=self.ply_index,
             from_i=self.from_i,
             from_j=self.from_j,
@@ -60,6 +62,7 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
     def to_broadcasted_data(self) -> PlyBroadcastedData:
         return PlyBroadcastedData(
             occurred_at=self.occurred_at,
+            event_index=self.event_index,
             ply_index=self.ply_index,
             from_i=self.from_i,
             from_j=self.from_j,

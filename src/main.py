@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from auth import routes as auth_routes
 from challenge import routes as challenge_routes
 from game.routes import common as main_game_routes
@@ -41,8 +42,12 @@ app.add_middleware(
 
 
 async def run_server() -> None:
+    logging.basicConfig(level=logging.INFO)
+
     config = Config()
     config.bind = ["0.0.0.0:8443"]
+    config.accesslog = logging.getLogger("hypercorn.access")
+    config.errorlog = logging.getLogger("hypercorn.error")
     config.keyfile = app.secret_config.ssl.key_path
     config.certfile = app.secret_config.ssl.cert_path
     await serve(app, config)  # type: ignore

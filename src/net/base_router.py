@@ -1,5 +1,7 @@
-from fastapi import BackgroundTasks, Response, Request
-from fastapi.datastructures import Headers
+import asyncio
+import json
+
+from fastapi import BackgroundTasks, HTTPException, Response, Request
 from starlette.background import BackgroundTask
 from starlette.responses import StreamingResponse
 from fastapi.routing import APIRoute
@@ -9,37 +11,8 @@ from log.models import RESTRequestLog, RESTResponseLog
 from net.core import App
 from common.constants import USER_TOKEN_HEADER
 
-import json
+from net.utils.log_codecs import dump_headers, dump_request_body, dump_response_body
 from utils.async_orm_session import AsyncSession
-
-
-def headers_to_str(headers: Headers) -> str:
-    try:
-        return json.dumps(dict(headers.items()), ensure_ascii=False)
-    except Exception:
-        return "unparsable"
-
-
-def request_body_to_str(body: bytes) -> str:
-    try:
-        if not body:
-            return "missing"
-        elif len(body) > 4000:
-            return "too_long"
-        else:
-            return body.decode()
-    except Exception:
-        return "unparsable"
-
-
-def response_body_to_str(body: bytes) -> str:
-    if len(body) > 4000:
-        return "too_long"
-    else:
-        try:
-            return body.decode()
-        except Exception:
-            return "unparsable"
 
 
 def get_client_ref(request: Request, app: App) -> str | None:
@@ -57,12 +30,12 @@ async def log_info(request: Request, response_code: int, response_body: bytes, a
             authorized_as=get_client_ref(request, app),
             endpoint=request.url.path,
             method=request.method,
-            headers_json=headers_to_str(request.headers),
-            payload=request_body_to_str(await request.body()),
+            headers_json=dump_headers(request.headers),
+            payload=dump_request_body(await request.body()),
         )
         response_entry = RESTResponseLog(
             response_code=response_code,
-            response=response_body_to_str(response_body),
+            response=dump_response_body(response_body),
             request=request_entry
         )
         session.add(request_entry)
@@ -75,7 +48,16 @@ class LoggingRoute(APIRoute):
         original_route_handler = super().get_route_handler()
 
         async def custom_route_handler(request: Request) -> Response:
-            response = await original_route_handler(request)
+            try:
+                response = await original_route_handler(request)
+            except HTTPException as exc:
+                body = json.dumps({"detail": exc.detail}).encode()
+                asyncio.create_task(log_info(request, exc.status_code, body, request.app))
+                raise
+            except Exception as exc:
+                body = json.dumps({"detail": str(exc)}).encode()
+                asyncio.create_task(log_info(request, 500, body, request.app))
+                raise
             existing_task = response.background
 
             if isinstance(response, StreamingResponse):

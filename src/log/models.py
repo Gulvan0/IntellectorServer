@@ -1,7 +1,7 @@
 from typing import Optional
 
 from sqlalchemy import CHAR
-from sqlalchemy.dialects.mysql import MEDIUMTEXT
+from sqlalchemy.dialects.mysql import TEXT
 from sqlmodel import Field, Relationship, Column
 
 from common.field_types import CurrentDatetime, OptionalPlayerRef
@@ -21,8 +21,8 @@ class RESTRequestLog(CustomSQLModel, table=True):
     authorized_as: OptionalPlayerRef = Field(index=True)
     endpoint: str
     method: str = Field(sa_column=Column(CHAR(5)))
-    headers_json: str = Field(sa_column=Column(MEDIUMTEXT))
-    payload: str
+    headers_json: str = Field(sa_column=Column(TEXT))
+    payload: str = Field(sa_column=Column(TEXT))
 
     response: Optional["RESTResponseLog"] = Relationship(back_populates="request")  # String annotation is still needed because of SQLModel intricacies
 
@@ -32,7 +32,7 @@ class RESTResponseLog(CustomSQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     request_id: int = Field(foreign_key="restrequestlog.id")
     response_code: int
-    response: str
+    response: str = Field(sa_column=Column(TEXT))
 
     request: RESTRequestLog = Relationship(back_populates="response")
 

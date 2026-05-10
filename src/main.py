@@ -1,4 +1,5 @@
 import asyncio
+from asyncio import StreamWriter
 import logging
 from auth import routes as auth_routes
 from challenge import routes as challenge_routes
@@ -16,6 +17,19 @@ from net.core import App
 from fastapi.middleware.cors import CORSMiddleware
 from hypercorn.config import Config
 from hypercorn.asyncio import serve
+
+
+_original_wait_closed = StreamWriter.wait_closed
+
+
+async def _patched_wait_closed(self: StreamWriter) -> None:
+    try:
+        await asyncio.wait_for(_original_wait_closed(self), timeout=5.0)
+    except (asyncio.TimeoutError, TimeoutError):
+        pass
+
+
+StreamWriter.wait_closed = _patched_wait_closed  # type: ignore[method-assign]
 
 
 app = App(

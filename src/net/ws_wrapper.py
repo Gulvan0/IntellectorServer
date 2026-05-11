@@ -9,6 +9,7 @@ from common.datatypes import UserStatus
 from common.models import UserActivity
 from common.user_ref import UserReference
 from net.models import WebsocketWrapperDump
+from net.utils.log_codecs import dump_ws_payload
 from pubsub.models.channel import EventChannel
 from log.models import WSLog
 from net.utils.ws_error import ErrorKind
@@ -56,7 +57,7 @@ class WebSocketWrapper:
             session.add(WSLog(
                 connection_id=str(self.uuid),
                 authorized_as=user.reference if user else None,
-                payload=json.dumps(payload, ensure_ascii=False),
+                payload=dump_ws_payload(payload),
                 incoming=False
             ))
             await session.commit()

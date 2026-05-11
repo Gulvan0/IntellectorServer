@@ -43,7 +43,7 @@ class WSLog(CustomSQLModel, table=True):
     ts: CurrentDatetime
     connection_id: str = Field(sa_column=Column(CHAR(36)))
     authorized_as: OptionalPlayerRef = Field(index=True)
-    payload: str
+    payload: str = Field(sa_column=Column(TEXT))
     incoming: bool
 
 

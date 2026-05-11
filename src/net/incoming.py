@@ -5,6 +5,7 @@ from pydantic import BaseModel, ValidationError
 
 from common.user_ref import UserReference
 from log.models import WSLog
+from net.utils.log_codecs import dump_ws_payload
 from net.ws_wrapper import WebSocketWrapper
 from net.models import WebsocketIncomingMessage
 from net.utils.ws_error import ErrorKind, WebSocketException
@@ -65,18 +66,10 @@ class WebSocketHandlerCollection:
         now_ts = int(time.time())
         ws.last_message = now_ts
 
-        try:
-            payload = json.dumps(data, ensure_ascii=False)[:1000]
-        except Exception:
-            try:
-                payload = str(data)[:1000]
-            except Exception:
-                payload = "unparsable"
-
         log_entry = WSLog(
             connection_id=str(ws.uuid),
             authorized_as=None,
-            payload=payload,
+            payload=dump_ws_payload(data),
             incoming=True
         )
 

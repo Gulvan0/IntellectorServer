@@ -9,7 +9,6 @@ from common.resolved_refs import ResolvedRefs
 from common.time_control import FischerTimeControlEntity, TimeControlKind
 from common.field_types import CurrentDatetime, PlayerRef, OptionalSip, OptionalPlayerRef
 from game.models.main import Game, GameSummaryPublic
-from game.models.time_update import GameTimeUpdate
 from utils.custom_model import CustomModel, CustomSQLModel
 
 

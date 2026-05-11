@@ -11,7 +11,7 @@ from log.models import RESTRequestLog, RESTResponseLog
 from net.core import App
 from common.constants import USER_TOKEN_HEADER
 
-from net.utils.log_codecs import dump_headers, dump_request_body, dump_response_body
+from net.utils.log_codecs import dump_headers, dump_bytes
 from utils.async_orm_session import AsyncSession
 
 
@@ -31,11 +31,11 @@ async def log_info(request: Request, response_code: int, response_body: bytes, a
             endpoint=request.url.path,
             method=request.method,
             headers_json=dump_headers(request.headers),
-            payload=dump_request_body(await request.body()),
+            payload=dump_bytes(await request.body()),
         )
         response_entry = RESTResponseLog(
             response_code=response_code,
-            response=dump_response_body(response_body),
+            response=dump_bytes(response_body),
             request=request_entry
         )
         session.add(request_entry)

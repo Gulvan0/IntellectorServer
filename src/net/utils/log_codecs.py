@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 from fastapi.datastructures import Headers
 
@@ -10,19 +11,30 @@ def __decode_long(long_bytes: bytes) -> str:
     return "CUT" + long_bytes[:MAX_BYTES].decode(errors="ignore")
 
 
-def dump_headers(headers: Headers) -> str:
+def __truncate_str(raw: str) -> str:
+    as_bytes = raw.encode()
+    if len(as_bytes) > MAX_BYTES:
+        return __decode_long(as_bytes)
+    else:
+        return raw
+
+
+def __dump_json_dict(raw: dict) -> str:
     try:
-        dumped = json.dumps(dict(headers.items()), ensure_ascii=False)
-        as_bytes = dumped.encode()
-        if len(as_bytes) > MAX_BYTES:
-            return __decode_long(as_bytes)
-        else:
-            return dumped
+        try:
+            dumped = json.dumps(raw, ensure_ascii=False)
+        except Exception:
+            dumped = str(raw)
+        return __truncate_str(dumped)
     except Exception:
         return "unparsable"
 
 
-def dump_request_body(body: bytes) -> str:
+def dump_headers(headers: Headers) -> str:
+    return __dump_json_dict(dict(headers.items()))
+
+
+def dump_bytes(body: bytes) -> str:
     try:
         if not body:
             return "missing"
@@ -34,11 +46,5 @@ def dump_request_body(body: bytes) -> str:
         return "unparsable"
 
 
-def dump_response_body(body: bytes) -> str:
-    if len(body) > MAX_BYTES:
-        return __decode_long(body)
-    else:
-        try:
-            return body.decode()
-        except Exception:
-            return "unparsable"
+def dump_ws_payload(data: Any) -> str:
+    return __dump_json_dict(data)

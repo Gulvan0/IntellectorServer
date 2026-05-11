@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, Query
 
@@ -95,11 +96,12 @@ async def send_chat_message(
     await session.commit()
     await session.refresh(db_event)
 
-    event = NewChatMessage(await db_event.to_broadcasted_data(session), GameEventChannel(game_id=payload.game_id))
+    resolved_refs = await resolve_player_refs({client}, session)
+    event = NewChatMessage(db_event.to_broadcasted_data(resolved_refs), GameEventChannel(game_id=payload.game_id))
     tag_blacklist = set()
     if not db_game.outcome and is_spectator:
         tag_blacklist = {SubscriberTag.WHITE_PLAYER, SubscriberTag.BLACK_PLAYER}
-    await state.ws_subscribers.broadcast(event, tag_blacklist)
+    asyncio.create_task(state.ws_subscribers.broadcast(event, tag_blacklist))
 
 
 @router.post("/add_time", dependencies=[

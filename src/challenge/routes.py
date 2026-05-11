@@ -53,14 +53,14 @@ async def create_open_challenge(
     if not challenge.link_only:
         asyncio.create_task(app.plan_challenge_cancellation_if_unwatched(caller))
 
-        event = NewPublicChallenge(public_challenge, PublicChallengeListEventChannel())
-        await state.ws_subscribers.broadcast(event)
-
-        await send_new_public_challenge_notifications(
+        asyncio.create_task(send_new_public_challenge_notifications(
             public_challenge=public_challenge,
             integrations_config=secret_config.integrations,
             session=session
-        )
+        ))
+
+        event = NewPublicChallenge(public_challenge, PublicChallengeListEventChannel())
+        asyncio.create_task(state.ws_subscribers.broadcast(event))
 
     return ChallengeCreateResponse(result="CREATED", challenge=public_challenge)
 
@@ -97,7 +97,7 @@ async def create_direct_challenge(
     )
 
     event = IncomingChallengeReceived(public_challenge, IncomingChallengesEventChannel(user_ref=challenge.callee_ref))
-    await state.ws_subscribers.broadcast(event)
+    asyncio.create_task(state.ws_subscribers.broadcast(event))
 
     return ChallengeCreateResponse(result="CREATED", challenge=public_challenge, callee_online=callee_online)
 
@@ -206,13 +206,13 @@ async def decline_challenge(
     db_challenge.active = False
     session.add(db_challenge)
 
-    await delete_new_public_challenge_notifications(
+    asyncio.create_task(delete_new_public_challenge_notifications(
         challenge_id=challenge_id,
         session=session,
         vk_token=secret_config.integrations.vk.token
-    )
+    ))
 
     await session.commit()
 
     event = OutgoingChallengeRejected(Id(id=challenge_id), OutgoingChallengesEventChannel(user_ref=caller_ref))
-    await state.ws_subscribers.broadcast(event)
+    asyncio.create_task(state.ws_subscribers.broadcast(event))

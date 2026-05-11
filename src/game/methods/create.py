@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 
 from board.constants.sip import DEFAULT_STARTING_SIP
@@ -48,6 +49,11 @@ async def create_game(
     state: MutableState,
     deactivated_challenge: Challenge | None = None
 ) -> GameSummaryPublic:
+    if deactivated_challenge:
+        cancel_timer = state.user_challenge_cancelling_timers.get(UserReference.logged(deactivated_challenge.caller_ref))
+        if cancel_timer:
+            cancel_timer.cancel()
+
     started_at = datetime.now(UTC)
     starting_sip = custom_starting_sip or DEFAULT_STARTING_SIP
 
@@ -95,10 +101,10 @@ async def create_game(
 
     for player_ref in [white_player_ref, black_player_ref]:
         game_started_event = GameStarted(summary, StartedPlayerGamesEventChannel(watched_ref=player_ref))
-        await state.ws_subscribers.broadcast(game_started_event)
+        asyncio.create_task(state.ws_subscribers.broadcast(game_started_event))
 
     new_game_event = NewActiveGame(GameStartedBroadcastedData.cast(summary), CurrentGameListEventChannel())
-    await state.ws_subscribers.broadcast(new_game_event)
+    asyncio.create_task(state.ws_subscribers.broadcast(new_game_event))
 
     return summary
 
@@ -126,28 +132,28 @@ async def create_internal_game(
 
     assert challenge.id
 
-    await delete_new_public_challenge_notifications(
+    asyncio.create_task(delete_new_public_challenge_notifications(
         challenge_id=challenge.id,
         session=session,
         vk_token=secret_config.integrations.vk.token
-    )
+    ))
 
     event_payload = Id(id=challenge.id)
 
     if challenge.kind == ChallengeKind.PUBLIC:
         fulfill_event = PublicChallengeFulfilled(event_payload, PublicChallengeListEventChannel())
-        await state.ws_subscribers.broadcast(fulfill_event)
+        asyncio.create_task(state.ws_subscribers.broadcast(fulfill_event))
 
     accept_event = OutgoingChallengeAccepted(event_payload, OutgoingChallengesEventChannel(user_ref=challenge.caller_ref))
-    await state.ws_subscribers.broadcast(accept_event)
+    asyncio.create_task(state.ws_subscribers.broadcast(accept_event))
 
-    await send_game_started_notifications(
+    asyncio.create_task(send_game_started_notifications(
         white_player_ref,
         black_player_ref,
         public_game,
         secret_config.integrations,
         session
-    )
+    ))
 
     return public_game
 

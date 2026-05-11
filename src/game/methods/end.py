@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 
 from common.user_ref import UserReference
@@ -120,23 +121,26 @@ async def end_game(
     await session.refresh(db_outcome)
     await session.refresh(db_game)
 
-    await state.ws_subscribers.broadcast(GameEnded(
-        db_outcome.to_broadcasted_data(elo_updates),
-        GameEventChannel(game_id=game_id)
-    ))
+    async def broadcast_new_recent_game() -> None:
+        collected_refs = db_game.collect_refs(include_nested=False)
+        resolved_refs = await resolve_player_refs(collected_refs, session)
+        await state.ws_subscribers.broadcast(NewRecentGame(
+            db_game.to_summary(resolved_refs),
+            CurrentGameListEventChannel()
+        ))
 
-    collected_refs = db_game.collect_refs(include_nested=False)
-    resolved_refs = await resolve_player_refs(collected_refs, session)
-    await state.ws_subscribers.broadcast(NewRecentGame(
-        db_game.to_summary(resolved_refs),
-        CurrentGameListEventChannel()
-    ))
-
-    await delete_game_started_notifications(
-        game_id=game_id,
-        vk_token=secret_config.integrations.vk.token,
-        session=session
+    await asyncio.gather(
+        broadcast_new_recent_game(),
+        state.ws_subscribers.broadcast(GameEnded(
+            db_outcome.to_broadcasted_data(elo_updates),
+            GameEventChannel(game_id=game_id)
+        )),
+        delete_game_started_notifications(
+            game_id=game_id,
+            vk_token=secret_config.integrations.vk.token,
+            session=session
+        )
     )
 
-    if state.shutdown_activated and not get_ongoing_finite_game(session):
+    if state.shutdown_activated and not await get_ongoing_finite_game(session):
         raise KeyboardInterrupt

@@ -1,4 +1,5 @@
 
+import asyncio
 from datetime import datetime
 
 from fastapi import HTTPException
@@ -123,9 +124,11 @@ async def accept_takeback(
         await append_offer_event(session, state, OfferAction.CANCEL, OfferKind.TAKEBACK, offer_author, game.id)
         raise
     else:
-        await cancel_offer(session, state, game.id, OfferKind.TAKEBACK, offer_author.opposite(), raise_on_missing=False, commit=False)
-        await cancel_offer(session, state, game.id, OfferKind.DRAW, offer_author, raise_on_missing=False, commit=False)
-        await cancel_offer(session, state, game.id, OfferKind.DRAW, offer_author.opposite(), raise_on_missing=False, commit=False)
+        await asyncio.gather(
+            cancel_offer(session, state, game.id, OfferKind.TAKEBACK, offer_author.opposite(), raise_on_missing=False, commit=False),
+            cancel_offer(session, state, game.id, OfferKind.DRAW, offer_author, raise_on_missing=False, commit=False),
+            cancel_offer(session, state, game.id, OfferKind.DRAW, offer_author.opposite(), raise_on_missing=False, commit=False),
+        )
 
         await append_offer_event(session, state, OfferAction.ACCEPT, OfferKind.TAKEBACK, offer_author, game.id, commit=False)
 
@@ -144,5 +147,5 @@ async def cancel_all_active_offers(session: AsyncSession, state: MutableState, g
         session.add(cancel_event)
 
         broadcasted_event = OfferActionPerformed(OfferActionBroadcastedData.cast(cancel_event), GameEventChannel(game_id=game_id))
-        await state.ws_subscribers.broadcast(broadcasted_event)
+        asyncio.create_task(state.ws_subscribers.broadcast(broadcasted_event))
     await session.commit()

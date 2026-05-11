@@ -178,14 +178,14 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
     if perform_actual_subscription:
         sub_storage.subscribe(ws, payload.channel, tags)
 
-    await ws.send_event(refresh_event)
+    asyncio.create_task(ws.send_event(refresh_event))
 
     if perform_actual_subscription and not isinstance(payload.channel, SubscriberListEventChannel):
         subscriber_ref_with_nickname = await resolve_optional_player_ref(client, session)
 
-        await sub_storage.broadcast(
+        asyncio.create_task(sub_storage.broadcast(
             NewSubscriber(subscriber_ref_with_nickname, SubscriberListEventChannel(channel=payload.channel))
-        )
+        ))
 
 
 @collection.register(SubUnsubPayload)
@@ -197,7 +197,7 @@ async def unsub(ws: WebSocketWrapper, client: UserReference | None, payload: Sub
 
     sub_storage.unsubscribe(ws, payload.channel)
 
-    await ws.send_unsubscribed()
+    asyncio.create_task(ws.send_unsubscribed())
 
     if isinstance(payload.channel, OutgoingChallengesEventChannel):
         asyncio.create_task(ws.app.plan_challenge_cancellation_if_unwatched(client))
@@ -208,6 +208,6 @@ async def unsub(ws: WebSocketWrapper, client: UserReference | None, payload: Sub
             async with ws.app.get_db_session() as session:
                 subscriber_ref_with_nickname = await resolve_player_ref(client, session)
 
-        await sub_storage.broadcast(
+        asyncio.create_task(sub_storage.broadcast(
             SubscriberLeft(subscriber_ref_with_nickname, SubscriberListEventChannel(channel=payload.channel))
-        )
+        ))

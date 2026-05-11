@@ -25,11 +25,11 @@ from utils.async_orm_session import AsyncSession
 async def cancel_challenge(challenge: Challenge, session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> None:
     assert challenge.id
 
-    await delete_new_public_challenge_notifications(
+    asyncio.create_task(delete_new_public_challenge_notifications(
         challenge_id=challenge.id,
         session=session,
         vk_token=secret_config.integrations.vk.token
-    )
+    ))
 
     challenge.active = False
 
@@ -38,7 +38,7 @@ async def cancel_challenge(challenge: Challenge, session: AsyncSession, state: M
         event: OutgoingEvent[Any, Any] = PublicChallengeCancelled(cancel_event_payload, PublicChallengeListEventChannel())
     elif challenge.kind == ChallengeKind.DIRECT and challenge.callee_ref:
         event = IncomingChallengeCancelled(cancel_event_payload, IncomingChallengesEventChannel(user_ref=challenge.callee_ref))
-    await state.ws_subscribers.broadcast(event)
+    asyncio.create_task(state.ws_subscribers.broadcast(event))
 
 
 async def cancel_queried_challenges(query: SelectOfScalar[Challenge], session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> None:
@@ -63,16 +63,16 @@ async def cancel_queried_challenges(query: SelectOfScalar[Challenge], session: A
     for caller_ref, challenge_ids in cancelled_challenges_by_caller.items():
         outgoing_channel = OutgoingChallengesEventChannel(user_ref=caller_ref)
         outgoing_event = OutgoingChallengesCancelledByServer(IdList(ids=list(challenge_ids)), outgoing_channel)
-        await state.ws_subscribers.broadcast(outgoing_event)
+        asyncio.create_task(state.ws_subscribers.broadcast(outgoing_event))
 
     for callee_ref, challenge_ids in cancelled_challenges_by_callee.items():
         incoming_channel = IncomingChallengesEventChannel(user_ref=callee_ref)
         incoming_event = IncomingChallengesCancelledByServer(IdList(ids=list(challenge_ids)), incoming_channel)
-        await state.ws_subscribers.broadcast(incoming_event)
+        asyncio.create_task(state.ws_subscribers.broadcast(incoming_event))
 
     public_channel = PublicChallengeListEventChannel()
     public_event = PublicChallengesCancelledByServer(IdList(ids=list(cancelled_public_challenges)), public_channel)
-    await state.ws_subscribers.broadcast(public_event)
+    asyncio.create_task(state.ws_subscribers.broadcast(public_event))
 
 
 async def cancel_public_challenges_by_caller(caller: UserReference, session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> None:

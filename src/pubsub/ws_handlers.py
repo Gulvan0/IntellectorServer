@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 from challenge.methods.get import get_active_public_challenges, get_direct_challenges
 from common.user_ref import UserReference
@@ -197,6 +198,9 @@ async def unsub(ws: WebSocketWrapper, client: UserReference | None, payload: Sub
     sub_storage.unsubscribe(ws, payload.channel)
 
     await ws.send_unsubscribed()
+
+    if isinstance(payload.channel, OutgoingChallengesEventChannel):
+        asyncio.create_task(ws.app.plan_challenge_cancellation_if_unwatched(client))
 
     if not isinstance(payload.channel, SubscriberListEventChannel):
         subscriber_ref_with_nickname = None

@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Query
 from challenge.datatypes import ChallengeKind
 from challenge.methods.get import get_active_public_challenges, get_direct_challenges
@@ -5,7 +7,7 @@ from challenge.methods.merge import try_merging
 from challenge.methods.validation import perform_common_validations, validate_direct_callee
 from challenge.methods.update import cancel_challenge as cancel_specific_challenge
 from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengePublic
-from common.dependencies import MainConfigDependency, MandatoryUserDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
+from common.dependencies import AppDependency, MainConfigDependency, MandatoryUserDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
 from common.models import Id
 from game.methods.create import create_internal_game
 from game.models.main import GameSummaryPublic
@@ -24,6 +26,7 @@ router = APIRouter(prefix="/challenge", route_class=LoggingRoute)
 @router.post("/create/open", status_code=201, response_model=ChallengeCreateResponse, response_model_exclude_none=True)
 async def create_open_challenge(
     *,
+    app: AppDependency,
     challenge: ChallengeCreateOpen,
     session: SessionDependency,
     caller: MandatoryUserDependency,
@@ -48,6 +51,8 @@ async def create_open_challenge(
     )
 
     if not challenge.link_only:
+        asyncio.create_task(app.plan_challenge_cancellation_if_unwatched(caller))
+
         event = NewPublicChallenge(public_challenge, PublicChallengeListEventChannel())
         await state.ws_subscribers.broadcast(event)
 

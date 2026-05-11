@@ -132,12 +132,12 @@ class App(FastAPI):
     async def websocket_docs_endpoint(self) -> HTMLResponse:
         return HTMLResponse(content=Path('./resources/ws_api_docs/docs_page.html').read_text())
 
-    async def __delay_challenge_cancellation(self, caller: UserReference) -> None:
+    async def __plan_challenge_cancellation(self, caller: UserReference) -> None:
         from challenge.methods.update import cancel_public_challenges_by_caller
 
         existing_timer_handle = self.mutable_state.user_challenge_cancelling_timers.get(caller)
         if existing_timer_handle:
-            existing_timer_handle.cancel()
+            return
 
         loop = asyncio.get_running_loop()
 
@@ -148,6 +148,14 @@ class App(FastAPI):
                 await cancel_public_challenges_by_caller(caller, session, self.mutable_state, self.secret_config)
 
         self.mutable_state.user_challenge_cancelling_timers[caller] = loop.call_later(60, lambda: asyncio.create_task(task()))
+
+    async def plan_challenge_cancellation_if_unwatched(self, user: UserReference | None) -> None:
+        if not user:
+            return
+
+        challenge_channel = OutgoingChallengesEventChannel(user_ref=user.reference)  # noqa: F405
+        if not self.mutable_state.ws_subscribers.count_subscribers(challenge_channel):
+            await self.__plan_challenge_cancellation(user)
 
     async def websocket_endpoint(self, websocket: WebSocket) -> None:
         await websocket.accept()
@@ -166,8 +174,4 @@ class App(FastAPI):
         except (WebSocketDisconnect, ConnectionClosedError, ConnectionClosed, ConnectionClosedOK):
             self.mutable_state.ws_subscribers.fully_remove(ws_wrapper)
 
-            user = ws_wrapper.get_user_ref()
-            if user:
-                challenge_channel = IncomingChallengesEventChannel(user_ref=user.reference)  # noqa: F405
-                if not self.mutable_state.ws_subscribers.count_subscribers(challenge_channel):
-                    await self.__delay_challenge_cancellation(user)
+            await self.plan_challenge_cancellation_if_unwatched(ws_wrapper.get_user_ref())

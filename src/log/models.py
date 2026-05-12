@@ -63,3 +63,11 @@ class TimeoutCheckPlannedLog(CustomSQLModel, table=True):
     event_time: CurrentDatetime
     game_id: int
     delay_ms: int
+
+
+# <private>
+class TaskFailureLog(CustomSQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    ts: CurrentDatetime
+    task: str
+    error: str = Field(sa_column=Column(TEXT))

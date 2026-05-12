@@ -1,5 +1,3 @@
-import asyncio
-
 from fastapi import APIRouter, HTTPException, Query
 from challenge.datatypes import ChallengeKind
 from challenge.methods.get import get_active_public_challenges, get_direct_challenges
@@ -51,16 +49,16 @@ async def create_open_challenge(
     )
 
     if not challenge.link_only:
-        asyncio.create_task(app.plan_challenge_cancellation_if_unwatched(caller))
+        state.concurrent_tasks.plan(app.plan_challenge_cancellation_if_unwatched(caller))
 
-        asyncio.create_task(send_new_public_challenge_notifications(
+        state.concurrent_tasks.plan(send_new_public_challenge_notifications(
             public_challenge=public_challenge,
             integrations_config=secret_config.integrations,
             session=session
         ))
 
         event = NewPublicChallenge(public_challenge, PublicChallengeListEventChannel())
-        asyncio.create_task(state.ws_subscribers.broadcast(event))
+        state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event))
 
     return ChallengeCreateResponse(result="CREATED", challenge=public_challenge)
 
@@ -97,7 +95,7 @@ async def create_direct_challenge(
     )
 
     event = IncomingChallengeReceived(public_challenge, IncomingChallengesEventChannel(user_ref=challenge.callee_ref))
-    asyncio.create_task(state.ws_subscribers.broadcast(event))
+    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event))
 
     return ChallengeCreateResponse(result="CREATED", challenge=public_challenge, callee_online=callee_online)
 
@@ -206,7 +204,7 @@ async def decline_challenge(
     db_challenge.active = False
     session.add(db_challenge)
 
-    asyncio.create_task(delete_new_public_challenge_notifications(
+    state.concurrent_tasks.plan(delete_new_public_challenge_notifications(
         challenge_id=challenge_id,
         session=session,
         vk_token=secret_config.integrations.vk.token
@@ -215,4 +213,4 @@ async def decline_challenge(
     await session.commit()
 
     event = OutgoingChallengeRejected(Id(id=challenge_id), OutgoingChallengesEventChannel(user_ref=caller_ref))
-    asyncio.create_task(state.ws_subscribers.broadcast(event))
+    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event))

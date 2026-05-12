@@ -19,7 +19,7 @@ import time
 
 @dataclass
 class TimeoutCheckResult:
-    occured_at: datetime
+    occurred_at: datetime
     remaining_ms: int
     is_external: bool
     game_aborted: bool
@@ -27,8 +27,7 @@ class TimeoutCheckResult:
 
 async def __delay_timeout_check(
     delay_secs: float,
-    game_id: int,
-    outcome_abscence_checked: bool = False
+    game_id: int
 ) -> None:
     from main import app
 
@@ -48,20 +47,20 @@ async def __delay_timeout_check(
                 main_config=app.main_config,
                 secret_config=app.secret_config,
                 game_id=game_id,
-                outcome_abscence_checked=outcome_abscence_checked,
             )
 
-            log_entry = TimeoutCheckExecutedLog(
-                event_time=check_output.occured_at,
-                aborted=check_output.game_aborted,
-                game_id=game_id,
-                remaining_ms=check_output.remaining_ms,
-                is_external=check_output.is_external
-            )
-            session.add(log_entry)
-            await session.commit()
+            if check_output:
+                log_entry = TimeoutCheckExecutedLog(
+                    event_time=check_output.occurred_at,
+                    aborted=check_output.game_aborted,
+                    game_id=game_id,
+                    remaining_ms=check_output.remaining_ms,
+                    is_external=check_output.is_external
+                )
+                session.add(log_entry)
+                await session.commit()
 
-    app.mutable_state.game_timeout_check_timers[game_id] = loop.call_later(delay_secs, lambda: asyncio.create_task(task()))
+    app.mutable_state.game_timeout_check_timers[game_id] = loop.call_later(delay_secs, lambda: app.mutable_state.concurrent_tasks.plan(task()))
 
     async with app.get_db_session() as session:
         log_entry = TimeoutCheckPlannedLog(
@@ -78,22 +77,16 @@ async def check_timeout(
     main_config: MainConfig,
     secret_config: SecretConfig,
     game_id: int,
-    outcome_abscence_checked: bool = False,
-) -> TimeoutCheckResult:
-    if not outcome_abscence_checked:
-        existing_outcome = await session.get(GameOutcome, game_id)
-        if existing_outcome is not None:
-            return False
-
+) -> TimeoutCheckResult | None:
     latest_time_update = await get_latest_time_update(session, game_id)
     if not latest_time_update or not latest_time_update.ticking_side:
-        return False
+        return None
 
+    now_dt = datetime.now(UTC)
     game = await session.get(Game, game_id)
     is_external = game and game.external_uploader_ref
     timeout_delta_threshold = -60000 if is_external else 0  # 1 minute grace time for external games to account for delays
 
-    now_dt = datetime.now(UTC)
     time_remainders = latest_time_update.get_actual_time_remainders(now_dt)
     timeout_delta_ms = time_remainders[latest_time_update.ticking_side]
     if timeout_delta_ms <= timeout_delta_threshold:
@@ -123,7 +116,6 @@ async def plan_timeout_check(
     triggering_time_update: GameTimeUpdate,
     game_id: int,
     is_external: bool,
-    outcome_abscence_checked: bool = False,
 ) -> None:
     if not triggering_time_update.ticking_side:
         return
@@ -133,4 +125,4 @@ async def plan_timeout_check(
     grace_period_secs = 60 if is_external else 0
     delay_secs = remainder_ms / 1000 - passed_secs + grace_period_secs + 0.01
 
-    await __delay_timeout_check(delay_secs, game_id, outcome_abscence_checked)
+    await __delay_timeout_check(delay_secs, game_id)

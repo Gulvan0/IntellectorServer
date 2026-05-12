@@ -1,4 +1,3 @@
-import asyncio
 from datetime import UTC, datetime
 
 from board.constants.sip import DEFAULT_STARTING_SIP
@@ -101,10 +100,10 @@ async def create_game(
 
     for player_ref in [white_player_ref, black_player_ref]:
         game_started_event = GameStarted(summary, StartedPlayerGamesEventChannel(watched_ref=player_ref))
-        asyncio.create_task(state.ws_subscribers.broadcast(game_started_event))
+        state.concurrent_tasks.plan(state.ws_subscribers.broadcast(game_started_event))
 
     new_game_event = NewActiveGame(GameStartedBroadcastedData.cast(summary), CurrentGameListEventChannel())
-    asyncio.create_task(state.ws_subscribers.broadcast(new_game_event))
+    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(new_game_event))
 
     return summary
 
@@ -132,7 +131,7 @@ async def create_internal_game(
 
     assert challenge.id
 
-    asyncio.create_task(delete_new_public_challenge_notifications(
+    state.concurrent_tasks.plan(delete_new_public_challenge_notifications(
         challenge_id=challenge.id,
         session=session,
         vk_token=secret_config.integrations.vk.token
@@ -142,12 +141,12 @@ async def create_internal_game(
 
     if challenge.kind == ChallengeKind.PUBLIC:
         fulfill_event = PublicChallengeFulfilled(event_payload, PublicChallengeListEventChannel())
-        asyncio.create_task(state.ws_subscribers.broadcast(fulfill_event))
+        state.concurrent_tasks.plan(state.ws_subscribers.broadcast(fulfill_event))
 
     accept_event = OutgoingChallengeAccepted(event_payload, OutgoingChallengesEventChannel(user_ref=challenge.caller_ref))
-    asyncio.create_task(state.ws_subscribers.broadcast(accept_event))
+    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(accept_event))
 
-    asyncio.create_task(send_game_started_notifications(
+    state.concurrent_tasks.plan(send_game_started_notifications(
         white_player_ref,
         black_player_ref,
         public_game,

@@ -28,7 +28,7 @@ from study.models import *  # noqa: F401, F403
 
 from board.opening import OpeningMapping, generate_mapping
 
-from asyncio import TimerHandle
+from asyncio import Lock, TimerHandle
 import asyncio
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -43,13 +43,14 @@ from typing import TYPE_CHECKING
 from common.user_ref import UserReference
 from pubsub.models.channel import EventChannel, EveryoneEventChannel
 from config.models import MainConfig, SecretConfig
-from log.models import ServerLaunch
+from log.models import ServerLaunch, TaskFailureLog
 from net.sub_storage import SubscriberStorage
 from config.loader import load
 from common.models import UserActivity
 from utils.bijective_map import BijectiveMap
 from utils.async_orm_session import AsyncSession
 from net.ws_wrapper import WebSocketWrapper
+from net.task_storage import ConcurrentTaskStorage
 
 import time
 
@@ -69,6 +70,15 @@ class MutableState:
     last_guest_id: int = 0
     game_timeout_check_timers: dict[int, TimerHandle] = field(default_factory=dict)
     user_challenge_cancelling_timers: dict[UserReference, TimerHandle] = field(default_factory=dict)
+    concurrent_tasks: ConcurrentTaskStorage = field(default_factory=ConcurrentTaskStorage)
+
+    __game_end_locks: dict[int, Lock] = field(default_factory=dict)
+
+    def get_game_end_lock(self, game_id: int) -> Lock:
+        return self.__game_end_locks.setdefault(game_id, Lock())
+
+    def release_game_end_lock(self, game_id: int) -> Lock:
+        return self.__game_end_locks.pop(game_id, None)
 
     def add_guest(self, token: str) -> int:
         self.last_guest_id += 1
@@ -108,10 +118,16 @@ class App(FastAPI):
         async with AsyncSession(self.db_engine) as session:
             yield session
 
+    async def _log_task_failure(self, task_name: str, error: str) -> None:
+        async with self.get_db_session() as session:
+            session.add(TaskFailureLog(task=task_name, error=error))
+            await session.commit()
+
     def __init__(self, rest_routers: list[APIRouter], ws_collection: WebSocketHandlerCollection) -> None:
         super().__init__(lifespan=App.__lifespan)
 
         self.mutable_state: MutableState = MutableState()
+        self.mutable_state.concurrent_tasks.on_failure = self._log_task_failure
 
         self.main_config: MainConfig = load('main', MainConfig)
         self.secret_config: SecretConfig = load('secret', SecretConfig)
@@ -144,10 +160,13 @@ class App(FastAPI):
         async def task() -> None:
             self.mutable_state.user_challenge_cancelling_timers.pop(caller, None)
 
-            async with self.get_db_session() as session:
-                await cancel_public_challenges_by_caller(caller, session, self.mutable_state, self.secret_config)
+            challenge_channel = OutgoingChallengesEventChannel(user_ref=caller.reference)  # noqa: F405
 
-        self.mutable_state.user_challenge_cancelling_timers[caller] = loop.call_later(60, lambda: asyncio.create_task(task()))
+            async with self.get_db_session() as session:
+                if not self.mutable_state.ws_subscribers.count_subscribers(challenge_channel):
+                    await cancel_public_challenges_by_caller(caller, session, self.mutable_state, self.secret_config)
+
+        self.mutable_state.user_challenge_cancelling_timers[caller] = loop.call_later(60, lambda: self.mutable_state.concurrent_tasks.plan(task()))
 
     async def plan_challenge_cancellation_if_unwatched(self, user: UserReference | None) -> None:
         if not user:

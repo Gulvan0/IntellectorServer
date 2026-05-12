@@ -1,4 +1,3 @@
-import asyncio
 from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, Query
 
@@ -101,7 +100,7 @@ async def send_chat_message(
     tag_blacklist = set()
     if not db_game.outcome and is_spectator:
         tag_blacklist = {SubscriberTag.WHITE_PLAYER, SubscriberTag.BLACK_PLAYER}
-    asyncio.create_task(state.ws_subscribers.broadcast(event, tag_blacklist))
+    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event, tag_blacklist))
 
 
 @router.post("/add_time", dependencies=[

@@ -147,5 +147,5 @@ async def cancel_all_active_offers(session: AsyncSession, state: MutableState, g
         session.add(cancel_event)
 
         broadcasted_event = OfferActionPerformed(OfferActionBroadcastedData.cast(cancel_event), GameEventChannel(game_id=game_id))
-        asyncio.create_task(state.ws_subscribers.broadcast(broadcasted_event))
+        state.concurrent_tasks.plan(state.ws_subscribers.broadcast(broadcasted_event))
     await session.commit()

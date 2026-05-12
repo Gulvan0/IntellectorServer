@@ -149,7 +149,7 @@ class App(FastAPI):
         return HTMLResponse(content=Path('./resources/ws_api_docs/docs_page.html').read_text())
 
     async def __plan_challenge_cancellation(self, caller: UserReference) -> None:
-        from challenge.methods.update import cancel_public_challenges_by_caller
+        from challenge.methods.cancel import cancel_public_challenges_by_caller
 
         existing_timer_handle = self.mutable_state.user_challenge_cancelling_timers.get(caller)
         if existing_timer_handle:

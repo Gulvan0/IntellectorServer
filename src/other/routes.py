@@ -1,7 +1,7 @@
 from typing import Any
 from fastapi import APIRouter, Response
 
-from challenge.methods.update import cancel_all_challenges
+from challenge.methods.cancel import cancel_all_challenges
 from game.methods.get import get_ongoing_finite_game
 from other.datatypes import CompatibilityResolution
 from other.models import CompatibilityCheckPayload, CompatibilityResponse, MutableStatePublic, MutableStateRequestPayload

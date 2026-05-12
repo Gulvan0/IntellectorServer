@@ -3,7 +3,7 @@ from challenge.datatypes import ChallengeKind
 from challenge.methods.get import get_active_public_challenges, get_direct_challenges
 from challenge.methods.merge import try_merging
 from challenge.methods.validation import perform_common_validations, validate_direct_callee
-from challenge.methods.update import cancel_challenge as cancel_specific_challenge
+from challenge.methods.cancel import cancel_challenge as cancel_specific_challenge
 from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengePublic
 from common.dependencies import AppDependency, MainConfigDependency, MandatoryUserDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
 from common.models import Id

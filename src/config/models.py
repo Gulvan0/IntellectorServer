@@ -52,9 +52,15 @@ class TelegramParams(CustomModel):
     admin_chat_id: int
 
 
+class AntispamWindowDefinition(CustomModel):
+    window_size_seconds: int
+    max_messages: int
+
+
 class VkParams(CustomModel):
     token: str
     community_chat_id: int
+    antispam_windows: list[AntispamWindowDefinition]
 
 
 class IntegrationParams(CustomModel):

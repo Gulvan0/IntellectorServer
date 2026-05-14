@@ -1,6 +1,7 @@
 from enum import StrEnum, auto
 from sqlmodel import Field
 
+from common.field_types import CurrentDatetime
 from utils.custom_model import CustomSQLModel
 
 
@@ -11,6 +12,7 @@ class NotificationApp(StrEnum):
 
 class StoredNotificationBase(CustomSQLModel):
     id: int | None = Field(default=None, primary_key=True)
+    sent_at: CurrentDatetime
     app: NotificationApp
     chat_id: int
     message_id: int

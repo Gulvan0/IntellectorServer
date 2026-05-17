@@ -12,7 +12,7 @@ from game.models.main import Game
 from game.models.ply import GamePlyEvent
 from game.models.rollback import GameRollbackEvent
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
-from net.core import MutableState
+from net.state import MutableState
 from board.constants.sip import DEFAULT_STARTING_SIP
 from board.deserializers.sip import color_to_move_from_sip
 from board.piece import PieceColor

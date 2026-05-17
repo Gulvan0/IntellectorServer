@@ -4,7 +4,7 @@ from challenge.methods.get import get_mergeable_challenge
 from challenge.models import ChallengeCreateDirect, ChallengeCreateOpen, ChallengeCreateResponse
 from common.user_ref import UserReference
 from config.models import SecretConfig
-from net.core import MutableState
+from net.state import MutableState
 from utils.async_orm_session import AsyncSession
 
 

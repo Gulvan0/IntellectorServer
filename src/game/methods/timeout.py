@@ -10,7 +10,7 @@ from game.methods.get import get_latest_time_update
 from game.datatypes import OutcomeKind
 from game.models.time_update import GameTimeUpdate
 from log.models import TimeoutCheckExecutedLog, TimeoutCheckPlannedLog
-from net.core import MutableState
+from net.state import MutableState
 from board.piece import PieceColor
 from utils.async_orm_session import AsyncSession
 

@@ -8,7 +8,7 @@ from game.methods.get import get_latest_time_update, get_ongoing_finite_game
 from game.datatypes import OutcomeKind
 from game.models.outcome import GameEndedEloUpdate, GameEndedEloUpdates, GameOutcome
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
-from net.core import MutableState
+from net.state import MutableState
 from notification.methods import delete_game_started_notifications
 from player.methods import get_ranked_game_stats_for_time_control, resolve_player_refs
 from player.models import PlayerEloProgress

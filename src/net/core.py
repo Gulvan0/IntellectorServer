@@ -31,29 +31,23 @@ from study.models import *  # noqa: F401, F403
 
 from board.opening import OpeningMapping, generate_mapping
 
-from asyncio import Lock, TimerHandle
 import asyncio
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import AsyncGenerator, TYPE_CHECKING
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from websockets import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
-from typing import TYPE_CHECKING
 from common.user_ref import UserReference
-from pubsub.models.channel import EventChannel, EveryoneEventChannel
+from pubsub.models.channel import EveryoneEventChannel
 from config.models import MainConfig, SecretConfig
 from log.models import ServerLaunch, TaskFailureLog
-from net.sub_storage import SubscriberStorage
 from config.loader import load
-from common.models import UserActivity
-from utils.bijective_map import BijectiveMap
 from utils.async_orm_session import AsyncSession
 from net.ws_wrapper import WebSocketWrapper
-from net.task_storage import ConcurrentTaskStorage
+from net.state import MutableState
 
 import time
 
@@ -64,39 +58,6 @@ if TYPE_CHECKING:
 
 LAST_GUEST_ID_QUERY_PATH = Path('resources/sql/last_guest_id.sql')
 
-
-@dataclass
-class MutableState:
-    shutdown_activated: bool = False
-    token_to_user: BijectiveMap[str, UserReference] = field(default_factory=BijectiveMap)
-    ws_subscribers: SubscriberStorage = field(default_factory=SubscriberStorage)
-    last_guest_id: int = 0
-    game_timeout_check_timers: dict[int, TimerHandle] = field(default_factory=dict)
-    user_challenge_cancelling_timers: dict[UserReference, TimerHandle] = field(default_factory=dict)
-    concurrent_tasks: ConcurrentTaskStorage = field(default_factory=ConcurrentTaskStorage)
-
-    __game_end_locks: dict[int, Lock] = field(default_factory=dict)
-
-    def get_game_end_lock(self, game_id: int) -> Lock:
-        return self.__game_end_locks.setdefault(game_id, Lock())
-
-    def release_game_end_lock(self, game_id: int) -> None:
-        self.__game_end_locks.pop(game_id, None)
-
-    def add_guest(self, token: str) -> int:
-        self.last_guest_id += 1
-        self.token_to_user.update(token, UserReference.guest(self.last_guest_id))
-        return self.last_guest_id
-
-    def add_logged(self, token: str, login: str) -> None:
-        user = UserReference.logged(login)
-        self.token_to_user.update(token, user)
-
-    def has_user_subscriber(self, user_ref: UserReference, channel: EventChannel = EveryoneEventChannel()) -> bool:
-        return self.ws_subscribers.has_user_subscriber(self.token_to_user, user_ref, channel)
-
-    def get_user_activity_in_channel(self, user_ref: UserReference, channel: EventChannel) -> UserActivity | None:
-        return self.ws_subscribers.get_user_activity_in_channel(self.token_to_user, user_ref, channel)
 
 
 class App(FastAPI):

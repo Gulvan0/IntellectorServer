@@ -4,7 +4,6 @@
 /.run
 .vscode
 src/.mypy_cache
-converted_passes.json
 .claude
 resources/cert
 src/op.py

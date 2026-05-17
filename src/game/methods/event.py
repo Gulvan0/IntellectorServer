@@ -6,7 +6,7 @@ from game.models.offer import GameOfferEvent
 from game.models.ply import GamePlyEvent
 from game.models.rollback import GameRollbackEvent
 from game.models.time_added import GameTimeAddedEvent
-from net.core import MutableState
+from net.state import MutableState
 from net.sub_storage import SubscriberTag
 from player.methods import resolve_player_refs
 from pubsub.models.channel import GameEventChannel

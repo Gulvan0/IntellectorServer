@@ -12,7 +12,7 @@ from player.methods import resolve_player_refs
 from pubsub.models.channel import CurrentGameListEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
 from game.models.main import Game, GameStartedBroadcastedData, GameSummaryPublic
 from game.models.time_control import GameFischerTimeControl
-from net.core import MutableState
+from net.state import MutableState
 from common.time_control import FischerTimeControlEntity, TimeControlKind
 from pubsub.outgoing_event.update import GameStarted, NewActiveGame, OutgoingChallengeAccepted, PublicChallengeFulfilled
 from utils.async_orm_session import AsyncSession

@@ -6,7 +6,8 @@ from board.opening import OpeningMapping
 from common.constants import USER_TOKEN_HEADER
 from common.user_ref import UserReference
 from config.models import MainConfig, SecretConfig
-from net.core import App, MutableState
+from net.core import App
+from net.state import MutableState
 from player.datatypes import UserRole
 from player.models import PlayerRole
 from utils.async_orm_session import AsyncSession

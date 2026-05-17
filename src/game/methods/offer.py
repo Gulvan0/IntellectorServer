@@ -9,7 +9,7 @@ from game.methods.event import append_offer_event
 from game.methods.rollback import RollbackOfferAuthorInput, perform_rollback, validate_rollback
 from game.models.main import Game
 from game.models.offer import GameOfferEvent, OfferActionBroadcastedData
-from net.core import MutableState
+from net.state import MutableState
 from game.methods.end import end_game
 from game.methods.get import (
     get_active_offers,

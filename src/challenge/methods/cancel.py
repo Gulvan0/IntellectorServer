@@ -9,7 +9,7 @@ from common.models import Id, IdList
 from common.time_control import TimeControlKind
 from common.user_ref import UserReference
 from config.models import SecretConfig
-from net.core import MutableState
+from net.state import MutableState
 from sqlmodel.sql.expression import SelectOfScalar
 from notification.methods import delete_new_public_challenge_notifications
 from pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel

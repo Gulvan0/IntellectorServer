@@ -17,7 +17,7 @@ from game.models.main import Game
 from game.models.ply import GamePlyEvent
 from game.models.polymorphous import PlyPayload
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
-from net.core import MutableState
+from net.state import MutableState
 from board.constants.sip import DEFAULT_STARTING_SIP
 from board.coords import HexCoordinates
 from board.deserializers.sip import position_from_sip

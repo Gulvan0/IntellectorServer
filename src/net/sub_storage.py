@@ -45,7 +45,7 @@ class SubscriberStorage:
     def dump(self) -> dict[EventChannel, dict[UUID, WebsocketWrapperDump]]:
         return {
             channel: {
-                ws_uuid: sub.ws.dump(sub.tags)
+                ws_uuid: sub.ws.dump(list(map(str, sub.tags)))
                 for ws_uuid, sub in subs.items()
             }
             for channel, subs in self.subscribers.items()
@@ -108,7 +108,7 @@ class SubscriberStorage:
                 continue
 
             activity = subscriber.ws.get_activity_data()
-            if activity.last_active_unixsecs > activity:
+            if not most_recent_activity or activity.last_active_unixsecs > most_recent_activity.last_active_unixsecs:
                 most_recent_activity = activity
 
         return most_recent_activity

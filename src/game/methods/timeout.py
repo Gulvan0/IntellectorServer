@@ -84,7 +84,7 @@ async def check_timeout(
 
     now_dt = datetime.now(UTC)
     game = await session.get(Game, game_id)
-    is_external = game and game.external_uploader_ref
+    is_external = bool(game and game.external_uploader_ref)
     timeout_delta_threshold = -60000 if is_external else 0  # 1 minute grace time for external games to account for delays
 
     time_remainders = latest_time_update.get_actual_time_remainders(now_dt)

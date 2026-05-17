@@ -92,10 +92,10 @@ class Study(StudyBase, table=True):
     nodes: list[StudyVariationNode] = Relationship(back_populates="study", cascade_delete=True)
 
     @classmethod
-    def load_options(cls) -> list[Load]:
+    def load_options(cls) -> list:
         return [
-            selectinload(Study.tags),
-            selectinload(Study.nodes),
+            selectinload(Study.tags),  # type: ignore[arg-type]
+            selectinload(Study.nodes),  # type: ignore[arg-type]
         ]
 
     def collect_refs(self) -> set[str]:
@@ -189,5 +189,5 @@ class StudyPublic(StudyBase):
 
 
 class ListStudiesPayload(CustomModel):
-    author_login: PlayerLogin | None = None,
+    author_login: PlayerLogin | None = None
     tags: list[str] | None = None

@@ -38,9 +38,9 @@ class GameOutcome(GameOutcomeBase, table=True):
     time_update: GameTimeUpdate | None = Relationship()
 
     @classmethod
-    def load_options(cls) -> list[Load]:
+    def load_options(cls) -> list:
         return [
-            joinedload(GameOutcome.time_update)
+            joinedload(GameOutcome.time_update)  # type: ignore[arg-type]
         ]
 
     def to_public(self) -> GameOutcomePublic:

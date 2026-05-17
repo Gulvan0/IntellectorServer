@@ -49,24 +49,24 @@ class Game(GameBase, table=True):
     rollback_events: list[GameRollbackEvent] = Relationship(back_populates="game", cascade_delete=True)
 
     @classmethod
-    def load_options(cls, just_summary: bool, include_time_control: bool = True) -> list[Load]:
+    def load_options(cls, just_summary: bool, include_time_control: bool = True) -> list:
         options = [
-            joinedload(Game.outcome)
+            joinedload(Game.outcome)  # type: ignore[arg-type]
                 .options(*GameOutcome.load_options()),  # noqa: E131
         ]
         if include_time_control:
             options.append(
-                joinedload(Game.fischer_time_control)
+                joinedload(Game.fischer_time_control)  # type: ignore[arg-type]
             )
         if not just_summary:
             options += [
-                selectinload(Game.ply_events)
+                selectinload(Game.ply_events)  # type: ignore[arg-type]
                     .options(*GamePlyEvent.load_options()),  # noqa: E131
-                selectinload(Game.chat_message_events),
-                selectinload(Game.offer_events),
-                selectinload(Game.time_added_events)
+                selectinload(Game.chat_message_events),  # type: ignore[arg-type]
+                selectinload(Game.offer_events),  # type: ignore[arg-type]
+                selectinload(Game.time_added_events)  # type: ignore[arg-type]
                     .options(*GameTimeAddedEvent.load_options()),  # noqa: E131
-                selectinload(Game.rollback_events)
+                selectinload(Game.rollback_events)  # type: ignore[arg-type]
                     .options(*GameRollbackEvent.load_options()),  # noqa: E131
             ]
         return options

@@ -31,9 +31,9 @@ class GameRollbackEvent(GameRollbackEventBase, table=True):
     time_update: GameTimeUpdate | None = Relationship()
 
     @classmethod
-    def load_options(cls) -> list[Load]:
+    def load_options(cls) -> list:
         return [
-            joinedload(GameRollbackEvent.time_update)
+            joinedload(GameRollbackEvent.time_update)  # type: ignore[arg-type]
         ]
 
     def to_public(self) -> GameRollbackEventPublic:

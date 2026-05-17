@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Mapping
 from auth.models import PlayerPassword
 from player.datatypes import UserRole
 from player.models import Player, PlayerFollowedPlayer, PlayerRole
@@ -11,7 +12,7 @@ def process_player_file(login: str, data: dict) -> tuple[list[PlayerFollowedPlay
     ], data.get("lastMessageTimestamp")
 
 
-def process_passwords_file(data: dict[str, str], first_games: dict[str, datetime], last_activity: dict[str, int | None]) -> tuple[list[Player], list[PlayerPassword]]:
+def process_passwords_file(data: dict[str, str], first_games: dict[str, datetime], last_activity: Mapping[str, int | None]) -> tuple[list[Player], list[PlayerPassword]]:
     players = []
     passwords = []
 

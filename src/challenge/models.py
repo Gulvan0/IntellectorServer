@@ -32,11 +32,11 @@ class Challenge(ChallengeBase, table=True):
     fischer_time_control: Optional["ChallengeFischerTimeControl"] = Relationship(back_populates="challenge", cascade_delete=True)
 
     @classmethod
-    def load_options(cls) -> list[Load]:
+    def load_options(cls) -> list:
         return [
-            joinedload(Challenge.resulting_game)
+            joinedload(Challenge.resulting_game)  # type: ignore[arg-type]
                 .options(*Game.load_options(just_summary=True)),  # noqa: E131
-            joinedload(Challenge.fischer_time_control),
+            joinedload(Challenge.fischer_time_control),  # type: ignore[arg-type]
         ]
 
     def collect_refs(self, include_nested: bool) -> set[str]:

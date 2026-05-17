@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import UTC, datetime
+from typing import DefaultDict
 from common.time_control import TimeControlKind
 from migration.game import RatedGameInfo
 from player.models import PlayerEloProgress
@@ -10,7 +11,7 @@ import re
 def process_log(log: str, player_rated_games: dict[str, list[RatedGameInfo]]) -> list[PlayerEloProgress]:
     result = []
 
-    game_counts = defaultdict(int)
+    game_counts: DefaultDict[tuple[str, TimeControlKind], int] = defaultdict(int)
 
     for line in log.splitlines():
         line = line.strip()

@@ -20,11 +20,11 @@ from game.models.time_added import *  # noqa: F401, F403
 from game.models.time_control import *  # noqa: F401, F403
 from game.models.time_update import *  # noqa: F401, F403
 from log.models import *  # noqa: F401, F403
-from net.models import *  # noqa: F401, F403
+from net.models import *  # type: ignore[no-redef]  # noqa: F401, F403
 from notification.models import *  # noqa: F401, F403
 from other.models import *  # noqa: F401, F403
 from player.models import *  # noqa: F401, F403
-from pubsub.models.channel import *  # noqa: F401, F403
+from pubsub.models.channel import *  # type: ignore[no-redef]  # noqa: F401, F403
 from pubsub.models.other import *  # noqa: F401, F403
 from pubsub.models.state import *  # noqa: F401, F403
 from study.models import *  # noqa: F401, F403
@@ -80,8 +80,8 @@ class MutableState:
     def get_game_end_lock(self, game_id: int) -> Lock:
         return self.__game_end_locks.setdefault(game_id, Lock())
 
-    def release_game_end_lock(self, game_id: int) -> Lock:
-        return self.__game_end_locks.pop(game_id, None)
+    def release_game_end_lock(self, game_id: int) -> None:
+        self.__game_end_locks.pop(game_id, None)
 
     def add_guest(self, token: str) -> int:
         self.last_guest_id += 1

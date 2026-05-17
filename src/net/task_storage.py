@@ -22,7 +22,7 @@ class ConcurrentTaskStorage:
         if not exception:
             return
 
-        task_name = task.get_coro().__qualname__
+        task_name = task.get_name()
         message = ''.join(traceback.format_exception(type(exception), exception, exception.__traceback__))
         print(message)
         with Path('./error_log').open("a") as f:
@@ -34,7 +34,7 @@ class ConcurrentTaskStorage:
                 lambda t: print(t.exception()) if not t.cancelled() and t.exception() else None
             )
 
-    def plan(self, coroutine: Coroutine[Any, Any, Any]) -> None:
-        task = asyncio.create_task(coroutine)
+    def plan(self, coroutine: Coroutine[Any, Any, Any], name: str | None = None) -> None:
+        task = asyncio.create_task(coroutine, name=name or coroutine.__qualname__)
         self.__tasks.add(task)
         task.add_done_callback(self.__on_task_done)

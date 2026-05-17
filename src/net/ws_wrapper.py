@@ -37,12 +37,13 @@ class WebSocketWrapper:
         self.send_json = self.ws.send_json
 
     def dump(self, tags: list[str] = []) -> WebsocketWrapperDump:
+        user_ref = self.get_user_ref()
         return WebsocketWrapperDump(
             last_activity=self.last_activity,
             last_message=self.last_message,
             activity=self.get_activity_data(),
             saved_token=self.saved_token,
-            saved_user_ref=self.get_user_ref(),
+            saved_user_ref=user_ref.reference if user_ref else None,
             tags=tags
         )
 
@@ -64,7 +65,7 @@ class WebSocketWrapper:
 
         await self.ws.send_json(payload)
 
-    async def send_event[T: BaseModel | None, C: EventChannel | None](self, event_instance: OutgoingEvent[T, C]) -> None:
+    async def send_event[T: BaseModel | None, C: EventChannel](self, event_instance: OutgoingEvent[T, C]) -> None:
         await self._send_logged_json(event_instance.to_dict())
 
     async def send_pong(self) -> None:

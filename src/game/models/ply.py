@@ -40,9 +40,9 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
     time_update: GameTimeUpdate | None = Relationship()
 
     @classmethod
-    def load_options(cls) -> list[Load]:
+    def load_options(cls) -> list:
         return [
-            joinedload(GamePlyEvent.time_update)
+            joinedload(GamePlyEvent.time_update)  # type: ignore[arg-type]
         ]
 
     def to_public(self) -> GamePlyEventPublic:

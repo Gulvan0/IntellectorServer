@@ -83,6 +83,7 @@ for path in (root / 'player').iterdir():
 
     data = json.loads(path.read_text(encoding='utf-8'))
     new_follow_rows, last_active_at = process_player_file(path.stem, data)
+    assert last_active_at
     follow_rows += new_follow_rows
     last_activities[path.stem] = last_active_at // 1000
 

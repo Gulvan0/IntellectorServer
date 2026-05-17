@@ -30,9 +30,9 @@ class GameTimeAddedEvent(GameTimeAddedEventBase, table=True):
     time_update: GameTimeUpdate = Relationship()
 
     @classmethod
-    def load_options(cls) -> list[Load]:
+    def load_options(cls) -> list:
         return [
-            joinedload(GameTimeAddedEvent.time_update)
+            joinedload(GameTimeAddedEvent.time_update)  # type: ignore[arg-type]
         ]
 
     def to_public(self) -> GameTimeAddedEventPublic:

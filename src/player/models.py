@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
-from sqlalchemy.orm import Load, selectinload
+from sqlalchemy.orm import selectinload
 from sqlmodel import Field, Relationship
 
 from common.field_types import CurrentDatetime
@@ -31,12 +31,12 @@ class Player(PlayerBase, table=True):
     studies: list[Study] = Relationship(back_populates="author", cascade_delete=True)
 
     @classmethod
-    def load_options(cls, roles: bool = False, restrictions: bool = False) -> list[Load]:
+    def load_options(cls, roles: bool = False, restrictions: bool = False) -> list:
         options = []
         if roles:
-            options.append(selectinload(Player.roles))
+            options.append(selectinload(Player.roles))  # type: ignore[arg-type]
         if restrictions:
-            options.append(selectinload(Player.restrictions))
+            options.append(selectinload(Player.restrictions))  # type: ignore[arg-type]
         return options
 
     def to_public(self, activity: UserActivity) -> PlayerPublic:

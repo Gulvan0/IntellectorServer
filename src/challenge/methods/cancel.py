@@ -1,10 +1,12 @@
 import asyncio
 from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 from typing import Any
-from sqlmodel import select
+from sqlmodel import or_, select
 from challenge.datatypes import ChallengeKind
 from challenge.models import Challenge
 from common.models import Id, IdList
+from common.time_control import TimeControlKind
 from common.user_ref import UserReference
 from config.models import SecretConfig
 from net.core import MutableState
@@ -87,6 +89,23 @@ async def cancel_public_challenges_by_caller(caller: UserReference, session: Asy
             Challenge.active == True,  # noqa: E712
             Challenge.kind == ChallengeKind.PUBLIC,
             Challenge.caller_ref == caller.reference,
+        ),
+        session=session,
+        state=state,
+        secret_config=secret_config
+    )
+
+
+async def cancel_old_challenges(session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> None:
+    threshold = datetime.now(UTC) - timedelta(hours=3)
+    await cancel_queried_challenges(
+        query=select(Challenge).where(
+            Challenge.active == True,  # noqa: E712
+            Challenge.created_at < threshold,
+            or_(
+                Challenge.time_control_kind != TimeControlKind.CORRESPONDENCE,
+                Challenge.callee_ref == None
+            )
         ),
         session=session,
         state=state,

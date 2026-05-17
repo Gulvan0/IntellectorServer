@@ -1,4 +1,7 @@
+import traceback
+
 from auth.models import *  # noqa: F401, F403
+from challenge.methods.cancel import cancel_old_challenges
 from challenge.models import *  # noqa: F401, F403
 from common.models import *  # noqa: F401, F403
 from config.models import *  # noqa: F401, F403
@@ -111,16 +114,30 @@ class App(FastAPI):
             session.add(ServerLaunch())
             await session.commit()
 
+        asyncio.create_task(self.stale_challenge_cancelation_loop())
+
         yield
+
+    async def stale_challenge_cancelation_loop(self) -> None:
+        while True:
+            await asyncio.sleep(1800)  # repeat every 30 min
+            try:
+                async with self.get_db_session() as session:
+                    await cancel_old_challenges(session, self.mutable_state, self.secret_config)
+            except Exception:
+                await self._log_task_failure("stale_challenge_cancelation")
 
     @asynccontextmanager
     async def get_db_session(self) -> AsyncGenerator[AsyncSession, None]:
         async with AsyncSession(self.db_engine) as session:
             yield session
 
-    async def _log_task_failure(self, task_name: str, error: str) -> None:
+    async def _log_task_failure(self, task_name: str, error: str | None = None) -> None:
         async with self.get_db_session() as session:
-            session.add(TaskFailureLog(task=task_name, error=error))
+            session.add(TaskFailureLog(
+                task=task_name,
+                error=error or traceback.format_exc()
+            ))
             await session.commit()
 
     def __init__(self, rest_routers: list[APIRouter], ws_collection: WebSocketHandlerCollection) -> None:

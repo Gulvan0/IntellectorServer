@@ -1,4 +1,5 @@
 from sqlalchemy import ScalarResult
+from sqlalchemy.engine import TupleResult
 from sqlmodel import and_, col, desc, or_, select, func
 from sqlmodel.sql.expression import SelectOfScalar
 
@@ -50,10 +51,11 @@ async def get_ply_cnt(session: AsyncSession, game_id: int) -> int:
     return last_ply_index + 1 if last_ply_index else 0
 
 
-async def get_active_offers(session: AsyncSession, game_id: int) -> ScalarResult[GameOfferEvent]:
+async def get_active_offers(session: AsyncSession, game_id: int) -> TupleResult[tuple[str, str]]:
     return await session.exec(
         select(
-            GameOfferEvent
+            GameOfferEvent.offer_kind,
+            GameOfferEvent.offer_author
         ).where(
             GameOfferEvent.game_id == game_id
         ).group_by(

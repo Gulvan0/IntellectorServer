@@ -52,11 +52,11 @@ class LoggingRoute(APIRoute):
                 response = await original_route_handler(request)
             except HTTPException as exc:
                 body = json.dumps({"detail": exc.detail}).encode()
-                request.app.mutable_state.delayed_tasks.plan(log_info(request, exc.status_code, body, request.app))
+                request.app.mutable_state.concurrent_tasks.plan(log_info(request, exc.status_code, body, request.app))
                 raise
             except Exception as exc:
                 body = json.dumps({"detail": str(exc)}).encode()
-                request.app.mutable_state.delayed_tasks.plan(log_info(request, 500, body, request.app))
+                request.app.mutable_state.concurrent_tasks.plan(log_info(request, 500, body, request.app))
                 raise
             existing_task = response.background
 

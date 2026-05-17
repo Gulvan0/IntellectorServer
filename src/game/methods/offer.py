@@ -136,12 +136,12 @@ async def accept_takeback(
 
 
 async def cancel_all_active_offers(session: AsyncSession, state: MutableState, game_id: int, ply_dt: datetime) -> None:
-    for offer_event in await get_active_offers(session, game_id):
+    for offer_kind, offer_author in await get_active_offers(session, game_id):
         cancel_event = GameOfferEvent(
             occurred_at=ply_dt,
             action=OfferAction.CANCEL,
-            offer_kind=offer_event.offer_kind,
-            offer_author=offer_event.offer_author,
+            offer_kind=OfferKind(offer_kind),
+            offer_author=PieceColor(offer_author),
             game_id=game_id
         )
         session.add(cancel_event)

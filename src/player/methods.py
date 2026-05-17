@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 
-from sqlmodel import col, desc, select, func
+from sqlmodel import and_, col, desc, select, func
 from common.models import UserRefWithNickname
 from common.resolved_refs import ResolvedRefs
 from common.sql import exists, not_expired
@@ -114,14 +114,26 @@ async def get_overall_ranked_game_stats(
     main_config: MainConfig,
     player_login: str,
 ) -> OverallRankedGameStats:
-    db_elo_entries = await session.exec(select(
-        PlayerEloProgress
+    subquery = select(
+        PlayerEloProgress.login,
+        PlayerEloProgress.time_control_kind,
+        func.max(PlayerEloProgress.ts).label("max_ts")
     ).where(
         PlayerEloProgress.login == player_login
     ).group_by(
+        PlayerEloProgress.login,
         PlayerEloProgress.time_control_kind
-    ).having(
-        PlayerEloProgress.ts == func.max(PlayerEloProgress.ts)
+    ).subquery()
+
+    db_elo_entries = await session.exec(select(
+        PlayerEloProgress
+    ).join(
+        subquery,
+        and_(
+            PlayerEloProgress.login == subquery.c.login,
+            PlayerEloProgress.time_control_kind == subquery.c.time_control_kind,
+            PlayerEloProgress.ts == subquery.c.max_ts,
+        )
     ))
 
     full_stats = OverallRankedGameStats()

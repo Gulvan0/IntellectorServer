@@ -57,6 +57,8 @@ async def append_event(
 
     if commit:
         await session.commit()
+    else:
+        await session.flush()
 
     await mutable_state.ws_subscribers.broadcast(ws_event, tag_blacklist=tag_blacklist)
 
@@ -97,6 +99,8 @@ async def append_rollback_event(
     if commit:
         await session.commit()
         await session.refresh(event)
+    else:
+        await session.flush()
 
     ws_event = Rollback(event.to_broadcasted_data(updated_sip), GameEventChannel(game_id=game_id))
     await mutable_state.ws_subscribers.broadcast(ws_event)

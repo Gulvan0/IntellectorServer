@@ -49,6 +49,8 @@ async def create_player(session: AsyncSession, login: str, nickname: str, commit
     session.add(player)
     if commit:
         await session.commit()
+    else:
+        await session.flush()
 
 
 async def is_banned_in_ranked(session: AsyncSession, caller: UserReference) -> bool:

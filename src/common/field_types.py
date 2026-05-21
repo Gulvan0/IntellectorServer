@@ -1,4 +1,5 @@
 from datetime import datetime, UTC
+from time import time
 from typing import Annotated
 from pydantic import StringConstraints
 from sqlmodel import Field
@@ -9,4 +10,5 @@ OptionalPlayerRef = Annotated[str | None, Field(default=None, max_length=32)]
 Sip = Annotated[str, Field(max_length=127)]
 OptionalSip = Annotated[str | None, Field(default=None, max_length=127)]
 CurrentDatetime = Annotated[datetime, Field(default_factory=lambda: datetime.now(UTC))]
+CurrentTimestamp = Annotated[int, Field(default_factory=lambda: int(time()))]
 PlayerLogin = Annotated[str, StringConstraints(to_lower=True)]

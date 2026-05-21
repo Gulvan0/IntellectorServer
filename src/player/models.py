@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy.orm import selectinload
 from sqlmodel import Field, Relationship
 
-from common.field_types import CurrentDatetime
+from common.field_types import CurrentDatetime, CurrentTimestamp
 from common.models import UserActivity
 from player.datatypes import RankedGameStats, UserRestrictionKind, UserRole
 from common.time_control import TimeControlKind
@@ -21,7 +21,7 @@ class PlayerBase(CustomSQLModel):
 
 
 class Player(PlayerBase, table=True):
-    last_recorded_activity_before_v3: int
+    last_recorded_activity_before_v3: CurrentTimestamp
     preferred_role: UserRole | None = None
     # avatar: bytes | None = Field(sa_column=Column(LargeBinary), default=None)
 

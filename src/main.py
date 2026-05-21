@@ -1,6 +1,9 @@
 import asyncio
 from asyncio import StreamWriter
 import logging
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from auth import routes as auth_routes
 from challenge import routes as challenge_routes
 from game.routes import common as main_game_routes
@@ -53,6 +56,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+    )
 
 
 async def run_server() -> None:

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from sqlmodel import col, distinct, select
+from sqlmodel import col, desc, distinct, select
 
 from net.base_router import LoggingRoute
 from player.methods import resolve_player_refs
@@ -33,7 +33,7 @@ async def list_studies(
     offset: int = 0,
     limit: int = Query(default=10, le=50)
 ) -> list[StudySummaryPublic]:
-    query = select(Study).offset(offset).limit(limit)
+    query = select(Study).order_by(desc(Study.created_at), desc(Study.id)).offset(offset).limit(limit)
 
     if payload.author_login is not None:
         query = query.where(Study.author_login == payload.author_login)

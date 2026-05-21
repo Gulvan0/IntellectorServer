@@ -46,7 +46,8 @@ class GameTimeUpdate(GameTimeUpdateBase, table=True):
         if not reference_ts:
             reference_ts = datetime.now(UTC)
 
-        delta_secs = (reference_ts - self.updated_at).total_seconds()
+        # We need to strip the timezone so that both operands will be offset-naive
+        delta_secs = (reference_ts.replace(tzinfo=None) - self.updated_at).total_seconds()
         delta_ms = int(delta_secs * 1000)
         remainders[self.ticking_side] -= delta_ms
 

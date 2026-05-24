@@ -1,4 +1,3 @@
-import asyncio
 import json
 
 from fastapi import BackgroundTasks, HTTPException, Response, Request
@@ -48,6 +47,8 @@ class LoggingRoute(APIRoute):
         original_route_handler = super().get_route_handler()
 
         async def custom_route_handler(request: Request) -> Response:
+            await request.body()  # Cache the request's body
+
             try:
                 response = await original_route_handler(request)
             except HTTPException as exc:

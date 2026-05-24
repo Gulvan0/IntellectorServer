@@ -19,9 +19,9 @@ class StoredNotificationBase(CustomSQLModel):
     is_permanent: bool = False
 
 
-class GameStartedNotification(StoredNotificationBase, is_table=True):
+class GameStartedNotification(StoredNotificationBase, table=True):
     game_id: int
 
 
-class NewPublicChallengeNotification(StoredNotificationBase, is_table=True):
+class NewPublicChallengeNotification(StoredNotificationBase, table=True):
     challenge_id: int

@@ -25,7 +25,7 @@ class ConcurrentTaskStorage:
         task_name = task.get_name()
         message = ''.join(traceback.format_exception(type(exception), exception, exception.__traceback__))
         print(message)
-        with Path('./error_log').open("a") as f:
+        with Path('./error_log.txt').open("a") as f:
             f.write(message + '\n\n')
 
         if self.on_failure:

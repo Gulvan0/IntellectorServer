@@ -151,24 +151,26 @@ class StudyUpdate(CustomSQLModel):
     tags: list[str] | None = None
     nodes: list[ApiVariationNode] | None = None
 
-    def dump_for_table_model(self) -> dict[str, Any]:
-        result = self.model_dump(exclude_unset=True, exclude_none=True)
+    def dump_plain_fields(self) -> dict[str, Any]:
+        return self.model_dump(exclude={"tags", "nodes"}, exclude_unset=True, exclude_none=True)
 
-        result.pop("tags", None)
-        if self.tags is not None:
-            result["tags"] = [
-                StudyTag(tag=tag)
-                for tag in self.tags
-            ]
+    def to_db_tags(self) -> list[StudyTag] | None:
+        if self.tags is None:
+            return None
 
-        result.pop("nodes", None)
-        if self.nodes is not None:
-            result["nodes"] = [
-                StudyVariationNode.from_api_model(node)
-                for node in self.nodes
-            ]
+        return [
+            StudyTag(tag=tag)
+            for tag in self.tags
+        ]
 
-        return result
+    def to_db_nodes(self) -> list[StudyVariationNode] | None:
+        if self.nodes is None:
+            return None
+
+        return [
+            StudyVariationNode.from_api_model(node)
+            for node in self.nodes
+        ]
 
 
 class StudySummaryPublic(StudyBase):

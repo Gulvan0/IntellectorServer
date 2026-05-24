@@ -83,7 +83,15 @@ async def update_study(*, session: SessionDependency, client_login: MandatoryPla
     if client_login != db_study.author_login:
         raise HTTPException(status_code=403, detail="Not the study's author")
 
-    db_study.sqlmodel_update(study.dump_for_table_model())  # noqa
+    db_study.sqlmodel_update(study.dump_plain_fields())
+
+    updated_tags = study.to_db_tags()
+    if updated_tags is not None:
+        db_study.tags = updated_tags
+
+    updated_nodes = study.to_db_nodes()
+    if updated_nodes is not None:
+        db_study.nodes = updated_nodes
 
     session.add(db_study)
     await session.commit()

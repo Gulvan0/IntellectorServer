@@ -1,9 +1,8 @@
 import asyncio
 from asyncio import StreamWriter
 import logging
+from ssl import SSLError
 
-from fastapi import Request
-from fastapi.responses import JSONResponse
 from auth import routes as auth_routes
 from challenge import routes as challenge_routes
 from game.routes import common as main_game_routes
@@ -16,12 +15,14 @@ from study import routes as study_routes
 from pubsub import ws_handlers as ws_pubsub
 
 from net.core import App
+from net.catch_exceptions_middleware import CatchExceptionsMiddleware
 
 from fastapi.middleware.cors import CORSMiddleware
 from hypercorn.config import Config
 from hypercorn.asyncio import serve
 
 
+# Monkey patch for ignoring errors arising from race conditions introduced by Python3.14 Hypercorn
 _original_wait_closed = StreamWriter.wait_closed
 
 
@@ -30,6 +31,11 @@ async def _patched_wait_closed(self: StreamWriter) -> None:
         await asyncio.wait_for(_original_wait_closed(self), timeout=5.0)
     except (asyncio.TimeoutError, TimeoutError):
         pass
+    except SSLError as e:
+        if "APPLICATION_DATA_AFTER_CLOSE_NOTIFY" in str(e):
+            pass  # Client sent data after SSL close — safe to ignore
+        else:
+            raise
 
 
 StreamWriter.wait_closed = _patched_wait_closed  # type: ignore[method-assign]
@@ -50,20 +56,13 @@ app = App(
 )
 
 
+app.add_middleware(CatchExceptionsMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.exception_handler(Exception)
-async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    return JSONResponse(
-        status_code=500,
-        content={"detail": str(exc)},
-    )
 
 
 async def run_server() -> None:

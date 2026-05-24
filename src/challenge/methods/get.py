@@ -1,7 +1,7 @@
 from sqlmodel import and_, desc, or_, select, func, col
 from sqlmodel.sql.expression import SelectOfScalar
 
-from challenge.datatypes import ChallengeKind
+from challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
 from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic
 from challenge.sql import time_control_equality_conditions
 from common.user_ref import UserReference
@@ -65,7 +65,11 @@ async def get_mergeable_challenge(
 
     conditions = [
         Challenge.active,
-        Challenge.acceptor_color.mergeable_with(challenge.acceptor_color),
+        or_(
+            Challenge.acceptor_color == ChallengeAcceptorColor.RANDOM,
+            challenge.acceptor_color == ChallengeAcceptorColor.RANDOM,
+            Challenge.acceptor_color != challenge.acceptor_color
+        ),
         Challenge.caller_ref != caller.reference,
         Challenge.rated == challenge.rated,
         Challenge.custom_starting_sip == challenge.custom_starting_sip,

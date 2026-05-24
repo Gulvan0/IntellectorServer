@@ -11,6 +11,3 @@ class ChallengeAcceptorColor(StrEnum):
     WHITE = auto()
     BLACK = auto()
     RANDOM = auto()
-
-    def mergeable_with(self, other: ChallengeAcceptorColor) -> bool:
-        return self == ChallengeAcceptorColor.RANDOM or other == ChallengeAcceptorColor.RANDOM or self != other

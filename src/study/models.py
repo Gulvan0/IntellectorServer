@@ -152,7 +152,7 @@ class StudyUpdate(CustomSQLModel):
     nodes: list[ApiVariationNode] | None = None
 
     def dump_for_table_model(self) -> dict[str, Any]:
-        result = self.model_dump(exclude_unset=True)
+        result = self.model_dump(exclude_unset=True, exclude_none=True)
 
         result.pop("tags", None)
         if self.tags is not None:

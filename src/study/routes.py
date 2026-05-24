@@ -29,6 +29,7 @@ async def create_study(*, session: SessionDependency, client_login: MandatoryPla
 async def list_studies(
     *,
     session: SessionDependency,
+    client_login: OptionalPlayerLoginDependency,
     payload: ListStudiesPayload,
     offset: int = 0,
     limit: int = Query(default=10, le=50)
@@ -37,7 +38,8 @@ async def list_studies(
 
     if payload.author_login is not None:
         query = query.where(Study.author_login == payload.author_login)
-        query = query.where(col(Study.publicity).in_([StudyPublicity.PUBLIC, StudyPublicity.PROFILE_AND_LINK_ONLY]))
+        if client_login != payload.author_login:
+            query = query.where(col(Study.publicity).in_([StudyPublicity.PUBLIC, StudyPublicity.PROFILE_AND_LINK_ONLY]))
     else:
         query = query.where(Study.publicity == StudyPublicity.PUBLIC)
 
@@ -71,7 +73,7 @@ async def get_study(*, session: SessionDependency, study_id: int, client_login: 
 
 @router.patch("/{study_id}", response_model=StudyPublic)
 async def update_study(*, session: SessionDependency, client_login: MandatoryPlayerLoginDependency, study_id: int, study: StudyUpdate) -> StudyPublic:
-    db_study = await session.get(Study, study_id)
+    db_study = await session.get(Study, study_id, options=Study.load_options())
     if not db_study:
         raise HTTPException(status_code=404, detail="Study not found")
 
@@ -86,6 +88,7 @@ async def update_study(*, session: SessionDependency, client_login: MandatoryPla
     session.add(db_study)
     await session.commit()
 
+    await session.refresh(db_study)
     await session.refresh(db_study, attribute_names=["tags", "nodes"])
 
     collected_refs = db_study.collect_refs()

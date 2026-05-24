@@ -5,6 +5,34 @@ from study.datatypes import StudyPublicity
 from study.models import Study, StudyTag, StudyVariationNode
 
 
+def format_new_path_part(branch: str, repetition_cnt: int) -> str:
+    part = "" if branch == "0" else branch
+    if repetition_cnt > 1:
+        part += f"x{repetition_cnt}"
+    return part
+
+
+def convert_path(old_path: str) -> str:
+    new_path = ""
+    current_branch = None
+    current_repetition_cnt = 0
+
+    for part in old_path.split(":"):
+        if not current_branch:
+            current_branch = part
+
+        if current_branch == part:
+            current_repetition_cnt += 1
+        else:
+            new_path += format_new_path_part(current_branch, current_repetition_cnt) + ":"
+            current_repetition_cnt = 1
+            current_branch = part
+
+    if current_branch:
+        new_path += format_new_path_part(current_branch, current_repetition_cnt)
+    return new_path
+
+
 def process_study(study_id: int, data: dict) -> Study:
     variant_raw: str | None = data.get("variantStr")
     if not variant_raw:
@@ -17,7 +45,7 @@ def process_study(study_id: int, data: dict) -> Study:
         for raw_node in parts[0].split(";"):
             path, raw_ply = raw_node.split("/")
             nodes.append(StudyVariationNode(
-                joined_path=path,
+                joined_path=convert_path(path),
                 ply_from_i=raw_ply[0],
                 ply_from_j=raw_ply[1],
                 ply_to_i=raw_ply[2],

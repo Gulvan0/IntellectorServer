@@ -59,7 +59,6 @@ if TYPE_CHECKING:
 LAST_GUEST_ID_QUERY_PATH = Path('resources/sql/last_guest_id.sql')
 
 
-
 class App(FastAPI):
     @asynccontextmanager
     async def __lifespan(self) -> AsyncGenerator[None, None]:

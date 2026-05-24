@@ -5,6 +5,7 @@ from sqlalchemy.dialects.mysql import TEXT
 from sqlmodel import Field, Relationship, Column
 
 from common.field_types import CurrentDatetime, OptionalPlayerRef
+from log.datatypes import RestMethod
 from utils.custom_model import CustomSQLModel
 
 
@@ -20,7 +21,7 @@ class RESTRequestLog(CustomSQLModel, table=True):
     client_host: str
     authorized_as: OptionalPlayerRef = Field(index=True)
     endpoint: str
-    method: str = Field(sa_column=Column(CHAR(5)))
+    method: RestMethod
     headers_json: str = Field(sa_column=Column(TEXT))
     payload: str = Field(sa_column=Column(TEXT))
 

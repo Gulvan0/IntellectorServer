@@ -6,6 +6,7 @@ from starlette.responses import StreamingResponse
 from fastapi.routing import APIRoute
 from typing import Callable
 
+from log.datatypes import RestMethod
 from log.models import RESTRequestLog, RESTResponseLog
 from net.core import App
 from common.constants import USER_TOKEN_HEADER
@@ -23,12 +24,17 @@ def get_client_ref(request: Request, app: App) -> str | None:
 
 
 async def log_info(request: Request, response_code: int, response_body: bytes, app: App) -> None:
+    try:
+        method = RestMethod(request.method.lower())
+    except ValueError:
+        return
+
     async with AsyncSession(app.db_engine) as session:
         request_entry = RESTRequestLog(
             client_host=request.client.host if request.client else "unknown",
             authorized_as=get_client_ref(request, app),
             endpoint=request.url.path,
-            method=request.method,
+            method=method,
             headers_json=dump_headers(request.headers),
             payload=dump_bytes(await request.body()),
         )

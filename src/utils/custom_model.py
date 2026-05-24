@@ -53,4 +53,7 @@ class CustomSQLModel(SQLModel):
 
     @classmethod
     def cast(cls, source: BaseModel | None) -> Self | None:
-        return cast(source, cls)
+        if source is None:
+            return None
+        known = cls.model_fields.keys()
+        return cls(**{k: v for k, v in source.model_dump().items() if k in known})

@@ -4,15 +4,16 @@ from secrets import token_hex
 from fastapi import APIRouter, HTTPException
 from fastapi.routing import APIRoute
 
-from auth.models import AuthCredentials, PlayerPasswordUpdate, TokenResponse, GuestTokenResponse, PlayerPassword
-from common.dependencies import MandatoryPlayerLoginDependency, MutableStateDependency, SessionDependency
+from auth.models import AuthCredentials, PlayerPasswordUpdate, TokenResponse, GuestTokenResponse, WhoamiResponse, PlayerPassword
+from common.dependencies import MandatoryPlayerLoginDependency, MandatoryUserDependency, MutableStateDependency, SessionDependency
+from common.models import UserRefWithNickname
 from net.base_router import LoggingRoute
 
 import bcrypt
 import os
 
 from player.datatypes import UserRole
-from player.methods import create_player
+from player.methods import create_player, resolve_player_ref
 from player.models import PlayerRole
 
 
@@ -29,6 +30,16 @@ async def guest(state: MutableStateDependency) -> GuestTokenResponse:
     token = token_hex()
     guest_id = state.add_guest(token)
     return GuestTokenResponse(guest_id=guest_id, token=token)
+
+
+@router.get("/whoami", response_model=WhoamiResponse)
+async def whoami(user: MandatoryUserDependency, session: SessionDependency) -> WhoamiResponse:
+    identity = await resolve_player_ref(user, session)
+    return WhoamiResponse(
+        user_ref=identity.user_ref,
+        nickname=identity.nickname,
+        guest_id=user.guest_id if user.is_guest() else None,
+    )
 
 
 @router.post("/signin", response_model=TokenResponse)
@@ -53,7 +64,8 @@ async def signin(*, credentials: AuthCredentials, session: SessionDependency, st
 
     token = token_hex()
     state.add_logged(token, login)
-    return TokenResponse(token=token)
+    identity = await resolve_player_ref(login, session)
+    return TokenResponse(token=token, identity=identity)
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
@@ -80,7 +92,8 @@ async def register(*, credentials: AuthCredentials, session: SessionDependency, 
 
     token = token_hex()
     state.add_logged(token, login)
-    return TokenResponse(token=token)
+    identity = UserRefWithNickname(user_ref=login, nickname=credentials.login)  # case preserved!
+    return TokenResponse(token=token, identity=identity)
 
 
 @router.patch("/update_password", status_code=201)

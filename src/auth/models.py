@@ -2,6 +2,7 @@ from pydantic import Field as PydanticField
 from sqlalchemy import CHAR, Column, LargeBinary
 from sqlmodel import Field
 from common.field_types import CurrentDatetime, PlayerLogin
+from common.models import UserRefWithNickname
 from utils.custom_model import CustomModel, CustomSQLModel
 
 
@@ -12,11 +13,16 @@ class AuthCredentials(CustomModel):
 
 class TokenResponse(CustomModel):
     token: str
+    identity: UserRefWithNickname
 
 
 class GuestTokenResponse(CustomModel):
     guest_id: int
     token: str
+
+
+class WhoamiResponse(UserRefWithNickname):
+    guest_id: int | None = None
 
 
 # <private>

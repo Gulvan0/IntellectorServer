@@ -23,7 +23,7 @@ class ApiPly(CustomModel):
     morph_into: PieceKind | None = None
 
 
-class ApiVariationNode(CustomModel):
+class ApiPlyTreeNode(CustomModel):
     path: str
     ply: ApiPly
 
@@ -42,8 +42,8 @@ class StudyTagPublic(StudyTagBase):
     pass
 
 
-class StudyVariationNodeBase(CustomSQLModel):
-    joined_path: str = Field(primary_key=True, max_length=500)
+class StudyPlyTreeNodeBase(CustomSQLModel):
+    path: str = Field(primary_key=True, max_length=500)
     ply_from_i: int
     ply_from_j: int
     ply_to_i: int
@@ -51,15 +51,15 @@ class StudyVariationNodeBase(CustomSQLModel):
     ply_morph_into: PieceKind | None = None
 
 
-class StudyVariationNode(StudyVariationNodeBase, table=True):
+class StudyPlyTreeNode(StudyPlyTreeNodeBase, table=True):
     study_id: int | None = Field(default=None, primary_key=True, foreign_key="study.id")
 
     study: Study = Relationship(back_populates="nodes")
 
     @classmethod
-    def from_api_model(cls, node: ApiVariationNode) -> StudyVariationNode:
-        return StudyVariationNode(
-            joined_path=node.path,
+    def from_api_model(cls, node: ApiPlyTreeNode) -> StudyPlyTreeNode:
+        return StudyPlyTreeNode(
+            path=node.path,
             ply_from_i=node.ply.departure.i,
             ply_from_j=node.ply.departure.j,
             ply_to_i=node.ply.destination.i,
@@ -68,7 +68,7 @@ class StudyVariationNode(StudyVariationNodeBase, table=True):
         )
 
 
-class StudyVariationNodePublic(StudyVariationNodeBase):
+class StudyPlyTreeNodePublic(StudyPlyTreeNodeBase):
     pass
 
 
@@ -89,7 +89,7 @@ class Study(StudyBase, table=True):
 
     author: Player = Relationship(back_populates="studies")
     tags: list[StudyTag] = Relationship(back_populates="study", cascade_delete=True)
-    nodes: list[StudyVariationNode] = Relationship(back_populates="study", cascade_delete=True)
+    nodes: list[StudyPlyTreeNode] = Relationship(back_populates="study", cascade_delete=True)
 
     @classmethod
     def load_options(cls) -> list:
@@ -119,13 +119,13 @@ class Study(StudyBase, table=True):
             **self.to_summary(resolved_refs).model_dump(),
             deleted=self.deleted,
             tags=[StudyTagPublic.cast(tag) for tag in self.tags],
-            nodes=[StudyVariationNodePublic.cast(node) for node in self.nodes]
+            nodes=[StudyPlyTreeNodePublic.cast(node) for node in self.nodes]
         )
 
 
 class StudyCreate(StudyBase):
     tags: list[str]
-    nodes: list[ApiVariationNode]
+    nodes: list[ApiPlyTreeNode]
 
     def build_table_model(self, author_login: str) -> Study:
         return Study(
@@ -135,7 +135,7 @@ class StudyCreate(StudyBase):
                 for tag in self.tags
             ],
             nodes=[
-                StudyVariationNode.from_api_model(node)
+                StudyPlyTreeNode.from_api_model(node)
                 for node in self.nodes
             ],
             **StudyBase.model_validate(self).model_dump()
@@ -149,7 +149,7 @@ class StudyUpdate(CustomSQLModel):
     starting_sip: str | None = None
     key_sip: str | None = None
     tags: list[str] | None = None
-    nodes: list[ApiVariationNode] | None = None
+    nodes: list[ApiPlyTreeNode] | None = None
 
     def dump_plain_fields(self) -> dict[str, Any]:
         return self.model_dump(exclude={"tags", "nodes"}, exclude_unset=True, exclude_none=True)
@@ -163,12 +163,12 @@ class StudyUpdate(CustomSQLModel):
             for tag in self.tags
         ]
 
-    def to_db_nodes(self) -> list[StudyVariationNode] | None:
+    def to_db_nodes(self) -> list[StudyPlyTreeNode] | None:
         if self.nodes is None:
             return None
 
         return [
-            StudyVariationNode.from_api_model(node)
+            StudyPlyTreeNode.from_api_model(node)
             for node in self.nodes
         ]
 
@@ -187,7 +187,7 @@ class StudyPublic(StudyBase):
     author: UserRefWithNickname
     deleted: bool
     tags: list[StudyTagPublic]
-    nodes: list[StudyVariationNodePublic]
+    nodes: list[StudyPlyTreeNodePublic]
 
 
 class ListStudiesPayload(CustomModel):

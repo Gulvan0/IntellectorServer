@@ -2,7 +2,7 @@ from board.deserializers.sip import position_from_sip
 from board.piece import PieceKind
 from board.serializers.sip import get_sip
 from study.datatypes import StudyPublicity
-from study.models import Study, StudyTag, StudyVariationNode
+from study.models import Study, StudyTag, StudyPlyTreeNode
 
 
 def format_new_path_part(branch: str, repetition_cnt: int) -> str:
@@ -44,8 +44,8 @@ def process_study(study_id: int, data: dict) -> Study:
     if len(parts) > 1:
         for raw_node in parts[0].split(";"):
             path, raw_ply = raw_node.split("/")
-            nodes.append(StudyVariationNode(
-                joined_path=convert_path(path),
+            nodes.append(StudyPlyTreeNode(
+                path=convert_path(path),
                 ply_from_i=raw_ply[0],
                 ply_from_j=raw_ply[1],
                 ply_to_i=raw_ply[2],

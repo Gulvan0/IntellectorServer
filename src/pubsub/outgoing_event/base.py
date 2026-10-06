@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from html import escape
 from types import NoneType
-from typing import Any, get_args
+from typing import Any, get_args, get_origin
 from pydantic import BaseModel
 
 from common.models import Id, IdList
@@ -33,18 +33,16 @@ class OutgoingEvent[PayloadType: BaseModel | None, TargetChannelType: EventChann
 
     @classmethod
     def _type_variables(cls) -> tuple[type, ...]:
-        origin = getattr(cls, "__orig_class__", None)
-        if origin is None:
-            raise ValueError('Origin is undefined')
-        return get_args(origin)
+        for ancestor_class in cls.__mro__:
+            for base in vars(ancestor_class).get("__orig_bases__", ()):
+                origin = get_origin(base)
+                if isinstance(origin, type) and issubclass(origin, OutgoingEvent):
+                    return get_args(base)
+        raise ValueError(f'{cls.__name__} does not parametrize OutgoingEvent')
 
     @classmethod
     def _base_type_variables(cls) -> tuple[type[PayloadType], type[TargetChannelType]]:
-        iterated_class: type | None = cls
-        while iterated_class and iterated_class is not OutgoingEvent:
-            iterated_class = iterated_class.__base__
-        assert isinstance(iterated_class, OutgoingEvent)
-        return iterated_class._type_variables()
+        return cls._type_variables()  # type: ignore
 
     @classmethod
     def payload_type(cls) -> type[PayloadType]:
@@ -82,25 +80,20 @@ class OutgoingEvent[PayloadType: BaseModel | None, TargetChannelType: EventChann
     def to_dict(self) -> dict[str, Any]:
         return dict(
             event=self.name(),
-            channel=self.target_channel.model_dump() if not isinstance(self.target_channel, NoneType) else None,
-            body=self.payload.model_dump() if not isinstance(self.payload, NoneType) else None
+            channel=self.target_channel.model_dump(mode="json") if not isinstance(self.target_channel, NoneType) else None,
+            body=self.payload.model_dump(mode="json") if not isinstance(self.payload, NoneType) else None
         )
 
 
 class RefreshEvent[PayloadType: BaseModel, RefreshedChannelType: EventChannel](OutgoingEvent[PayloadType, RefreshedChannelType]):
     @classmethod
-    def name(cls) -> str:
-        refreshed_channel: type[RefreshedChannelType] = cls._type_variables()[1]
-        return f"refresh.{refreshed_channel.channel_group}"
-
-    @classmethod
     def title(cls) -> str:
         refreshed_channel: type[RefreshedChannelType] = cls._type_variables()[1]
-        channel_group = refreshed_channel.channel_group
+        channel_group = refreshed_channel.group
         return f"Channel Refresh: <code>{escape(channel_group)}</code>"
 
     @classmethod
     def description(cls) -> str:
         refreshed_channel: type[RefreshedChannelType] = cls._type_variables()[1]
-        channel_group = refreshed_channel.channel_group
+        channel_group = refreshed_channel.group
         return f"Delivers the actual state of a <code>{escape(channel_group)}</code> channel (for example, as a response to subscribing to it)"

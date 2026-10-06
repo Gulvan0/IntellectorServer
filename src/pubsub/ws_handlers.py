@@ -171,21 +171,22 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
             timer.cancel()
 
     tags: set[SubscriberTag] = set()
+    # everything that needs the session stays inside the block: a session used after it's closed checks out a new connection that's never returned
     async with ws.app.get_db_session() as session:
         refresh_event = await get_refresh(session, payload.channel, client, sub_storage, tags)
 
-    perform_actual_subscription = not sub_storage.has_ws_subscriber(ws, payload.channel)
-    if perform_actual_subscription:
-        sub_storage.subscribe(ws, payload.channel, tags)
+        perform_actual_subscription = not sub_storage.has_ws_subscriber(ws, payload.channel)
+        if perform_actual_subscription:
+            sub_storage.subscribe(ws, payload.channel, tags)
 
-    ws.app.mutable_state.concurrent_tasks.plan(ws.send_event(refresh_event))
+        ws.app.mutable_state.concurrent_tasks.plan(ws.send_event(refresh_event))
 
-    if perform_actual_subscription and not isinstance(payload.channel, SubscriberListEventChannel):
-        subscriber_ref_with_nickname = await resolve_optional_player_ref(client, session)
+        if perform_actual_subscription and not isinstance(payload.channel, SubscriberListEventChannel):
+            subscriber_ref_with_nickname = await resolve_optional_player_ref(client, session)
 
-        ws.app.mutable_state.concurrent_tasks.plan(sub_storage.broadcast(
-            NewSubscriber(subscriber_ref_with_nickname, SubscriberListEventChannel(channel=payload.channel))
-        ))
+            ws.app.mutable_state.concurrent_tasks.plan(sub_storage.broadcast(
+                NewSubscriber(subscriber_ref_with_nickname, SubscriberListEventChannel(channel=payload.channel))
+            ))
 
 
 @collection.register(SubUnsubPayload)

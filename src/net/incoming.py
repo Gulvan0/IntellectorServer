@@ -11,7 +11,6 @@ from net.models import WebsocketIncomingMessage
 from net.utils.ws_error import ErrorKind, WebSocketException
 from utils.bijective_map import BijectiveMap
 
-import json
 import time
 
 
@@ -91,6 +90,7 @@ class WebSocketHandlerCollection:
 
         ws.last_activity = now_ts
 
+        client = None
         if message.token:
             client = token_map.get(message.token)
             if not client:
@@ -100,16 +100,15 @@ class WebSocketHandlerCollection:
                 await ws.send_error(ErrorKind.AUTH_ERROR, "Invalid token")
                 return
             log_entry.authorized_as = client.reference
-            async with ws.app.get_db_session() as session:
-                session.add(log_entry)
-                await session.commit()
+
+        async with ws.app.get_db_session() as session:
+            session.add(log_entry)
+            await session.commit()
 
         handler = self._slug_to_handler.get(message.event)
         if not handler:
             await ws.send_error(ErrorKind.UNKNOWN_EVENT, f"Event not found: {message.event}")
             return
-        else:
-            client = None
 
         try:
             payload = handler.payload_type.model_validate(message.body)

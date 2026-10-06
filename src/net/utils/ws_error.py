@@ -9,7 +9,7 @@ class ErrorKind(StrEnum):
     PROCESSING_ERROR = "processing_error"
 
 
-@dataclass(frozen=True)
+@dataclass
 class WebSocketException(Exception):
     message: str
     kind: ErrorKind = ErrorKind.PROCESSING_ERROR

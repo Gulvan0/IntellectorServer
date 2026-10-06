@@ -38,7 +38,7 @@ class Game(GameBase, table=True):
     black_player_ref: PlayerRef
     latest_sip: Sip
     opening_sip: Sip
-    event_cnt: int
+    event_cnt: int = 0  # events appended so far; get_next_event_index hands out 0, 1, 2, ...
 
     fischer_time_control: GameFischerTimeControl | None = Relationship(back_populates="game", cascade_delete=True)
     outcome: GameOutcome | None = Relationship(back_populates="game", cascade_delete=True)

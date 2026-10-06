@@ -12,6 +12,7 @@ from typing import (
 from sqlalchemy import text, util
 from sqlalchemy.engine.interfaces import _CoreAnyExecuteParams
 from sqlalchemy.engine.result import Result, ScalarResult, TupleResult
+from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession
 from sqlalchemy.orm._typing import OrmExecuteOptionsParameter
 from sqlalchemy.sql.base import Executable as _Executable
@@ -25,6 +26,11 @@ _TSelectParam = TypeVar("_TSelectParam", bound=Any)
 
 # Mostly copied from SQLModel, but adapted for async use. Source: sqlmodel/orm/session.py
 class AsyncSession(_AsyncSession):
+    @property
+    def engine(self) -> AsyncEngine:
+        assert isinstance(self.bind, AsyncEngine), "Sessions are expected to be bound to the app's engine"
+        return self.bind
+
     @overload
     async def exec(
         self,

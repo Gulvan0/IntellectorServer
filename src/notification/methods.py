@@ -16,8 +16,9 @@ from utils.async_orm_session import AsyncSession
 
 async def nth_last_notification_send_times(ns: Iterable[int], app: NotificationApp, session: AsyncSession) -> dict[int, datetime]:
     max_n = max(ns)
-    results = await asyncio.gather(
-        session.exec(
+    # one after the other: a session is bound to a single connection, which can't serve two queries at once
+    results = [
+        await session.exec(
             select(
                 NewPublicChallengeNotification.sent_at
             ).where(
@@ -26,7 +27,7 @@ async def nth_last_notification_send_times(ns: Iterable[int], app: NotificationA
                 desc(NewPublicChallengeNotification.sent_at)
             ).limit(max_n)
         ),
-        session.exec(
+        await session.exec(
             select(
                 GameStartedNotification.sent_at
             ).where(
@@ -35,7 +36,7 @@ async def nth_last_notification_send_times(ns: Iterable[int], app: NotificationA
                 desc(GameStartedNotification.sent_at)
             ).limit(max_n)
         ),
-    )
+    ]
 
     send_times = sorted(sent_at for result in results for sent_at in result)
     return {
@@ -71,7 +72,7 @@ async def send_new_public_challenge_notifications(
 
     vk_chat_id = integrations_config.vk.community_chat_id
     vk_announcement_text = get_vk_new_challenge_message(public_challenge)
-    vk_message_id = post_vk_message(vk_chat_id, vk_announcement_text, integrations_config.vk.token)
+    vk_message_id = await post_vk_message(vk_chat_id, vk_announcement_text, integrations_config.vk.token)
 
     if vk_message_id:
         notification = NewPublicChallengeNotification(
@@ -123,7 +124,7 @@ async def send_game_started_notifications(
 
     vk_chat_id = integrations_config.vk.community_chat_id
     vk_announcement_text = get_vk_new_game_message(public_game)
-    vk_message_id = post_vk_message(vk_chat_id, vk_announcement_text, integrations_config.vk.token)
+    vk_message_id = await post_vk_message(vk_chat_id, vk_announcement_text, integrations_config.vk.token)
 
     if vk_message_id:
         notification = GameStartedNotification(

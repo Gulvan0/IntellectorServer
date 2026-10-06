@@ -51,10 +51,10 @@ async def create_open_challenge(
     if not challenge.link_only:
         state.concurrent_tasks.plan(app.plan_challenge_cancellation_if_unwatched(caller))
 
-        state.concurrent_tasks.plan(send_new_public_challenge_notifications(
+        state.concurrent_tasks.plan_with_own_session(lambda task_session: send_new_public_challenge_notifications(
             public_challenge=public_challenge,
             integrations_config=secret_config.integrations,
-            session=session
+            session=task_session
         ))
 
         event = NewPublicChallenge(public_challenge, PublicChallengeListEventChannel())
@@ -156,7 +156,7 @@ async def accept_challenge(
     state: MutableStateDependency,
     secret_config: SecretConfigDependency
 ) -> GameSummaryPublic:
-    db_challenge = await session.get(Challenge, challenge_id)
+    db_challenge = await session.get(Challenge, challenge_id, options=Challenge.load_options())
 
     if not db_challenge:
         raise HTTPException(status_code=404, detail="Challenge not found")
@@ -204,9 +204,9 @@ async def decline_challenge(
     db_challenge.active = False
     session.add(db_challenge)
 
-    state.concurrent_tasks.plan(delete_new_public_challenge_notifications(
+    state.concurrent_tasks.plan_with_own_session(lambda task_session: delete_new_public_challenge_notifications(
         challenge_id=challenge_id,
-        session=session,
+        session=task_session,
         vk_token=secret_config.integrations.vk.token
     ))
 

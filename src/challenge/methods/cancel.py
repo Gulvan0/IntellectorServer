@@ -25,18 +25,19 @@ from utils.async_orm_session import AsyncSession
 
 
 async def cancel_challenge(challenge: Challenge, session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> None:
-    assert challenge.id
+    challenge_id = challenge.id
+    assert challenge_id
 
-    state.concurrent_tasks.plan(delete_new_public_challenge_notifications(
-        challenge_id=challenge.id,
-        session=session,
+    state.concurrent_tasks.plan_with_own_session(lambda task_session: delete_new_public_challenge_notifications(
+        challenge_id=challenge_id,
+        session=task_session,
         vk_token=secret_config.integrations.vk.token
     ))
 
     challenge.active = False
 
     event: OutgoingEvent[Any, Any] | None = None
-    cancel_event_payload = Id(id=challenge.id)
+    cancel_event_payload = Id(id=challenge_id)
 
     if challenge.kind == ChallengeKind.PUBLIC:
         event = PublicChallengeCancelled(cancel_event_payload, PublicChallengeListEventChannel())

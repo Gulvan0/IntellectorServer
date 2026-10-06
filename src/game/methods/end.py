@@ -134,17 +134,22 @@ async def end_game(
                 CurrentGameListEventChannel()
             ))
 
+        # runs alongside broadcast_new_recent_game, which uses `session`, so it gets a session of its own
+        async def delete_notifications() -> None:
+            async with AsyncSession(session.engine) as notifications_session:
+                await delete_game_started_notifications(
+                    game_id=game_id,
+                    vk_token=secret_config.integrations.vk.token,
+                    session=notifications_session
+                )
+
         await asyncio.gather(
             broadcast_new_recent_game(),
             state.ws_subscribers.broadcast(GameEnded(
                 db_outcome.to_broadcasted_data(elo_updates),
                 GameEventChannel(game_id=game_id)
             )),
-            delete_game_started_notifications(
-                game_id=game_id,
-                vk_token=secret_config.integrations.vk.token,
-                session=session
-            )
+            delete_notifications()
         )
 
         if state.shutdown_activated and not await get_ongoing_finite_game(session):

@@ -93,6 +93,8 @@ async def create_game(
     await session.commit()
 
     await session.refresh(db_game)
+    if db_time_control:
+        await session.refresh(db_time_control)
 
     collected_refs = db_game.collect_refs(include_nested=False)
     resolved_refs = await resolve_player_refs(collected_refs, session)
@@ -117,6 +119,12 @@ async def create_internal_game(
 ) -> GameSummaryPublic:
     white_player_ref, black_player_ref = assign_player_colors(challenge.acceptor_color, challenge.caller_ref, acceptor.reference)
 
+    # read before create_game commits: committing expires the challenge, and it can't be lazily reloaded here
+    assert challenge.id
+    challenge_id = challenge.id
+    challenge_kind = challenge.kind
+    caller_ref = challenge.caller_ref
+
     public_game = await create_game(
         white_player_ref=white_player_ref,
         black_player_ref=black_player_ref,
@@ -129,29 +137,27 @@ async def create_internal_game(
         deactivated_challenge=challenge
     )
 
-    assert challenge.id
-
-    state.concurrent_tasks.plan(delete_new_public_challenge_notifications(
-        challenge_id=challenge.id,
-        session=session,
+    state.concurrent_tasks.plan_with_own_session(lambda task_session: delete_new_public_challenge_notifications(
+        challenge_id=challenge_id,
+        session=task_session,
         vk_token=secret_config.integrations.vk.token
     ))
 
-    event_payload = Id(id=challenge.id)
+    event_payload = Id(id=challenge_id)
 
-    if challenge.kind == ChallengeKind.PUBLIC:
+    if challenge_kind == ChallengeKind.PUBLIC:
         fulfill_event = PublicChallengeFulfilled(event_payload, PublicChallengeListEventChannel())
         state.concurrent_tasks.plan(state.ws_subscribers.broadcast(fulfill_event))
 
-    accept_event = OutgoingChallengeAccepted(event_payload, OutgoingChallengesEventChannel(user_ref=challenge.caller_ref))
+    accept_event = OutgoingChallengeAccepted(event_payload, OutgoingChallengesEventChannel(user_ref=caller_ref))
     state.concurrent_tasks.plan(state.ws_subscribers.broadcast(accept_event))
 
-    state.concurrent_tasks.plan(send_game_started_notifications(
+    state.concurrent_tasks.plan_with_own_session(lambda task_session: send_game_started_notifications(
         white_player_ref,
         black_player_ref,
         public_game,
         secret_config.integrations,
-        session
+        task_session
     ))
 
     return public_game

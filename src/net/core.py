@@ -111,6 +111,7 @@ class App(FastAPI):
         self.openings: OpeningMapping = generate_mapping()
 
         self.db_engine: AsyncEngine = create_async_engine(self.secret_config.db.url)
+        self.mutable_state.concurrent_tasks.db_engine = self.db_engine
 
         for router in rest_routers:
             self.include_router(router)

@@ -6,10 +6,15 @@ from pathlib import Path
 import traceback
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncEngine
+
+from utils.async_orm_session import AsyncSession
+
 
 @dataclass
 class ConcurrentTaskStorage:
     on_failure: Callable[[str, str], Coroutine[Any, Any, None]] | None = None
+    db_engine: AsyncEngine | None = None
     __tasks: set[Task] = field(default_factory=set)
 
     def __on_task_done(self, task: Task) -> None:
@@ -38,3 +43,17 @@ class ConcurrentTaskStorage:
         task = asyncio.create_task(coroutine, name=name or coroutine.__qualname__)
         self.__tasks.add(task)
         task.add_done_callback(self.__on_task_done)
+
+    def plan_with_own_session(self, task: Callable[[AsyncSession], Coroutine[Any, Any, Any]]) -> None:
+        assert self.db_engine, "db_engine must be set before planning tasks that need a session"
+
+        async def run_with_own_session() -> None:
+            async with AsyncSession(self.db_engine) as session:
+                coroutine = task(session)
+                # named after the wrapped coroutine rather than this wrapper, so a failure is logged under its real name
+                current_task = asyncio.current_task()
+                if current_task:
+                    current_task.set_name(coroutine.__qualname__)
+                await coroutine
+
+        self.plan(run_with_own_session())

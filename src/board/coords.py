@@ -49,40 +49,42 @@ class HexCoordinates:
             return delta_i in (-1, 1) and delta_j in (0, allowed_j_offset_on_sides)
 
     def step(self, direction: PieceMovementDirection, color: PieceColor = PieceColor.WHITE, distance: int = 1) -> HexCoordinates | None:
-        color_sign = 1 if color == PieceColor.WHITE else -1
+        # black's directions are white's turned around; the column-parity terms below only hold for white's
+        if color == PieceColor.BLACK:
+            return self.step(direction.opposite(), PieceColor.WHITE, distance)
         match direction:
             case PieceMovementDirection.FORWARD:
-                next_hex = HexCoordinates(self.i, self.j - distance * color_sign)
+                next_hex = HexCoordinates(self.i, self.j - distance)
             case PieceMovementDirection.FORWARD_LEFT:
                 addend = int(self.i % 2 == 0)
-                next_hex = HexCoordinates(self.i - distance * color_sign, self.j - color_sign * (distance + addend) // 2)
+                next_hex = HexCoordinates(self.i - distance, self.j - (distance + addend) // 2)
             case PieceMovementDirection.FORWARD_RIGHT:
                 addend = int(self.i % 2 == 0)
-                next_hex = HexCoordinates(self.i + distance * color_sign, self.j - color_sign * (distance + addend) // 2)
+                next_hex = HexCoordinates(self.i + distance, self.j - (distance + addend) // 2)
             case PieceMovementDirection.BACK:
-                next_hex = HexCoordinates(self.i, self.j + distance * color_sign)
+                next_hex = HexCoordinates(self.i, self.j + distance)
             case PieceMovementDirection.BACK_LEFT:
                 addend = int(self.i % 2 == 1)
-                next_hex = HexCoordinates(self.i - distance * color_sign, self.j + color_sign * (distance + addend) // 2)
+                next_hex = HexCoordinates(self.i - distance, self.j + (distance + addend) // 2)
             case PieceMovementDirection.BACK_RIGHT:
                 addend = int(self.i % 2 == 1)
-                next_hex = HexCoordinates(self.i + distance * color_sign, self.j + color_sign * (distance + addend) // 2)
+                next_hex = HexCoordinates(self.i + distance, self.j + (distance + addend) // 2)
             case PieceMovementDirection.AGR_LEFT:
-                next_hex = HexCoordinates(self.i - 2 * color_sign * distance, self.j)
+                next_hex = HexCoordinates(self.i - 2 * distance, self.j)
             case PieceMovementDirection.AGR_RIGHT:
-                next_hex = HexCoordinates(self.i + 2 * color_sign * distance, self.j)
+                next_hex = HexCoordinates(self.i + 2 * distance, self.j)
             case PieceMovementDirection.AGR_BACK_LEFT:
                 addend = int(self.i % 2 == 1)
-                next_hex = HexCoordinates(self.i - distance * color_sign, self.j + color_sign * ((distance + addend) // 2 + distance))
+                next_hex = HexCoordinates(self.i - distance, self.j + ((distance + addend) // 2 + distance))
             case PieceMovementDirection.AGR_BACK_RIGHT:
                 addend = int(self.i % 2 == 1)
-                next_hex = HexCoordinates(self.i + distance * color_sign, self.j + color_sign * ((distance + addend) // 2 + distance))
+                next_hex = HexCoordinates(self.i + distance, self.j + ((distance + addend) // 2 + distance))
             case PieceMovementDirection.AGR_FORWARD_LEFT:
                 addend = int(self.i % 2 == 0)
-                next_hex = HexCoordinates(self.i - distance * color_sign, self.j - color_sign * ((distance + addend) // 2 + distance))
+                next_hex = HexCoordinates(self.i - distance, self.j - ((distance + addend) // 2 + distance))
             case PieceMovementDirection.AGR_FORWARD_RIGHT:
                 addend = int(self.i % 2 == 0)
-                next_hex = HexCoordinates(self.i + distance * color_sign, self.j - color_sign * ((distance + addend) // 2 + distance))
+                next_hex = HexCoordinates(self.i + distance, self.j - ((distance + addend) // 2 + distance))
             case _:
                 assert_never(direction)
         return next_hex if next_hex.is_valid() else None

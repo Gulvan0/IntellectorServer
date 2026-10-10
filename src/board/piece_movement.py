@@ -21,6 +21,10 @@ class PieceMovementDirection(Enum):
     AGR_LEFT = auto()
     AGR_RIGHT = auto()
 
+    def opposite(self) -> PieceMovementDirection:
+        """The same direction seen by the other side: turned by 180 degrees"""
+        return _OPPOSITE_DIRECTIONS[self]
+
     @classmethod
     def forward_lateral_directions(cls) -> list[PieceMovementDirection]:
         return [cls.FORWARD, cls.FORWARD_LEFT, cls.FORWARD_RIGHT]
@@ -36,6 +40,22 @@ class PieceMovementDirection(Enum):
     @classmethod
     def radial_directions(cls) -> list[PieceMovementDirection]:
         return [cls.AGR_FORWARD_LEFT, cls.AGR_FORWARD_RIGHT, cls.AGR_BACK_LEFT, cls.AGR_BACK_RIGHT, cls.AGR_LEFT, cls.AGR_RIGHT]
+
+
+_OPPOSITE_DIRECTIONS = {
+    PieceMovementDirection.FORWARD: PieceMovementDirection.BACK,
+    PieceMovementDirection.BACK: PieceMovementDirection.FORWARD,
+    PieceMovementDirection.FORWARD_LEFT: PieceMovementDirection.BACK_RIGHT,
+    PieceMovementDirection.BACK_RIGHT: PieceMovementDirection.FORWARD_LEFT,
+    PieceMovementDirection.FORWARD_RIGHT: PieceMovementDirection.BACK_LEFT,
+    PieceMovementDirection.BACK_LEFT: PieceMovementDirection.FORWARD_RIGHT,
+    PieceMovementDirection.AGR_FORWARD_LEFT: PieceMovementDirection.AGR_BACK_RIGHT,
+    PieceMovementDirection.AGR_BACK_RIGHT: PieceMovementDirection.AGR_FORWARD_LEFT,
+    PieceMovementDirection.AGR_FORWARD_RIGHT: PieceMovementDirection.AGR_BACK_LEFT,
+    PieceMovementDirection.AGR_BACK_LEFT: PieceMovementDirection.AGR_FORWARD_RIGHT,
+    PieceMovementDirection.AGR_LEFT: PieceMovementDirection.AGR_RIGHT,
+    PieceMovementDirection.AGR_RIGHT: PieceMovementDirection.AGR_LEFT,
+}
 
 
 class UnlimitedPieceMovementDistance:

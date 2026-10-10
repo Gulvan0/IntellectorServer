@@ -51,6 +51,7 @@ def validate_progressor_ply(ply: Ply, properties: DerivedPlyProperties, position
         else:
             __require(ply.destination.j == ply.departure.j)
     if ply.destination.is_final_row_for(properties.moving_piece.color):
+        __require(properties.ply_kind != PlyKind.SWAP)
         if ply.morph_into not in PieceKind.promotion_options():
             __require(properties.target_piece and properties.target_piece.kind == PieceKind.INTELLECTOR and not ply.morph_into)
     else:
@@ -62,6 +63,7 @@ def validate_defensor_ply(ply: Ply, properties: DerivedPlyProperties, position: 
     if properties.ply_kind == PlyKind.SWAP:
         assert properties.target_piece
         __require(properties.target_piece.kind == PieceKind.INTELLECTOR)
+        __require(not ply.morph_into)
     else:
         __validate_capture_or_normal(ply, properties, position)
 
@@ -79,6 +81,7 @@ def validate_liberator_ply(ply: Ply, properties: DerivedPlyProperties, position:
         __validate_capture_or_normal(ply, properties, position)
     else:
         __require(properties.ply_kind == PlyKind.NORMAL)
+        __require(not ply.morph_into)
         __require(ply.departure.is_lateral_neighbour_for(ply.destination))
 
 

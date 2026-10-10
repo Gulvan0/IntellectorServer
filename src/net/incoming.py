@@ -101,6 +101,9 @@ class WebSocketHandlerCollection:
                 return
             log_entry.authorized_as = client.reference
 
+        # the socket is attributed to whoever sent its latest message (used for presence checks and logging)
+        ws.saved_token = message.token if client else None
+
         async with ws.app.get_db_session() as session:
             session.add(log_entry)
             await session.commit()

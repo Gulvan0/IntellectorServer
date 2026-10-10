@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from challenge.datatypes import ChallengeKind
 from challenge.methods.get import get_active_public_challenges, get_direct_challenges
 from challenge.methods.merge import try_merging
@@ -10,7 +10,6 @@ from common.models import Id
 from game.methods.create import create_internal_game
 from game.models.main import GameSummaryPublic
 from net.base_router import LoggingRoute
-from net.utils.early_response import supports_early_responses
 from notification.methods import delete_new_public_challenge_notifications, send_new_public_challenge_notifications
 from player.methods import resolve_player_refs
 from pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
@@ -27,12 +26,12 @@ from pubsub.outgoing_event.update import (
 router = APIRouter(prefix="/challenge", route_class=LoggingRoute)
 
 
-@supports_early_responses()
 @router.post("/create/open", status_code=201, response_model=ChallengeCreateResponse, response_model_exclude_none=True)
 async def create_open_challenge(
     *,
     app: AppDependency,
     challenge: ChallengeCreateOpen,
+    response: Response,
     session: SessionDependency,
     caller: MandatoryUserDependency,
     state: MutableStateDependency,
@@ -40,7 +39,10 @@ async def create_open_challenge(
     secret_config: SecretConfigDependency
 ) -> ChallengeCreateResponse:
     await perform_common_validations(challenge, caller, state.shutdown_activated, main_config.limits, session)
-    await try_merging(challenge, caller, session, state, secret_config)
+    merged = await try_merging(challenge, caller, session, state, secret_config)
+    if merged:
+        response.status_code = 200
+        return merged
 
     db_challenge = challenge.to_db_challenge(caller.reference)
     session.add(db_challenge)
@@ -73,11 +75,11 @@ async def create_open_challenge(
     return ChallengeCreateResponse(result="CREATED", challenge=public_challenge)
 
 
-@supports_early_responses()
 @router.post("/create/direct", status_code=201, response_model=ChallengeCreateResponse, response_model_exclude_none=True)
 async def create_direct_challenge(
     *,
     challenge: ChallengeCreateDirect,
+    response: Response,
     session: SessionDependency,
     caller: MandatoryUserDependency,
     state: MutableStateDependency,
@@ -86,7 +88,10 @@ async def create_direct_challenge(
 ) -> ChallengeCreateResponse:
     await perform_common_validations(challenge, caller, state.shutdown_activated, main_config.limits, session)
     callee = await validate_direct_callee(challenge, caller, state.last_guest_id, session)
-    await try_merging(challenge, caller, session, state, secret_config)
+    merged = await try_merging(challenge, caller, session, state, secret_config)
+    if merged:
+        response.status_code = 200
+        return merged
 
     direct_challenges_observer_channel = IncomingChallengesEventChannel(user_ref=challenge.callee_ref)
     callee_online = state.has_user_subscriber(callee, direct_challenges_observer_channel)

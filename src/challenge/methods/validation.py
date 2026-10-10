@@ -88,8 +88,11 @@ async def validate_direct_callee(
         raise HTTPException(status_code=422, detail="Callee and caller cannot be the same user")
 
     callee = UserReference(challenge.callee_ref)
-    if callee.is_guest() and callee.guest_id > last_guest_id:
-        raise HTTPException(status_code=404, detail=f"Guest not found: {callee.guest_id}")
+    if callee.is_guest():
+        if callee.guest_id > last_guest_id:
+            raise HTTPException(status_code=404, detail=f"Guest not found: {callee.guest_id}")
+    elif callee.is_bot():
+        raise HTTPException(status_code=422, detail="Bots cannot be challenged directly")
     else:
         db_callee = await session.get(Player, callee.login)
         if not db_callee:

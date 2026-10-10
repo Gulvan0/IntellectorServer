@@ -90,6 +90,8 @@ async def get_mergeable_challenge(
         *conditions  # type: ignore
     ).order_by(
         col(Challenge.created_at)
+    ).options(
+        *Challenge.load_options()
     )
 
     result = await session.exec(query)

@@ -130,6 +130,18 @@ class IncomingChallengeCancelled(OutgoingEvent[Id, IncomingChallengesEventChanne
         return "Broadcasted whenever an incoming direct challenge is cancelled"
 
 
+class IncomingChallengeAccepted(OutgoingEvent[Id, IncomingChallengesEventChannel]):
+    @classmethod
+    def description(cls) -> str:
+        return "Broadcasted whenever the callee accepts an incoming direct challenge, so that all of the callee's clients learn about it"
+
+
+class IncomingChallengeDeclined(OutgoingEvent[Id, IncomingChallengesEventChannel]):
+    @classmethod
+    def description(cls) -> str:
+        return "Broadcasted whenever the callee declines an incoming direct challenge, so that all of the callee's clients learn about it"
+
+
 class IncomingChallengesCancelledByServer(OutgoingEvent[IdList, IncomingChallengesEventChannel]):
     @classmethod
     def description(cls) -> str:
@@ -139,6 +151,22 @@ class IncomingChallengesCancelledByServer(OutgoingEvent[IdList, IncomingChalleng
             " A client may ignore it and interpret this event as 'all challenges are cancelled' and still get the identical results."
             " The server will ALWAYS cancel ALL active challenges"
         )
+
+
+class OutgoingChallengeCreated(OutgoingEvent[ChallengePublic, OutgoingChallengesEventChannel]):
+    @classmethod
+    def description(cls) -> str:
+        return "Broadcasted whenever the caller creates a challenge of any kind, so that all of the caller's clients learn about it"
+
+    @classmethod
+    def payload_examples(cls) -> list[ChallengePublic]:
+        return minimal_representative_challenges()
+
+
+class OutgoingChallengeCancelled(OutgoingEvent[Id, OutgoingChallengesEventChannel]):
+    @classmethod
+    def description(cls) -> str:
+        return "Broadcasted whenever the caller cancels an outgoing challenge, so that all of the caller's clients learn about it"
 
 
 class OutgoingChallengeAccepted(OutgoingEvent[Id, OutgoingChallengesEventChannel]):

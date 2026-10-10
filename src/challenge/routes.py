@@ -14,7 +14,14 @@ from net.utils.early_response import supports_early_responses
 from notification.methods import delete_new_public_challenge_notifications, send_new_public_challenge_notifications
 from player.methods import resolve_player_refs
 from pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
-from pubsub.outgoing_event.update import IncomingChallengeReceived, NewPublicChallenge, OutgoingChallengeRejected
+from pubsub.outgoing_event.update import (
+    IncomingChallengeDeclined,
+    IncomingChallengeReceived,
+    NewPublicChallenge,
+    OutgoingChallengeCancelled,
+    OutgoingChallengeCreated,
+    OutgoingChallengeRejected,
+)
 
 
 router = APIRouter(prefix="/challenge", route_class=LoggingRoute)
@@ -60,6 +67,9 @@ async def create_open_challenge(
         event = NewPublicChallenge(public_challenge, PublicChallengeListEventChannel())
         state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event))
 
+    created_event = OutgoingChallengeCreated(public_challenge, OutgoingChallengesEventChannel(user_ref=caller.reference))
+    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(created_event))
+
     return ChallengeCreateResponse(result="CREATED", challenge=public_challenge)
 
 
@@ -96,6 +106,9 @@ async def create_direct_challenge(
 
     event = IncomingChallengeReceived(public_challenge, IncomingChallengesEventChannel(user_ref=challenge.callee_ref))
     state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event))
+
+    created_event = OutgoingChallengeCreated(public_challenge, OutgoingChallengesEventChannel(user_ref=caller.reference))
+    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(created_event))
 
     return ChallengeCreateResponse(result="CREATED", challenge=public_challenge, callee_online=callee_online)
 
@@ -145,6 +158,9 @@ async def cancel_challenge(
     await cancel_specific_challenge(db_challenge, session, state, secret_config)
     session.add(db_challenge)
     await session.commit()
+
+    event = OutgoingChallengeCancelled(Id(id=challenge_id), OutgoingChallengesEventChannel(user_ref=client.reference))
+    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event))
 
 
 @router.post("/{challenge_id}/accept", response_model=GameSummaryPublic)
@@ -212,5 +228,8 @@ async def decline_challenge(
 
     await session.commit()
 
-    event = OutgoingChallengeRejected(Id(id=challenge_id), OutgoingChallengesEventChannel(user_ref=caller_ref))
-    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event))
+    rejected_event = OutgoingChallengeRejected(Id(id=challenge_id), OutgoingChallengesEventChannel(user_ref=caller_ref))
+    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(rejected_event))
+
+    declined_event = IncomingChallengeDeclined(Id(id=challenge_id), IncomingChallengesEventChannel(user_ref=client.reference))
+    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(declined_event))

@@ -46,7 +46,7 @@ async def shutdown(
     event = ServerShutdown(None, EveryoneEventChannel())
     await state.ws_subscribers.broadcast(event)
 
-    if not get_ongoing_finite_game(session):
+    if not await get_ongoing_finite_game(session):
         raise KeyboardInterrupt  # A hack to break out of the FastAPI jail
 
 

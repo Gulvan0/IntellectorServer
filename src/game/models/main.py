@@ -150,6 +150,20 @@ class GamePublic(GameSummaryPublic):
     latest_time_update: GameTimeUpdatePublic | None
 
 
+class OngoingGameUpdate(CustomSQLModel):
+    game_id: int
+    ply_cnt: int
+    latest_sip: Sip
+    last_ply_at: datetime | None
+    latest_time_update: GameTimeUpdatePublic | None
+
+
+class OngoingGamePublic(GameSummaryPublic):
+    ply_cnt: int
+    last_ply_at: datetime | None
+    latest_time_update: GameTimeUpdatePublic | None
+
+
 class GameStartedBroadcastedData(GameBase):
     id: int
     white_player: UserRefWithNickname

@@ -2,7 +2,7 @@ from typing import Literal
 from challenge.models import ChallengePublic
 from common.models import UserRefWithNickname
 from common.resolved_refs import ResolvedRefs
-from game.models.main import Game, GameSummaryPublic, GenericEventList
+from game.models.main import Game, GameSummaryPublic, GenericEventList, OngoingGamePublic
 from game.models.outcome import GameOutcomePublic
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from utils.custom_model import CustomModel
@@ -16,8 +16,8 @@ class CurrentGameListStateRefresh(CustomModel):
     games: list[GameSummaryPublic]
 
 
-class StartedPlayerGamesStateRefresh(CustomModel):
-    current_games: list[GameSummaryPublic]
+class PlayerOngoingGamesStateRefresh(CustomModel):
+    current_games: list[OngoingGamePublic]
 
 
 class GameStateRefresh(CustomModel):

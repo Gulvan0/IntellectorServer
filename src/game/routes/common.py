@@ -139,12 +139,14 @@ async def add_time(
     secs_added = main_config.rules.secs_added_manually
     ms_added = secs_added * 1000
 
+    remainders = latest_time_update.get_actual_time_remainders(addition_dt)
     appended_time_update = GameTimeUpdate(
         updated_at=addition_dt,
-        white_ms=latest_time_update.white_ms,
-        black_ms=latest_time_update.black_ms,
+        white_ms=remainders[PieceColor.WHITE],
+        black_ms=remainders[PieceColor.BLACK],
         ticking_side=latest_time_update.ticking_side,
-        reason=GameTimeUpdateReason.TIME_ADDED
+        reason=GameTimeUpdateReason.TIME_ADDED,
+        game_id=payload.game_id
     )
     if receiver == PieceColor.WHITE:
         appended_time_update.white_ms += ms_added

@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from itertools import chain
-from typing import Iterable
 
 from fastapi import HTTPException
 
@@ -9,7 +7,6 @@ from game.methods.event import append_rollback_event, get_next_event_index
 from game.methods.get import get_initial_time, get_ply_history
 from game.methods.timeout import plan_timeout_check
 from game.models.main import Game
-from game.models.ply import GamePlyEvent
 from game.models.rollback import GameRollbackEvent
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from net.state import MutableState
@@ -31,7 +28,6 @@ class RollbackOfferAuthorInput:
 
 @dataclass
 class RollbackSuccessfulValidationResults:
-    reversed_ply_events: Iterable[GamePlyEvent]
     old_ply_cnt: int
     new_ply_cnt: int
     requested_by: PieceColor
@@ -72,7 +68,6 @@ async def validate_rollback(
                 requested_by = old_color_to_move.opposite()
 
     return RollbackSuccessfulValidationResults(
-        reversed_ply_events=chain([last_ply_event], ply_events),
         old_ply_cnt=old_ply_cnt,
         new_ply_cnt=new_ply_cnt,
         requested_by=requested_by
@@ -88,8 +83,13 @@ async def perform_rollback(
 ) -> None:
     rollback_dt = datetime.now(UTC)
 
+    # callers' commits may have expired db_game, which an async session can't reload lazily
+    await session.refresh(db_game)
+    custom_starting_sip = db_game.custom_starting_sip
+    is_external = db_game.external_uploader_ref is not None
+
     new_last_ply_event = None
-    for ply_event in validation_results.reversed_ply_events:
+    for ply_event in await get_ply_history(session, game_id, reverse_order=True):  # queried anew: the validated ones may have expired since
         if ply_event.ply_index >= validation_results.new_ply_cnt:
             ply_event.is_cancelled = True
             session.add(ply_event)
@@ -102,7 +102,7 @@ async def perform_rollback(
         current_sip = new_last_ply_event.sip_after
     else:
         time_update = await get_initial_time(session, game_id)
-        current_sip = db_game.custom_starting_sip or DEFAULT_STARTING_SIP
+        current_sip = custom_starting_sip or DEFAULT_STARTING_SIP
 
     if time_update:
         time_update = GameTimeUpdate(
@@ -110,7 +110,8 @@ async def perform_rollback(
             white_ms=time_update.white_ms,
             black_ms=time_update.black_ms,
             ticking_side=validation_results.requested_by if validation_results.new_ply_cnt >= 2 else None,
-            reason=GameTimeUpdateReason.ROLLBACK
+            reason=GameTimeUpdateReason.ROLLBACK,
+            game_id=game_id
         )
 
     event = GameRollbackEvent(
@@ -122,11 +123,13 @@ async def perform_rollback(
         game_id=game_id,
         time_update=time_update
     )
+    db_game.latest_sip = current_sip
+    session.add(db_game)
     await append_rollback_event(session, mutable_state, event, game_id, current_sip)
 
     if time_update:
         await plan_timeout_check(
             triggering_time_update=time_update,
             game_id=game_id,
-            is_external=db_game.external_uploader_ref is not None
+            is_external=is_external
         )

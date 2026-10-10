@@ -3,8 +3,8 @@ from typing import Any
 from challenge.methods.get import get_active_public_challenges, get_direct_challenges
 from common.user_ref import UserReference
 from game.methods.get import get_current_games, get_latest_time_update
+from game.methods.ongoing import get_player_ongoing_games
 from game.models.main import Game
-from game.models.rest.common import GameFilter
 from net.ws_wrapper import WebSocketWrapper
 from net.incoming import WebSocketHandlerCollection
 from net.sub_storage import SubscriberStorage, SubscriberTag
@@ -16,12 +16,12 @@ from pubsub.models.channel import (
     IncomingChallengesEventChannel,
     OutgoingChallengesEventChannel,
     PublicChallengeListEventChannel,
-    StartedPlayerGamesEventChannel,
+    PlayerOngoingGamesEventChannel,
     SubEligibleEventChannel,
     SubscriberListEventChannel,
 )
 from pubsub.models.other import SubUnsubPayload
-from pubsub.models.state import ChallengeListStateRefresh, CurrentGameListStateRefresh, GameStateRefresh, StartedPlayerGamesStateRefresh, SubscriberListChannelStateRefresh
+from pubsub.models.state import ChallengeListStateRefresh, CurrentGameListStateRefresh, GameStateRefresh, PlayerOngoingGamesStateRefresh, SubscriberListChannelStateRefresh
 from pubsub.outgoing_event.base import RefreshEvent
 from pubsub.outgoing_event.refresh import (
     CurrentGameListRefresh,
@@ -29,7 +29,7 @@ from pubsub.outgoing_event.refresh import (
     IncomingChallengesRefresh,
     OutgoingChallengesRefresh,
     PublicChallengeListRefresh,
-    StartedPlayerGamesRefresh,
+    PlayerOngoingGamesRefresh,
     SubscriberListRefresh,
 )
 from pubsub.outgoing_event.update import NewSubscriber, SubscriberLeft
@@ -104,10 +104,10 @@ async def get_game_refresh(session: AsyncSession, channel: GameEventChannel, cli
     )
 
 
-async def get_started_player_games_refresh(session: AsyncSession, channel: StartedPlayerGamesEventChannel) -> StartedPlayerGamesRefresh:
-    games = await get_current_games(session, GameFilter(player_ref=channel.watched_ref))
-    return StartedPlayerGamesRefresh(
-        payload=StartedPlayerGamesStateRefresh(current_games=games),
+async def get_player_ongoing_games_refresh(session: AsyncSession, channel: PlayerOngoingGamesEventChannel) -> PlayerOngoingGamesRefresh:
+    games = await get_player_ongoing_games(session, channel.watched_ref)
+    return PlayerOngoingGamesRefresh(
+        payload=PlayerOngoingGamesStateRefresh(current_games=games),
         target_channel=channel
     )
 
@@ -152,8 +152,8 @@ async def get_refresh(
             return await get_outgoing_challenges_refresh(session, channel, client)
         case GameEventChannel():
             return await get_game_refresh(session, channel, client, tags_storage)
-        case StartedPlayerGamesEventChannel():
-            return await get_started_player_games_refresh(session, channel)
+        case PlayerOngoingGamesEventChannel():
+            return await get_player_ongoing_games_refresh(session, channel)
         case SubscriberListEventChannel():
             return await get_subscriber_list_refresh(session, channel, sub_storage)
 

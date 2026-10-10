@@ -25,3 +25,7 @@ class InternalGamePerformOfferActionPayload(CustomModel):
     game_id: int
     action_kind: OfferAction
     offer_kind: OfferKind
+
+
+class InternalGameResignPayload(CustomModel):
+    game_id: int

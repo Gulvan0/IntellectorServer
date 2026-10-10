@@ -5,6 +5,7 @@ from common.user_ref import UserReference
 from config.models import MainConfig, SecretConfig
 from game.models.main import Game
 from game.methods.get import get_latest_time_update, get_ongoing_finite_game
+from game.methods.ongoing import broadcast_ongoing_game_ended
 from game.datatypes import OutcomeKind
 from game.models.outcome import GameEndedEloUpdate, GameEndedEloUpdates, GameOutcome
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
@@ -67,6 +68,7 @@ async def end_game(
         )
         session.add(db_outcome)
         await session.commit()
+        await session.refresh(db_game)  # the commit expired it, and an async session can't reload it lazily
 
         elo_updates = None
         if db_game.rated and outcome != OutcomeKind.ABORT:
@@ -125,6 +127,7 @@ async def end_game(
 
         await session.refresh(db_outcome)
         await session.refresh(db_game)
+        await session.refresh(db_game, attribute_names=['fischer_time_control', 'outcome'])  # to_summary reads them, and an async session can't load them lazily
 
         async def broadcast_new_recent_game() -> None:
             collected_refs = db_game.collect_refs(include_nested=False)
@@ -149,6 +152,7 @@ async def end_game(
                 db_outcome.to_broadcasted_data(elo_updates),
                 GameEventChannel(game_id=game_id)
             )),
+            broadcast_ongoing_game_ended(state, db_game),
             delete_notifications()
         )
 

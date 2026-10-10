@@ -34,17 +34,17 @@ class PlyTimeRemainders:
     black_ms_after_execution: int | None = None
 
 
-def _get_simple_outcome(session: AsyncSession, game_id: int, new_position: Position, new_sip: str, new_ply_index: int) -> SimpleOutcome | None:
+async def _get_simple_outcome(session: AsyncSession, game_id: int, new_position: Position, new_sip: str, new_ply_index: int) -> SimpleOutcome | None:
     match new_position.get_finality_group():
         case PositionFinalityGroup.FATUM:
             return SimpleOutcome(kind=OutcomeKind.FATUM, winner=new_position.color_to_move.opposite())
         case PositionFinalityGroup.BREAKTHROUGH:
             return SimpleOutcome(kind=OutcomeKind.BREAKTHROUGH, winner=new_position.color_to_move.opposite())
 
-    if has_occured_thrice(session, game_id, new_sip):
+    if await has_occured_thrice(session, game_id, new_sip):
         return SimpleOutcome(kind=OutcomeKind.REPETITION)
 
-    if is_stale(session, game_id, new_ply_index):
+    if await is_stale(session, game_id, new_ply_index):
         return SimpleOutcome(kind=OutcomeKind.NO_PROGRESS)
 
     return None
@@ -68,11 +68,12 @@ async def _construct_new_ply_time_update(
         white_ms=latest_time_update.white_ms,
         black_ms=latest_time_update.black_ms,
         ticking_side=color_to_move if new_ply_index >= 1 else None,
-        reason=GameTimeUpdateReason.PLY
+        reason=GameTimeUpdateReason.PLY,
+        game_id=game_id
     )
 
     if latest_time_update.ticking_side:
-        ms_passed = int((ply_dt - latest_time_update.updated_at).total_seconds() * 1000)
+        ms_passed = int((ply_dt.replace(tzinfo=None) - latest_time_update.updated_at).total_seconds() * 1000)  # the stored one is naive UTC
         if latest_time_update.ticking_side == PieceColor.WHITE:
             new_time_update.white_ms -= ms_passed
             remaining_time_at_check = new_time_update.white_ms
@@ -122,13 +123,18 @@ async def append_ply(
 
     ply_dt = datetime.now(UTC)
 
-    if not db_game.external_uploader_ref:
+    # the commits below expire db_game, whose attributes can't be lazily reloaded in an async session
+    is_external = db_game.external_uploader_ref is not None
+    time_control_kind = db_game.time_control_kind
+    increment_seconds = db_game.fischer_time_control.increment_seconds if db_game.fischer_time_control else None
+
+    if not is_external:
         await cancel_all_active_offers(session, mutable_state, payload.game_id, ply_dt)
 
     if time_remainders:
-        if db_game.time_control_kind == TimeControlKind.CORRESPONDENCE:
+        if time_control_kind == TimeControlKind.CORRESPONDENCE:
             raise HTTPException(422, f"Game {payload.game_id} is a correspondence one")
-        if not db_game.external_uploader_ref:
+        if not is_external:
             raise HTTPException(422, f"Game {payload.game_id} is not external, therefore it's not possible to assign time remainders directly")
         new_time_update: GameTimeUpdate | None = GameTimeUpdate(
             updated_at=ply_dt,
@@ -138,7 +144,7 @@ async def append_ply(
             reason=GameTimeUpdateReason.PLY,
             game_id=payload.game_id
         )
-    elif db_game.fischer_time_control:
+    elif increment_seconds is not None:
         new_time_update = await _construct_new_ply_time_update(
             session,
             payload.game_id,
@@ -146,7 +152,7 @@ async def append_ply(
             new_ply_index,
             color_to_move=perform_ply_result.new_position.color_to_move,
             timeout_grace_ms=0,
-            bonus_secs=db_game.fischer_time_control.increment_seconds
+            bonus_secs=increment_seconds
         )
     else:
         new_time_update = None
@@ -177,7 +183,7 @@ async def append_ply(
     await session.commit()
     await session.refresh(db_game)
 
-    outcome = _get_simple_outcome(session, payload.game_id, perform_ply_result.new_position, new_sip, new_ply_index)
+    outcome = await _get_simple_outcome(session, payload.game_id, perform_ply_result.new_position, new_sip, new_ply_index)
     if outcome:
         await end_game(
             session,
@@ -195,6 +201,6 @@ async def append_ply(
         await plan_timeout_check(
             triggering_time_update=new_time_update,
             game_id=payload.game_id,
-            is_external=db_game.external_uploader_ref is not None
+            is_external=is_external
         )
     return outcome, new_sip, new_time_update

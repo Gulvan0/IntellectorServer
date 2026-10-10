@@ -23,7 +23,7 @@ from common.samples import (
 from common.time_control import TimeControlKind
 from game.datatypes import OfferAction, OfferKind, OutcomeKind
 from game.models.chat import ChatMessageBroadcastedData, GameChatMessageEventPublic
-from game.models.main import GamePublic, GameStartedBroadcastedData, GameSummaryPublic, GenericEventList
+from game.models.main import GamePublic, GameStartedBroadcastedData, GameSummaryPublic, GenericEventList, OngoingGamePublic, OngoingGameUpdate
 from board.samples import non_default_starting_position, piece_color, playthrough, valid_non_final_sip
 from board.piece import PieceColor
 from game.models.offer import GameOfferEventPublic, OfferActionBroadcastedData
@@ -427,6 +427,31 @@ def minimal_representative_games(common_player: UserRefWithNickname | None = Non
             custom_starting_sip=None,
             finished=finished is True,
         ),
+    ]
+
+
+def ongoing_games(common_player: UserRefWithNickname | None = None) -> list[OngoingGamePublic]:
+    return [
+        OngoingGamePublic(
+            **summary.model_dump(),
+            ply_cnt=randint(1, 80),
+            last_ply_at=past_datetime(min_offset_secs=3, max_offset_secs=86400),
+            latest_time_update=sample_time_update(GameTimeUpdateReason.PLY) if summary.fischer_time_control else None
+        )
+        for summary in minimal_representative_games(common_player, finished=False)
+    ]
+
+
+def ongoing_game_updates(count: int = 3) -> list[OngoingGameUpdate]:
+    return [
+        OngoingGameUpdate(
+            game_id=randint(1, 999999),
+            ply_cnt=randint(1, 80),
+            latest_sip=valid_non_final_sip(),
+            last_ply_at=past_datetime(min_offset_secs=3, max_offset_secs=600),
+            latest_time_update=sample_time_update(GameTimeUpdateReason.PLY) if boolean() else None
+        )
+        for _ in range(count)
     ]
 
 

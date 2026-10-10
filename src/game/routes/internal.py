@@ -2,12 +2,12 @@ from fastapi import APIRouter, HTTPException
 from common.dependencies import MainConfigDependency, MutableStateDependency, OpeningMappingDepencency, SecretConfigDependency, SessionDependency
 from game.datatypes import OfferAction, OfferKind, OutcomeKind
 from game.dependencies import GAME_IS_INTERNAL_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, FullGameDependency, GameDependency, PlayerColorDependency
-from game.methods.get import get_latest_time_update
+from game.methods.get import get_last_ply_event, get_latest_time_update
 from game.methods.ply import append_ply
 from game.exceptions import PlyInvalidException, TimeoutReachedException
 from game.methods.end import end_game
 from game.methods.offer import accept_draw, accept_takeback, cancel_offer, create_offer, decline_offer
-from game.models.rest.internal import InternalGameAppendPlyPayload, InternalGameAppendPlyResponse, InternalGamePerformOfferActionPayload
+from game.models.rest.internal import InternalGameAppendPlyPayload, InternalGameAppendPlyResponse, InternalGamePerformOfferActionPayload, InternalGameResignPayload
 from game.models.time_update import GameTimeUpdatePublic
 from net.base_router import LoggingRoute
 from player.methods import resolve_player_refs
@@ -69,7 +69,7 @@ async def append_ply_route(
         )
         raise HTTPException(status_code=422, detail=dict(
             reason="Impossible ply",
-            game_state=game_state
+            game_state=game_state.model_dump(mode='json')
         ))
     return InternalGameAppendPlyResponse(outcome=outcome, sip_after=sip_after, time_update=GameTimeUpdatePublic.cast(time_update))
 
@@ -100,3 +100,31 @@ async def perform_offer_action(
                 await accept_draw(session, state, main_config, secret_config, payload.game_id, client_color.opposite(), skip_activity_check=False)
             else:
                 await accept_takeback(session, state, client_color.opposite(), db_game)
+
+
+@router.post("/resign", dependencies=[
+    GAME_IS_INTERNAL_DEPENDENCY,
+    GAME_IS_ONGOING_DEPENDENCY,
+])
+async def resign(
+    *,
+    payload: InternalGameResignPayload,
+    db_game: GameDependency,
+    client_color: PlayerColorDependency,
+    session: SessionDependency,
+    state: MutableStateDependency,
+    main_config: MainConfigDependency,
+    secret_config: SecretConfigDependency
+) -> None:
+    last_ply_event = await get_last_ply_event(session, payload.game_id)
+    abort = not last_ply_event or last_ply_event.ply_index < 1  # until both sides have moved, leaving aborts the game
+    await end_game(
+        session,
+        state,
+        main_config,
+        secret_config,
+        payload.game_id,
+        OutcomeKind.ABORT if abort else OutcomeKind.RESIGN,
+        None if abort else client_color.opposite(),
+        pre_retrieved_db_game=db_game
+    )

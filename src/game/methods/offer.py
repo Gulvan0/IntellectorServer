@@ -1,5 +1,4 @@
 
-import asyncio
 from datetime import datetime
 
 from fastapi import HTTPException
@@ -48,7 +47,7 @@ async def create_offer(
     if await is_offer_active(session, game.id, offer_kind, offer_author):
         raise HTTPException(409, "Offer is already active")
 
-    if offer_kind == OfferKind.DRAW and is_offer_active(session, game.id, offer_kind, offer_author.opposite()):
+    if offer_kind == OfferKind.DRAW and await is_offer_active(session, game.id, offer_kind, offer_author.opposite()):
         await accept_draw(session, state, main_config, secret_config, game.id, offer_author.opposite(), skip_activity_check=True)
         return
 
@@ -109,30 +108,30 @@ async def accept_takeback(
     offer_author: PieceColor,
     game: Game
 ) -> None:
-    assert game.id
+    game_id = game.id
+    assert game_id
 
-    if not await is_offer_active(session, game.id, OfferKind.TAKEBACK, offer_author):
+    if not await is_offer_active(session, game_id, OfferKind.TAKEBACK, offer_author):
         raise HTTPException(404, "Offer is not active")
 
     try:
         validation_results = await validate_rollback(
             session=session,
-            game_id=game.id,
+            game_id=game_id,
             input=RollbackOfferAuthorInput(offer_author)
         )
     except HTTPException:
-        await append_offer_event(session, state, OfferAction.CANCEL, OfferKind.TAKEBACK, offer_author, game.id)
+        await append_offer_event(session, state, OfferAction.CANCEL, OfferKind.TAKEBACK, offer_author, game_id)
         raise
     else:
-        await asyncio.gather(
-            cancel_offer(session, state, game.id, OfferKind.TAKEBACK, offer_author.opposite(), raise_on_missing=False, commit=False),
-            cancel_offer(session, state, game.id, OfferKind.DRAW, offer_author, raise_on_missing=False, commit=False),
-            cancel_offer(session, state, game.id, OfferKind.DRAW, offer_author.opposite(), raise_on_missing=False, commit=False),
-        )
+        # one after another: a session can't run concurrent operations
+        await cancel_offer(session, state, game_id, OfferKind.TAKEBACK, offer_author.opposite(), raise_on_missing=False, commit=False)
+        await cancel_offer(session, state, game_id, OfferKind.DRAW, offer_author, raise_on_missing=False, commit=False)
+        await cancel_offer(session, state, game_id, OfferKind.DRAW, offer_author.opposite(), raise_on_missing=False, commit=False)
 
-        await append_offer_event(session, state, OfferAction.ACCEPT, OfferKind.TAKEBACK, offer_author, game.id, commit=False)
+        await append_offer_event(session, state, OfferAction.ACCEPT, OfferKind.TAKEBACK, offer_author, game_id, commit=False)
 
-        await perform_rollback(session, state, game.id, game, validation_results)
+        await perform_rollback(session, state, game_id, game, validation_results)
 
 
 async def cancel_all_active_offers(session: AsyncSession, state: MutableState, game_id: int, ply_dt: datetime) -> None:

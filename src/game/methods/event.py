@@ -6,6 +6,7 @@ from game.models.offer import GameOfferEvent
 from game.models.ply import GamePlyEvent
 from game.models.rollback import GameRollbackEvent
 from game.models.time_added import GameTimeAddedEvent
+from game.methods.ongoing import broadcast_ongoing_game_update
 from net.state import MutableState
 from net.sub_storage import SubscriberTag
 from player.methods import resolve_player_refs
@@ -15,19 +16,20 @@ from pubsub.outgoing_event.update import NewChatMessage, NewPly, OfferActionPerf
 from board.piece import PieceColor
 from utils.async_orm_session import AsyncSession
 
-from sqlmodel import update
+from sqlmodel import select, update
 
 
 async def get_next_event_index(
     session: AsyncSession,
     game_id: int,
 ) -> int:
-    result = await session.execute(
+    # MySQL has no RETURNING: the row lock the update takes keeps the read that follows it atomic
+    await session.execute(
         update(Game)
         .where(Game.id == game_id)  # type: ignore
         .values(event_cnt=Game.event_cnt + 1)
-        .returning(Game.event_cnt)
     )
+    result = await session.execute(select(Game.event_cnt).where(Game.id == game_id))  # type: ignore
     await session.commit()
     return result.scalar_one() - 1
 
@@ -61,6 +63,9 @@ async def append_event(
         await session.flush()
 
     await mutable_state.ws_subscribers.broadcast(ws_event, tag_blacklist=tag_blacklist)
+
+    if isinstance(event, GamePlyEvent | GameTimeAddedEvent):
+        await broadcast_ongoing_game_update(session, mutable_state, game_id)
 
 
 async def append_offer_event(
@@ -99,8 +104,10 @@ async def append_rollback_event(
     if commit:
         await session.commit()
         await session.refresh(event)
+        await session.refresh(event, attribute_names=['time_update'])  # the broadcast reads it, and an async session can't load it lazily
     else:
         await session.flush()
 
     ws_event = Rollback(event.to_broadcasted_data(updated_sip), GameEventChannel(game_id=game_id))
     await mutable_state.ws_subscribers.broadcast(ws_event)
+    await broadcast_ongoing_game_update(session, mutable_state, game_id)

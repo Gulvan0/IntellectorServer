@@ -31,7 +31,7 @@ async def get_ply_history(session: AsyncSession, game_id: int, reverse_order: bo
         GamePlyEvent
     ).where(
         GamePlyEvent.game_id == game_id,
-        not GamePlyEvent.is_cancelled
+        GamePlyEvent.is_cancelled == False  # noqa
     ).order_by(
         desc(GamePlyEvent.ply_index) if reverse_order else col(GamePlyEvent.ply_index)
     ).options(
@@ -44,11 +44,11 @@ async def get_ply_cnt(session: AsyncSession, game_id: int) -> int:
         func.max(GamePlyEvent.ply_index)
     ).where(
         GamePlyEvent.game_id == game_id,
-        not GamePlyEvent.is_cancelled
+        GamePlyEvent.is_cancelled == False  # noqa
     )
     result = await session.exec(query)
     last_ply_index = result.first()
-    return last_ply_index + 1 if last_ply_index else 0
+    return last_ply_index + 1 if last_ply_index is not None else 0
 
 
 async def get_active_offers(session: AsyncSession, game_id: int) -> TupleResult[tuple[str, str]]:
@@ -119,7 +119,7 @@ async def _query_games_as_public(session: AsyncSession, query: SelectOfScalar[Ga
     ]
 
 
-async def get_current_games(session: AsyncSession, game_filter: GameFilter | None = None, offset: int = 0, limit: int = 10) -> list[GameSummaryPublic]:
+async def get_current_games(session: AsyncSession, game_filter: GameFilter | None = None, offset: int = 0, limit: int | None = 10) -> list[GameSummaryPublic]:
     if not game_filter:
         game_filter = GameFilter()
 
@@ -172,7 +172,7 @@ async def get_last_ply_event(session: AsyncSession, game_id: int) -> GamePlyEven
         select(GamePlyEvent)
         .where(
             GamePlyEvent.game_id == game_id,
-            not GamePlyEvent.is_cancelled
+            GamePlyEvent.is_cancelled == False  # noqa
         )
         .order_by(
             desc(GamePlyEvent.ply_index)
@@ -214,7 +214,7 @@ async def has_occured_thrice(session: AsyncSession, game_id: int, sip: str) -> b
         func.count(col(GamePlyEvent.id))
     ).where(
         GamePlyEvent.game_id == game_id,
-        not GamePlyEvent.is_cancelled,
+        GamePlyEvent.is_cancelled == False,  # noqa
         GamePlyEvent.sip_after == sip
     ))
     same_position_occurences_cnt = result.one()
@@ -226,7 +226,7 @@ async def is_stale(session: AsyncSession, game_id: int, last_ply_index: int) -> 
         GamePlyEvent.ply_index
     ).where(
         GamePlyEvent.game_id == game_id,
-        not GamePlyEvent.is_cancelled,
+        GamePlyEvent.is_cancelled == False,  # noqa
         or_(
             and_(
                 GamePlyEvent.target_piece != None,
@@ -234,6 +234,8 @@ async def is_stale(session: AsyncSession, game_id: int, last_ply_index: int) -> 
             ),
             GamePlyEvent.moved_piece == PieceKind.PROGRESSOR
         )
+    ).order_by(
+        desc(GamePlyEvent.ply_index)
     ))
     last_progressive_ply_index = result.first()
     return last_ply_index - (last_progressive_ply_index or -1) >= 60

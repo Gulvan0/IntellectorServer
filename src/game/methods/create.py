@@ -9,12 +9,12 @@ from config.models import SecretConfig
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from notification.methods import delete_new_public_challenge_notifications, send_game_started_notifications
 from player.methods import resolve_player_refs
-from pubsub.models.channel import CurrentGameListEventChannel, IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, StartedPlayerGamesEventChannel
+from pubsub.models.channel import CurrentGameListEventChannel, IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, PlayerOngoingGamesEventChannel
 from game.models.main import Game, GameStartedBroadcastedData, GameSummaryPublic
 from game.models.time_control import GameFischerTimeControl
 from net.state import MutableState
 from common.time_control import FischerTimeControlEntity, TimeControlKind
-from pubsub.outgoing_event.update import GameStarted, IncomingChallengeAccepted, NewActiveGame, OutgoingChallengeAccepted, PublicChallengeFulfilled
+from pubsub.outgoing_event.update import IncomingChallengeAccepted, NewActiveGame, OngoingGameStarted, OutgoingChallengeAccepted, PublicChallengeFulfilled
 from utils.async_orm_session import AsyncSession
 
 import random
@@ -101,7 +101,7 @@ async def create_game(
     summary = db_game.to_summary_as_new(resolved_refs, db_time_control)
 
     for player_ref in [white_player_ref, black_player_ref]:
-        game_started_event = GameStarted(summary, StartedPlayerGamesEventChannel(watched_ref=player_ref))
+        game_started_event = OngoingGameStarted(summary, PlayerOngoingGamesEventChannel(watched_ref=player_ref))
         state.concurrent_tasks.plan(state.ws_subscribers.broadcast(game_started_event))
 
     new_game_event = NewActiveGame(GameStartedBroadcastedData.cast(summary), CurrentGameListEventChannel())

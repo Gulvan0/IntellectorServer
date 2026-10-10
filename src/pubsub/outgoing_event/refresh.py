@@ -1,34 +1,34 @@
 from challenge.samples import active_public_challenges, incoming_challenges, outgoing_challenges
 from common.samples import underscore_str, user_ref_with_nickname, user_ref_with_nickname_list
-from game.samples import game_state_refreshes, minimal_representative_games
+from game.samples import game_state_refreshes, minimal_representative_games, ongoing_games
 from pubsub.models.channel import (
     GameEventChannel,
     CurrentGameListEventChannel,
     IncomingChallengesEventChannel,
     OutgoingChallengesEventChannel,
     PublicChallengeListEventChannel,
-    StartedPlayerGamesEventChannel,
+    PlayerOngoingGamesEventChannel,
     SubscriberListEventChannel,
 )
 from pubsub.models.state import (
     ChallengeListStateRefresh,
     CurrentGameListStateRefresh,
     GameStateRefresh,
-    StartedPlayerGamesStateRefresh,
+    PlayerOngoingGamesStateRefresh,
     SubscriberListChannelStateRefresh,
 )
 from pubsub.outgoing_event.base import RefreshEvent
 
 
-class StartedPlayerGamesRefresh(RefreshEvent[StartedPlayerGamesStateRefresh, StartedPlayerGamesEventChannel]):
+class PlayerOngoingGamesRefresh(RefreshEvent[PlayerOngoingGamesStateRefresh, PlayerOngoingGamesEventChannel]):
     @classmethod
-    def payload_examples(cls) -> list[StartedPlayerGamesStateRefresh]:
+    def payload_examples(cls) -> list[PlayerOngoingGamesStateRefresh]:
         watched_player = user_ref_with_nickname()
         return [
-            StartedPlayerGamesStateRefresh(
-                current_games=minimal_representative_games(watched_player, finished=False)
+            PlayerOngoingGamesStateRefresh(
+                current_games=ongoing_games(watched_player)
             ),
-            StartedPlayerGamesStateRefresh(
+            PlayerOngoingGamesStateRefresh(
                 current_games=[]
             ),
         ]

@@ -40,9 +40,9 @@ class GameEventChannel(CustomFrozenModel, frozen=True):
     game_id: int
 
 
-class StartedPlayerGamesEventChannel(CustomFrozenModel, frozen=True):
-    group: ClassVar[str] = 'started_player_games'
-    channel_group: Literal['started_player_games'] = 'started_player_games'
+class PlayerOngoingGamesEventChannel(CustomFrozenModel, frozen=True):
+    group: ClassVar[str] = 'player_ongoing_games'
+    channel_group: Literal['player_ongoing_games'] = 'player_ongoing_games'
 
     watched_ref: str
 
@@ -58,7 +58,7 @@ class SubscriberListEventChannel(CustomFrozenModel, frozen=True):
         IncomingChallengesEventChannel,
         OutgoingChallengesEventChannel,
         GameEventChannel,
-        StartedPlayerGamesEventChannel,
+        PlayerOngoingGamesEventChannel,
     ]
 
 
@@ -68,7 +68,7 @@ type SubEligibleEventChannel = Union[
     IncomingChallengesEventChannel,
     OutgoingChallengesEventChannel,
     GameEventChannel,
-    StartedPlayerGamesEventChannel,
+    PlayerOngoingGamesEventChannel,
     SubscriberListEventChannel,
 ]
 

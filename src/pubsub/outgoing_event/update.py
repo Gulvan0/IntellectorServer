@@ -4,7 +4,7 @@ from challenge.samples import incoming_challenges, minimal_representative_challe
 from common.models import Id, IdList, UserRefWithNickname
 from common.samples import user_ref_with_nickname
 from game.models.chat import ChatMessageBroadcastedData
-from game.models.main import GameStartedBroadcastedData, GameSummaryPublic
+from game.models.main import GameStartedBroadcastedData, GameSummaryPublic, OngoingGameUpdate
 from game.models.offer import OfferActionBroadcastedData
 from game.models.outcome import GameEndedBroadcastedData
 from game.models.ply import PlyBroadcastedData
@@ -16,6 +16,7 @@ from game.samples import (
     game_started_data_samples,
     minimal_representative_games,
     offer_action_broadcasted_data,
+    ongoing_game_updates,
     ply_broadcasted_data,
     rollback_broadcasted_data,
     time_added_broadcasted_data,
@@ -27,7 +28,7 @@ from pubsub.models.channel import (
     IncomingChallengesEventChannel,
     OutgoingChallengesEventChannel,
     PublicChallengeListEventChannel,
-    StartedPlayerGamesEventChannel,
+    PlayerOngoingGamesEventChannel,
     SubscriberListEventChannel,
 )
 from pubsub.outgoing_event.base import OutgoingEvent
@@ -39,18 +40,48 @@ class ServerShutdown(OutgoingEvent[None, EveryoneEventChannel]):
         return "Broadcasted whenever the server starts preparing for the shutdown"
 
 
-class GameStarted(OutgoingEvent[GameSummaryPublic, StartedPlayerGamesEventChannel]):
+class OngoingGameStarted(OutgoingEvent[GameSummaryPublic, PlayerOngoingGamesEventChannel]):
     @classmethod
     def title(cls) -> str:
-        return "Game Started (for player's followers)"
+        return "Game Started (for player's ongoing games watchers)"
 
     @classmethod
     def description(cls) -> str:
-        return "Broadcasted whenever a new game involving a player starts"
+        return (
+            "Broadcasted whenever a new game involving a player starts."
+            " A new game has no plies yet, and its clocks, if any, are full and not running"
+        )
 
     @classmethod
     def payload_examples(cls) -> list[GameSummaryPublic]:
         return minimal_representative_games(finished=False)
+
+
+class OngoingGameUpdated(OutgoingEvent[OngoingGameUpdate, PlayerOngoingGamesEventChannel]):
+    @classmethod
+    def title(cls) -> str:
+        return "Game Updated (for player's ongoing games watchers)"
+
+    @classmethod
+    def description(cls) -> str:
+        return (
+            "Broadcasted whenever a move is made, cancelled by a rollback or time is added"
+            " in an ongoing game involving a player. Carries the game's resulting state"
+        )
+
+    @classmethod
+    def payload_examples(cls) -> list[OngoingGameUpdate]:
+        return ongoing_game_updates()
+
+
+class OngoingGameEnded(OutgoingEvent[Id, PlayerOngoingGamesEventChannel]):
+    @classmethod
+    def title(cls) -> str:
+        return "Game Ended (for player's ongoing games watchers)"
+
+    @classmethod
+    def description(cls) -> str:
+        return "Broadcasted whenever an ongoing game involving a player ends"
 
 
 class NewPublicChallenge(OutgoingEvent[ChallengePublic, PublicChallengeListEventChannel]):

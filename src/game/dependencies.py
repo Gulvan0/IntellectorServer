@@ -31,7 +31,8 @@ async def __get_game(session: SessionDependency, request: Request, load_options_
         case GameLoadOptions.FULL:
             options = Game.load_options(just_summary=False)
 
-    db_game = await session.get(Game, game_id, options=options)
+    # an earlier dependency may have loaded the game with fewer relationships: reload it with these
+    db_game = await session.get(Game, game_id, options=options, populate_existing=options is not None)
     if not db_game:
         raise HTTPException(status_code=404, detail="Game not found")
     return db_game
@@ -90,7 +91,7 @@ async def internal_or_client_is_uploader(db_game: GameDependency, client: Mandat
 CLIENT_IS_UPLOADER_IF_EXTERNAL_DEPENDENCY = Depends(internal_or_client_is_uploader)
 
 
-async def game_is_ongoing(db_game: GameDependency) -> None:
+async def game_is_ongoing(db_game: GameWithOutcomeDependency) -> None:
     if db_game.outcome:
         raise HTTPException(status_code=403, detail="Game has already ended")
 

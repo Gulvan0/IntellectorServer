@@ -12,6 +12,7 @@ from net.core import App
 from common.constants import USER_TOKEN_HEADER
 
 from net.utils.log_codecs import dump_headers, dump_bytes
+from net.utils.rest_error import RestException
 from utils.async_orm_session import AsyncSession
 
 
@@ -58,7 +59,7 @@ class LoggingRoute(APIRoute):
             try:
                 response = await original_route_handler(request)
             except HTTPException as exc:
-                body = json.dumps({"detail": exc.detail}).encode()
+                body = json.dumps(exc.body() if isinstance(exc, RestException) else {"detail": exc.detail}).encode()
                 request.app.mutable_state.concurrent_tasks.plan(log_info(request, exc.status_code, body, request.app))
                 raise
             except Exception as exc:

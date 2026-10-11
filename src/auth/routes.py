@@ -8,6 +8,7 @@ from auth.models import AuthCredentials, PlayerPasswordUpdate, TokenResponse, Gu
 from common.dependencies import MandatoryPlayerLoginDependency, MandatoryUserDependency, MutableStateDependency, SessionDependency
 from common.models import UserRefWithNickname
 from net.base_router import LoggingRoute
+from net.utils.rest_error import RestErrorCode, RestException
 
 import bcrypt
 import os
@@ -47,12 +48,12 @@ async def signin(*, credentials: AuthCredentials, session: SessionDependency, st
     login = credentials.login.lower()
     password_data = await session.get(PlayerPassword, login)
     if not password_data:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise RestException(RestErrorCode.USER_NOT_FOUND, "User not found")
 
     pwd_bytes = credentials.password.encode()
     if password_data.normal_md5:
         if md5(pwd_bytes).hexdigest() != password_data.normal_md5:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+            raise RestException(RestErrorCode.INVALID_CREDENTIALS, "Invalid credentials")
 
         password_data.created_at = datetime.now(UTC)
         password_data.password_hash = bcrypt.hashpw(pwd_bytes, bcrypt.gensalt())
@@ -60,7 +61,7 @@ async def signin(*, credentials: AuthCredentials, session: SessionDependency, st
         session.add(password_data)
         await session.commit()
     elif not bcrypt.checkpw(pwd_bytes, password_data.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise RestException(RestErrorCode.INVALID_CREDENTIALS, "Invalid credentials")
 
     token = token_hex()
     state.add_logged(token, login)
@@ -74,7 +75,7 @@ async def register(*, credentials: AuthCredentials, session: SessionDependency, 
 
     password_data = await session.get(PlayerPassword, login)
     if password_data:
-        raise HTTPException(status_code=422, detail="User already exists")
+        raise RestException(RestErrorCode.USER_ALREADY_EXISTS, "User already exists")
 
     await create_player(
         session=session,
@@ -109,7 +110,7 @@ async def update_password(
 
     password_data = await session.get(PlayerPassword, payload.login)
     if not password_data:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise RestException(RestErrorCode.USER_NOT_FOUND, "User not found")
 
     password_data.created_at = datetime.now(UTC)
     password_data.normal_md5 = None

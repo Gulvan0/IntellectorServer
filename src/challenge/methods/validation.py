@@ -10,6 +10,7 @@ from player.models import Player
 from utils.async_orm_session import AsyncSession
 from common.user_ref import UserReference
 from config.models import LimitParams
+from net.utils.rest_error import RestErrorCode, RestException
 
 
 async def validate_bracket(challenge: ChallengeCreateOpen | ChallengeCreateDirect, session: AsyncSession, caller: UserReference) -> None:
@@ -40,15 +41,20 @@ async def validate_spam_limits(
     total_active_challenges = await get_total_active_challenges_by_caller(session, caller)
     max_total = limits.max_total_active_challenges
     if total_active_challenges >= max_total:
-        raise HTTPException(status_code=422, detail=f"Too many active challenges (present {total_active_challenges}, max {max_total})")
+        raise RestException(
+            RestErrorCode.TOO_MANY_ACTIVE_CHALLENGES,
+            f"Too many active challenges (present {total_active_challenges}, max {max_total})",
+            max_active_challenges=max_total
+        )
 
     if isinstance(challenge, ChallengeCreateDirect):
         same_callee_active_challenges = await get_active_challenge_cnt_by_players(session, caller, challenge.callee_ref)
         max_same_callee = limits.max_same_callee_active_challenges
-        if total_active_challenges >= max_total:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Too many active direct challenges to {challenge.callee_ref} (present {same_callee_active_challenges}, max {max_same_callee})"
+        if same_callee_active_challenges >= max_same_callee:
+            raise RestException(
+                RestErrorCode.TOO_MANY_DIRECT_CHALLENGES,
+                f"Too many active direct challenges to {challenge.callee_ref} (present {same_callee_active_challenges}, max {max_same_callee})",
+                max_active_challenges=max_same_callee
             )
 
 
@@ -59,7 +65,7 @@ async def validate_uniqueness(
 ) -> None:
     identical_challenge = await get_identical_challenge(session, caller, challenge)
     if identical_challenge:
-        raise HTTPException(status_code=422, detail=f"Challenge already exists ({identical_challenge.id})")
+        raise RestException(RestErrorCode.CHALLENGE_ALREADY_EXISTS, f"Challenge already exists ({identical_challenge.id})", challenge_id=identical_challenge.id)
 
 
 async def perform_common_validations(
@@ -70,7 +76,7 @@ async def perform_common_validations(
     session: AsyncSession
 ) -> None:
     if shutdown_activated:
-        raise HTTPException(status_code=503, detail="Server is preparing to be restarted")
+        raise RestException(RestErrorCode.SERVER_RESTARTING, "Server is preparing to be restarted")
     await validate_spam_limits(challenge, caller, limits, session)
     await validate_bracket(challenge, session, caller)
     validate_special_conditions(challenge)
@@ -90,12 +96,12 @@ async def validate_direct_callee(
     callee = UserReference(challenge.callee_ref)
     if callee.is_guest():
         if callee.guest_id > last_guest_id:
-            raise HTTPException(status_code=404, detail=f"Guest not found: {callee.guest_id}")
+            raise RestException(RestErrorCode.CALLEE_NOT_FOUND, f"Guest not found: {callee.guest_id}")
     elif callee.is_bot():
         raise HTTPException(status_code=422, detail="Bots cannot be challenged directly")
     else:
         db_callee = await session.get(Player, callee.login)
         if not db_callee:
-            raise HTTPException(status_code=404, detail=f"Player not found: {callee.login}")
+            raise RestException(RestErrorCode.CALLEE_NOT_FOUND, f"Player not found: {callee.login}")
 
     return callee

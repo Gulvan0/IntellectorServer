@@ -48,6 +48,7 @@ from config.loader import load
 from utils.async_orm_session import AsyncSession
 from net.ws_wrapper import WebSocketWrapper
 from net.state import MutableState
+from net.utils.rest_error import RestException, handle_rest_exception
 
 import time
 
@@ -115,6 +116,8 @@ class App(FastAPI):
 
         for router in rest_routers:
             self.include_router(router)
+
+        self.add_exception_handler(RestException, handle_rest_exception)
 
         self.ws_handlers: WebSocketHandlerCollection = ws_collection
 

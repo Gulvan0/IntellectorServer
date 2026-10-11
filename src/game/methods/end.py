@@ -121,9 +121,12 @@ async def end_game(
 
                     raw_elo_updates[color] = GameEndedEloUpdate(new_value=new_elo, delta=delta)
 
-            await session.commit()
-
             elo_updates = GameEndedEloUpdates(white=raw_elo_updates[PieceColor.WHITE], black=raw_elo_updates[PieceColor.BLACK])
+            db_outcome.white_elo_delta = elo_updates.white.delta
+            db_outcome.black_elo_delta = elo_updates.black.delta
+            session.add(db_outcome)
+
+            await session.commit()
 
         await session.refresh(db_outcome)
         await session.refresh(db_game)

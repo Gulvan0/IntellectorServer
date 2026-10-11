@@ -33,6 +33,9 @@ class GameOutcome(GameOutcomeBase, table=True):
     game_id: int = Field(primary_key=True, foreign_key="game.id")
 
     time_update_id: int | None = Field(default=None, foreign_key="gametimeupdate.id")
+    # rating changes of a rated game; null otherwise
+    white_elo_delta: int | None = None
+    black_elo_delta: int | None = None
 
     game: Game = Relationship(back_populates="outcome")
     time_update: GameTimeUpdate | None = Relationship()
@@ -48,7 +51,9 @@ class GameOutcome(GameOutcomeBase, table=True):
             game_ended_at=self.game_ended_at,
             kind=self.kind,
             winner=self.winner,
-            time_update=GameTimeUpdatePublic.cast(self.time_update)
+            time_update=GameTimeUpdatePublic.cast(self.time_update),
+            white_elo_delta=self.white_elo_delta,
+            black_elo_delta=self.black_elo_delta
         )
 
     def to_broadcasted_data(self, elo_updates: GameEndedEloUpdates | None) -> GameEndedBroadcastedData:
@@ -63,6 +68,8 @@ class GameOutcome(GameOutcomeBase, table=True):
 
 class GameOutcomePublic(GameOutcomeBase):
     time_update: GameTimeUpdatePublic | None
+    white_elo_delta: int | None = None
+    black_elo_delta: int | None = None
 
 
 class GameEndedBroadcastedData(GameOutcomeBase):

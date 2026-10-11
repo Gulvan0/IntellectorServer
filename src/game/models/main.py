@@ -16,7 +16,16 @@ from game.models.offer import GameOfferEvent, GameOfferEventPublic
 from game.models.rollback import GameRollbackEvent, GameRollbackEventPublic
 from game.models.time_added import GameTimeAddedEvent, GameTimeAddedEventPublic
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
-from utils.custom_model import CustomSQLModel
+from utils.custom_model import CustomModel, CustomSQLModel
+
+
+class PlayerRatingPublic(CustomModel):
+    elo: int
+    provisional: bool
+
+    @classmethod
+    def of(cls, elo: int | None, provisional: bool | None) -> "PlayerRatingPublic | None":
+        return PlayerRatingPublic(elo=elo, provisional=bool(provisional)) if elo is not None else None
 
 
 GenericEvent = GamePlyEventPublic | GameChatMessageEventPublic | GameOfferEventPublic | GameTimeAddedEventPublic | GameRollbackEventPublic
@@ -39,6 +48,11 @@ class Game(GameBase, table=True):
     latest_sip: Sip
     opening_sip: Sip
     event_cnt: int = 0  # events appended so far; get_next_event_index hands out 0, 1, 2, ...
+    # the players' ratings for this time control as of the game's start; null for guests
+    white_elo: int | None = None
+    white_elo_provisional: bool | None = None
+    black_elo: int | None = None
+    black_elo_provisional: bool | None = None  # events appended so far; get_next_event_index hands out 0, 1, 2, ...
 
     fischer_time_control: GameFischerTimeControl | None = Relationship(back_populates="game", cascade_delete=True)
     outcome: GameOutcome | None = Relationship(back_populates="game", cascade_delete=True)
@@ -118,6 +132,8 @@ class Game(GameBase, table=True):
             latest_sip=self.latest_sip,
             fischer_time_control=GameFischerTimeControlPublic.cast(fischer_time_control),
             outcome=outcome.to_public() if outcome else None,
+            white_rating=PlayerRatingPublic.of(self.white_elo, self.white_elo_provisional),
+            black_rating=PlayerRatingPublic.of(self.black_elo, self.black_elo_provisional),
         )
 
     def to_summary(self, resolved_refs: ResolvedRefs) -> GameSummaryPublic:
@@ -143,6 +159,8 @@ class GameSummaryPublic(GameBase):
 
     fischer_time_control: GameFischerTimeControlPublic | None
     outcome: GameOutcomePublic | None
+    white_rating: PlayerRatingPublic | None = None
+    black_rating: PlayerRatingPublic | None = None
 
 
 class GamePublic(GameSummaryPublic):

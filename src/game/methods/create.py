@@ -5,10 +5,10 @@ from challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
 from challenge.models import Challenge
 from common.models import Id
 from common.user_ref import UserReference
-from config.models import SecretConfig
+from config.models import MainConfig, SecretConfig
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from notification.methods import delete_new_public_challenge_notifications, send_game_started_notifications
-from player.methods import resolve_player_refs
+from player.methods import get_ranked_game_stats_for_time_control, resolve_player_refs
 from pubsub.models.channel import CurrentGameListEventChannel, IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, PlayerOngoingGamesEventChannel
 from game.models.main import Game, GameStartedBroadcastedData, GameSummaryPublic
 from game.models.time_control import GameFischerTimeControl
@@ -46,6 +46,7 @@ async def create_game(
     external_uploader_ref: str | None,
     session: AsyncSession,
     state: MutableState,
+    main_config: MainConfig,
     deactivated_challenge: Challenge | None = None
 ) -> GameSummaryPublic:
     if deactivated_challenge:
@@ -55,6 +56,19 @@ async def create_game(
 
     started_at = datetime.now(UTC)
     starting_sip = custom_starting_sip or DEFAULT_STARTING_SIP
+    time_control_kind = TimeControlKind.of(time_control)
+
+    # the ratings the game is played at; guests have none
+    elo_snapshots: dict[str, tuple[int, bool] | None] = {}
+    for player_ref in (white_player_ref, black_player_ref):
+        reference = UserReference(player_ref)
+        if reference.is_player():
+            stats = await get_ranked_game_stats_for_time_control(session, main_config, reference.login, time_control_kind)
+            elo_snapshots[player_ref] = (stats.elo or main_config.elo.default, stats.is_elo_provisional)
+        else:
+            elo_snapshots[player_ref] = None
+    white_elo = elo_snapshots[white_player_ref]
+    black_elo = elo_snapshots[black_player_ref]
 
     db_time_control = GameFischerTimeControl(
         start_seconds=time_control.start_seconds,
@@ -65,12 +79,16 @@ async def create_game(
         started_at=started_at,
         white_player_ref=white_player_ref,
         black_player_ref=black_player_ref,
-        time_control_kind=TimeControlKind.of(time_control),
+        time_control_kind=time_control_kind,
         rated=rated,
         custom_starting_sip=custom_starting_sip,
         external_uploader_ref=external_uploader_ref,
         latest_sip=starting_sip,
         opening_sip=starting_sip,
+        white_elo=white_elo[0] if white_elo else None,
+        white_elo_provisional=white_elo[1] if white_elo else None,
+        black_elo=black_elo[0] if black_elo else None,
+        black_elo_provisional=black_elo[1] if black_elo else None,
         fischer_time_control=db_time_control
     )
     session.add(db_game)
@@ -115,6 +133,7 @@ async def create_internal_game(
     acceptor: UserReference,
     session: AsyncSession,
     state: MutableState,
+    main_config: MainConfig,
     secret_config: SecretConfig
 ) -> GameSummaryPublic:
     white_player_ref, black_player_ref = assign_player_colors(challenge.acceptor_color, challenge.caller_ref, acceptor.reference)
@@ -134,6 +153,7 @@ async def create_internal_game(
         external_uploader_ref=None,
         session=session,
         state=state,
+        main_config=main_config,
         deactivated_challenge=challenge
     )
 
@@ -174,7 +194,8 @@ async def create_external_game(
     time_control: FischerTimeControlEntity | None,
     custom_starting_sip: str | None,
     session: AsyncSession,
-    state: MutableState
+    state: MutableState,
+    main_config: MainConfig
 ) -> GameSummaryPublic:
     return await create_game(
         white_player_ref=white_player_ref,
@@ -184,5 +205,6 @@ async def create_external_game(
         custom_starting_sip=custom_starting_sip,
         external_uploader_ref=uploader.reference,
         session=session,
-        state=state
+        state=state,
+        main_config=main_config
     )

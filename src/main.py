@@ -16,6 +16,7 @@ from pubsub import ws_handlers as ws_pubsub
 
 from net.core import App
 from net.catch_exceptions_middleware import CatchExceptionsMiddleware
+from net.server_time_middleware import SERVER_TIME_HEADER, ServerTimeMiddleware
 
 from fastapi.middleware.cors import CORSMiddleware
 from hypercorn.config import Config
@@ -57,11 +58,13 @@ app = App(
 
 
 app.add_middleware(CatchExceptionsMiddleware)
+app.add_middleware(ServerTimeMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=[SERVER_TIME_HEADER],
 )
 
 

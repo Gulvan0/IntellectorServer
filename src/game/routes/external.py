@@ -34,7 +34,8 @@ async def create(
     payload: ExternalGameCreatePayload,
     client: MandatoryUserDependency,
     session: SessionDependency,
-    state: MutableStateDependency
+    state: MutableStateDependency,
+    main_config: MainConfigDependency
 ) -> GameSummaryPublic:
     return await create_external_game(
         uploader=client,
@@ -43,7 +44,8 @@ async def create(
         time_control=payload.time_control,
         custom_starting_sip=payload.custom_starting_sip,
         session=session,
-        state=state
+        state=state,
+        main_config=main_config
     )
 
 

@@ -39,7 +39,7 @@ async def create_open_challenge(
     secret_config: SecretConfigDependency
 ) -> ChallengeCreateResponse:
     await perform_common_validations(challenge, caller, state.shutdown_activated, main_config.limits, session)
-    merged = await try_merging(challenge, caller, session, state, secret_config)
+    merged = await try_merging(challenge, caller, session, state, main_config, secret_config)
     if merged:
         response.status_code = 200
         return merged
@@ -88,7 +88,7 @@ async def create_direct_challenge(
 ) -> ChallengeCreateResponse:
     await perform_common_validations(challenge, caller, state.shutdown_activated, main_config.limits, session)
     callee = await validate_direct_callee(challenge, caller, state.last_guest_id, session)
-    merged = await try_merging(challenge, caller, session, state, secret_config)
+    merged = await try_merging(challenge, caller, session, state, main_config, secret_config)
     if merged:
         response.status_code = 200
         return merged
@@ -175,6 +175,7 @@ async def accept_challenge(
     session: SessionDependency,
     client: MandatoryUserDependency,
     state: MutableStateDependency,
+    main_config: MainConfigDependency,
     secret_config: SecretConfigDependency
 ) -> GameSummaryPublic:
     db_challenge = await session.get(Challenge, challenge_id, options=Challenge.load_options())
@@ -192,7 +193,7 @@ async def accept_challenge(
         if db_challenge.caller_ref == client.reference:
             raise HTTPException(status_code=422, detail="Cannot accept own challenge")
 
-    db_game = await create_internal_game(db_challenge, client, session, state, secret_config)
+    db_game = await create_internal_game(db_challenge, client, session, state, main_config, secret_config)
 
     return db_game
 

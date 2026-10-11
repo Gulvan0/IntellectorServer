@@ -82,7 +82,9 @@ async def send_chat_message(
     client: MandatoryUserDependency,
     payload: GameSendChatMessagePayload
 ) -> None:
-    is_spectator = db_game.outcome or client.reference not in (db_game.white_player_ref, db_game.black_player_ref)
+    # read before the commit below expires db_game, which can't be lazily reloaded in an async session
+    is_ongoing = db_game.outcome is None
+    is_spectator = not is_ongoing or client.reference not in (db_game.white_player_ref, db_game.black_player_ref)
 
     db_event = GameChatMessageEvent(
         event_index=await get_next_event_index(session, payload.game_id),
@@ -98,7 +100,7 @@ async def send_chat_message(
     resolved_refs = await resolve_player_refs({client}, session)
     event = NewChatMessage(db_event.to_broadcasted_data(resolved_refs), GameEventChannel(game_id=payload.game_id))
     tag_blacklist = set()
-    if not db_game.outcome and is_spectator:
+    if is_ongoing and is_spectator:
         tag_blacklist = {SubscriberTag.WHITE_PLAYER, SubscriberTag.BLACK_PLAYER}
     state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event, tag_blacklist))
 

@@ -129,6 +129,7 @@ async def end_game(
             await session.commit()
 
         await session.refresh(db_outcome)
+        await session.refresh(db_outcome, attribute_names=['time_update'])  # to_broadcasted_data reads it, and an async session can't load it lazily
         await session.refresh(db_game)
         await session.refresh(db_game, attribute_names=['fischer_time_control', 'outcome'])  # to_summary reads them, and an async session can't load them lazily
 

@@ -129,7 +129,7 @@ async def append_ply(
     increment_seconds = db_game.fischer_time_control.increment_seconds if db_game.fischer_time_control else None
 
     if not is_external:
-        await cancel_all_active_offers(session, mutable_state, payload.game_id, ply_dt)
+        await cancel_all_active_offers(session, mutable_state, payload.game_id)
 
     if time_remainders:
         if time_control_kind == TimeControlKind.CORRESPONDENCE:
@@ -174,13 +174,13 @@ async def append_ply(
         sip_after=new_sip,
         time_update=new_time_update
     )
-    await append_event(session, mutable_state, event, payload.game_id, commit=False)
-
     db_game.latest_sip = new_sip
     if new_sip in openings.mapping:
         db_game.opening_sip = new_sip
     session.add(db_game)
-    await session.commit()
+
+    # commits before broadcasting: a premove fired by the broadcast must find the ply already stored
+    await append_event(session, mutable_state, event, payload.game_id)
     await session.refresh(db_game)
 
     outcome = await _get_simple_outcome(session, payload.game_id, perform_ply_result.new_position, new_sip, new_ply_index)

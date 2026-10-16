@@ -142,10 +142,10 @@ class Game(GameBase, table=True):
     def to_summary_as_new(self, resolved_refs: ResolvedRefs, fischer_time_control: GameFischerTimeControl | None) -> GameSummaryPublic:
         return self._to_summary_generic(resolved_refs, fischer_time_control, None)
 
-    def to_public(self, resolved_refs: ResolvedRefs, latest_time_update: GameTimeUpdate | None) -> GamePublic:
+    def to_public(self, resolved_refs: ResolvedRefs, latest_time_update: GameTimeUpdate | None, include_spectator_messages: bool = True) -> GamePublic:
         return GamePublic(
             **self.to_summary(resolved_refs).model_dump(),
-            events=self._collect_events(resolved_refs),
+            events=self._collect_events(resolved_refs, include_spectator_messages),
             latest_time_update=GameTimeUpdatePublic.cast(latest_time_update)
         )
 

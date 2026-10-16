@@ -38,8 +38,7 @@ async def append_event(
     session: AsyncSession,
     mutable_state: MutableState,
     event: GamePlyEvent | GameChatMessageEvent | GameOfferEvent | GameTimeAddedEvent,
-    game_id: int,
-    commit: bool = True
+    game_id: int
 ) -> None:
     session.add(event)
 
@@ -57,11 +56,8 @@ async def append_event(
         case GameTimeAddedEvent():
             ws_event = TimeAdded(event.to_broadcasted_data(), target_channel)
 
-    if commit:
-        await session.commit()
-    else:
-        await session.flush()
-
+    # saved before it's announced: a client reacting to the event must find it stored
+    await session.commit()
     await mutable_state.ws_subscribers.broadcast(ws_event, tag_blacklist=tag_blacklist)
 
     if isinstance(event, GamePlyEvent | GameTimeAddedEvent):
@@ -74,8 +70,7 @@ async def append_offer_event(
     action: OfferAction,
     offer_kind: OfferKind,
     offer_author: PieceColor,
-    game_id: int,
-    commit: bool = True
+    game_id: int
 ) -> None:
     await append_event(
         session=session,
@@ -87,8 +82,7 @@ async def append_offer_event(
             offer_author=offer_author,
             game_id=game_id
         ),
-        game_id=game_id,
-        commit=commit
+        game_id=game_id
     )
 
 
@@ -97,16 +91,12 @@ async def append_rollback_event(
     mutable_state: MutableState,
     event: GameRollbackEvent,
     game_id: int,
-    updated_sip: str,
-    commit: bool = True
+    updated_sip: str
 ) -> None:
     session.add(event)
-    if commit:
-        await session.commit()
-        await session.refresh(event)
-        await session.refresh(event, attribute_names=['time_update'])  # the broadcast reads it, and an async session can't load it lazily
-    else:
-        await session.flush()
+    await session.commit()
+    await session.refresh(event)
+    await session.refresh(event, attribute_names=['time_update'])  # the broadcast reads it, and an async session can't load it lazily
 
     ws_event = Rollback(event.to_broadcasted_data(updated_sip), GameEventChannel(game_id=game_id))
     await mutable_state.ws_subscribers.broadcast(ws_event)

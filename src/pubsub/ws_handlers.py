@@ -11,6 +11,7 @@ from net.sub_storage import SubscriberStorage, SubscriberTag
 from net.utils.ws_error import WebSocketException
 from player.methods import resolve_player_refs, resolve_player_ref, resolve_optional_player_ref
 from pubsub.models.channel import (
+    EventChannel,
     GameEventChannel,
     CurrentGameListEventChannel,
     IncomingChallengesEventChannel,
@@ -79,13 +80,13 @@ async def get_game_refresh(session: AsyncSession, channel: GameEventChannel, cli
     if not db_game:
         raise WebSocketException(f"Game {channel.game_id} does not exist")
 
-    is_spectator = False
+    is_player = False
     if client:
         if client.reference == db_game.white_player_ref:
-            is_spectator = True
+            is_player = True
             tags_storage.add(SubscriberTag.WHITE_PLAYER)
         elif client.reference == db_game.black_player_ref:
-            is_spectator = True
+            is_player = True
             tags_storage.add(SubscriberTag.BLACK_PLAYER)
 
     collected_refs = db_game.collect_refs(include_nested=True)
@@ -96,7 +97,7 @@ async def get_game_refresh(session: AsyncSession, channel: GameEventChannel, cli
         resolved_refs=resolved_refs,
         latest_time_update=latest_time_update,
         reason='SUB',
-        include_spectator_messages=is_spectator
+        include_spectator_messages=not is_player or db_game.outcome is not None  # players see them once the game is over
     )
     return GameRefresh(
         payload=game_state,
@@ -175,13 +176,16 @@ async def sub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUn
     async with ws.app.get_db_session() as session:
         refresh_event = await get_refresh(session, payload.channel, client, sub_storage, tags)
 
+        # whoever is already there through another connection was announced then
+        already_present = client is not None and sub_storage.has_user_subscriber(ws.app.mutable_state.token_to_user, client, payload.channel)
+
         perform_actual_subscription = not sub_storage.has_ws_subscriber(ws, payload.channel)
         if perform_actual_subscription:
             sub_storage.subscribe(ws, payload.channel, tags)
 
         ws.app.mutable_state.concurrent_tasks.plan(ws.send_event(refresh_event))
 
-        if perform_actual_subscription and not isinstance(payload.channel, SubscriberListEventChannel):
+        if perform_actual_subscription and not already_present and not isinstance(payload.channel, SubscriberListEventChannel):
             subscriber_ref_with_nickname = await resolve_optional_player_ref(client, session)
 
             ws.app.mutable_state.concurrent_tasks.plan(sub_storage.broadcast(
@@ -203,12 +207,23 @@ async def unsub(ws: WebSocketWrapper, client: UserReference | None, payload: Sub
     if isinstance(payload.channel, OutgoingChallengesEventChannel):
         ws.app.mutable_state.concurrent_tasks.plan(ws.app.plan_challenge_cancellation_if_unwatched(client))
 
-    if not isinstance(payload.channel, SubscriberListEventChannel):
-        subscriber_ref_with_nickname = None
-        if client:
-            async with ws.app.get_db_session() as session:
-                subscriber_ref_with_nickname = await resolve_player_ref(client, session)
+    await broadcast_subscriber_left(ws, client, payload.channel)
 
-        ws.app.mutable_state.concurrent_tasks.plan(sub_storage.broadcast(
-            SubscriberLeft(subscriber_ref_with_nickname, SubscriberListEventChannel(channel=payload.channel))
-        ))
+
+async def broadcast_subscriber_left(ws: WebSocketWrapper, client: UserReference | None, channel: EventChannel) -> None:
+    """Tells the channel's subscriber list that `client` has left it, unless they're still there through another connection"""
+    if isinstance(channel, SubscriberListEventChannel):
+        return
+
+    state = ws.app.mutable_state
+    if client and state.ws_subscribers.has_user_subscriber(state.token_to_user, client, channel):
+        return
+
+    subscriber_ref_with_nickname = None
+    if client:
+        async with ws.app.get_db_session() as session:
+            subscriber_ref_with_nickname = await resolve_player_ref(client, session)
+
+    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(
+        SubscriberLeft(subscriber_ref_with_nickname, SubscriberListEventChannel(channel=channel))
+    ))

@@ -70,6 +70,14 @@ async def get_mandatory_user(state: MutableStateDependency, token: UserTokenHead
 MandatoryUserDependency = Annotated[UserReference, Depends(get_mandatory_user)]
 
 
+# an unknown token counts as no token: the routes using it serve anonymous clients too
+async def get_optional_user(state: MutableStateDependency, token: OptionalUserTokenHeaderDependency) -> UserReference | None:
+    return state.token_to_user.get(token) if token is not None else None
+
+
+OptionalUserDependency = Annotated[UserReference | None, Depends(get_optional_user)]
+
+
 async def get_mandatory_player_login(state: MutableStateDependency, token: UserTokenHeaderDependency) -> str:
     client = state.token_to_user.get(token)
     if not client:

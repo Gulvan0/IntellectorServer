@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from websockets import ConnectionClosed, ConnectionClosedError, ConnectionClosedOK
 from common.user_ref import UserReference
 from pubsub.models.channel import EveryoneEventChannel
+from pubsub.ws_handlers import broadcast_subscriber_left
 from config.models import MainConfig, SecretConfig
 from log.models import ServerLaunch, TaskFailureLog
 from config.loader import load
@@ -172,6 +173,12 @@ class App(FastAPI):
                 else:
                     await self.ws_handlers.handle(self.mutable_state.token_to_user, ws_wrapper, data)
         except (WebSocketDisconnect, ConnectionClosedError, ConnectionClosed, ConnectionClosedOK):
+            client = ws_wrapper.get_user_ref()
+            channels = self.mutable_state.ws_subscribers.get_subscriptions(ws_wrapper)
             self.mutable_state.ws_subscribers.fully_remove(ws_wrapper)
 
-            await self.plan_challenge_cancellation_if_unwatched(ws_wrapper.get_user_ref())
+            for channel in channels:
+                if channel != EveryoneEventChannel():
+                    await broadcast_subscriber_left(ws_wrapper, client, channel)
+
+            await self.plan_challenge_cancellation_if_unwatched(client)

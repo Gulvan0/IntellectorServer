@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, Query
 
 from board.piece import PieceColor
-from common.dependencies import MainConfigDependency, MandatoryUserDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
+from common.dependencies import MainConfigDependency, MandatoryUserDependency, MutableStateDependency, OptionalUserDependency, SecretConfigDependency, SessionDependency
 from game.dependencies import CLIENT_IS_UPLOADER_IF_EXTERNAL_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency, GameWithOutcomeDependency, OptionalPlayerColorDependency
 from game.methods.event import append_event, get_next_event_index
 from game.methods.get import get_current_games, get_latest_time_update, get_recent_games
@@ -48,6 +48,7 @@ async def get_recent_games_route(
 async def get_game(
     *,
     session: SessionDependency,
+    client: OptionalUserDependency,
     game_id: int
 ) -> GamePublic:
     db_game = await session.get(Game, game_id, options=Game.load_options(just_summary=False))
@@ -55,10 +56,15 @@ async def get_game(
     if not db_game:
         raise HTTPException(status_code=404, detail="Game not found")
 
+    is_player = client is not None and client.reference in (db_game.white_player_ref, db_game.black_player_ref)
     collected_refs = db_game.collect_refs(include_nested=True)
     resolved_refs = await resolve_player_refs(collected_refs, session)
     latest_time_update = await get_latest_time_update(session, game_id)
-    return db_game.to_public(resolved_refs, latest_time_update)
+    return db_game.to_public(
+        resolved_refs,
+        latest_time_update,
+        include_spectator_messages=not is_player or db_game.outcome is not None  # players see them once the game is over
+    )
 
 
 @router.get("/{game_id}/check_timeout")
@@ -102,7 +108,7 @@ async def send_chat_message(
     tag_blacklist = set()
     if is_ongoing and is_spectator:
         tag_blacklist = {SubscriberTag.WHITE_PLAYER, SubscriberTag.BLACK_PLAYER}
-    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event, tag_blacklist))
+    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event, tag_blacklist=tag_blacklist))
 
 
 @router.post("/add_time", dependencies=[

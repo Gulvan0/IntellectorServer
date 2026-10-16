@@ -1,13 +1,10 @@
 
-from datetime import datetime
-
 from fastapi import HTTPException
 from board.deserializers.sip import color_to_move_from_sip
 from config.models import MainConfig, SecretConfig
 from game.methods.event import append_offer_event
 from game.methods.rollback import RollbackOfferAuthorInput, perform_rollback, validate_rollback
 from game.models.main import Game
-from game.models.offer import GameOfferEvent, OfferActionBroadcastedData
 from net.state import MutableState
 from game.methods.end import end_game
 from game.methods.get import (
@@ -17,8 +14,6 @@ from game.methods.get import (
 )
 from board.piece import PieceColor
 from game.datatypes import OfferAction, OfferKind, OutcomeKind
-from pubsub.models.channel import GameEventChannel
-from pubsub.outgoing_event.update import OfferActionPerformed
 from utils.async_orm_session import AsyncSession
 
 
@@ -60,8 +55,7 @@ async def cancel_offer(
     game_id: int,
     offer_kind: OfferKind,
     offer_author: PieceColor,
-    raise_on_missing: bool = True,
-    commit: bool = True
+    raise_on_missing: bool = True
 ) -> None:
     if not await is_offer_active(session, game_id, offer_kind, offer_author):
         if raise_on_missing:
@@ -69,7 +63,7 @@ async def cancel_offer(
         else:
             return
 
-    await append_offer_event(session, state, OfferAction.CANCEL, offer_kind, offer_author, game_id, commit)
+    await append_offer_event(session, state, OfferAction.CANCEL, offer_kind, offer_author, game_id)
 
 
 async def decline_offer(
@@ -125,26 +119,15 @@ async def accept_takeback(
         raise
     else:
         # one after another: a session can't run concurrent operations
-        await cancel_offer(session, state, game_id, OfferKind.TAKEBACK, offer_author.opposite(), raise_on_missing=False, commit=False)
-        await cancel_offer(session, state, game_id, OfferKind.DRAW, offer_author, raise_on_missing=False, commit=False)
-        await cancel_offer(session, state, game_id, OfferKind.DRAW, offer_author.opposite(), raise_on_missing=False, commit=False)
+        await cancel_offer(session, state, game_id, OfferKind.TAKEBACK, offer_author.opposite(), raise_on_missing=False)
+        await cancel_offer(session, state, game_id, OfferKind.DRAW, offer_author, raise_on_missing=False)
+        await cancel_offer(session, state, game_id, OfferKind.DRAW, offer_author.opposite(), raise_on_missing=False)
 
-        await append_offer_event(session, state, OfferAction.ACCEPT, OfferKind.TAKEBACK, offer_author, game_id, commit=False)
+        await append_offer_event(session, state, OfferAction.ACCEPT, OfferKind.TAKEBACK, offer_author, game_id)
 
         await perform_rollback(session, state, game_id, game, validation_results)
 
 
-async def cancel_all_active_offers(session: AsyncSession, state: MutableState, game_id: int, ply_dt: datetime) -> None:
+async def cancel_all_active_offers(session: AsyncSession, state: MutableState, game_id: int) -> None:
     for offer_kind, offer_author in await get_active_offers(session, game_id):
-        cancel_event = GameOfferEvent(
-            occurred_at=ply_dt,
-            action=OfferAction.CANCEL,
-            offer_kind=OfferKind(offer_kind),
-            offer_author=PieceColor(offer_author),
-            game_id=game_id
-        )
-        session.add(cancel_event)
-
-        broadcasted_event = OfferActionPerformed(OfferActionBroadcastedData.cast(cancel_event), GameEventChannel(game_id=game_id))
-        state.concurrent_tasks.plan(state.ws_subscribers.broadcast(broadcasted_event))
-    await session.commit()
+        await append_offer_event(session, state, OfferAction.CANCEL, OfferKind(offer_kind), PieceColor(offer_author), game_id)

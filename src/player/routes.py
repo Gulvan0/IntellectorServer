@@ -1,23 +1,24 @@
-import asyncio
 from datetime import datetime, UTC
-from fastapi import APIRouter, HTTPException, Query, UploadFile
+from fastapi import APIRouter, HTTPException, UploadFile
 from sqlalchemy import update
 from sqlmodel import col, desc, select
 
 from common.datatypes import UserStatus
-from common.models import UserActivity, UserRefWithNickname
+from common.models import UserActivity
 from common.time_control import TimeControlKind
 from game.methods.get import get_overall_player_game_counts
 from log.methods import last_seen_in_logs
 from player.datatypes import RankedGameStats
 from player.dependencies import PLAYER_EXISTS_DEPENDENCY, DBPlayerDependency
 from net.base_router import LoggingRoute
-from common.user_ref import UserReference
-from player.methods import get_followed_players, get_followers, get_overall_ranked_game_stats, is_player_following_player
+from player.methods import get_connections, get_elo_history, get_follows_since, get_overall_ranked_game_stats, get_ws_activity, promote_to_playing
 from common.dependencies import CLIENT_IS_ADMIN_DEPENDENCY, MainConfigDependency, MandatoryPlayerLoginDependency, MutableStateDependency, SessionDependency
 from common.field_types import PlayerLogin
 from player.models import (
+    EloHistoryEntry,
     Player,
+    PlayerConnections,
+    PlayerRelation,
     PlayerFollowedPlayer,
     PlayerGameStats,
     PlayerGameStatsByTimeControl,
@@ -32,7 +33,6 @@ from player.models import (
     RestrictionRemovalPayload,
     RoleOperationPayload,
 )
-from pubsub.models.channel import IncomingChallengesEventChannel
 
 
 router = APIRouter(prefix="/player", route_class=LoggingRoute)
@@ -45,10 +45,8 @@ async def game_stats(
     login: PlayerLogin,
     main_config: MainConfigDependency,
 ) -> PlayerGameStats:
-    counts, ranked_stats = await asyncio.gather(
-        get_overall_player_game_counts(session, login),
-        get_overall_ranked_game_stats(session, main_config, login)
-    )
+    counts = await get_overall_player_game_counts(session, login)
+    ranked_stats = await get_overall_ranked_game_stats(session, main_config, login)
 
     by_time_control = {}
     for time_control_kind in TimeControlKind.all_kinds():
@@ -67,36 +65,38 @@ async def game_stats(
     )
 
 
-@router.get("/{login}/followers", response_model=list[UserRefWithNickname])
-async def get_player_followers(
+@router.get("/{login}/elo_history", response_model=list[EloHistoryEntry])
+async def elo_history(
     *,
     session: SessionDependency,
     login: PlayerLogin,
-    offset: int = 0,
-    limit: int = Query(default=50, le=100)
-) -> list[UserRefWithNickname]:
-    return await get_followers(session, login, limit, offset)
+    time_control_kind: TimeControlKind,
+) -> list[EloHistoryEntry]:
+    return await get_elo_history(session, login, time_control_kind)
 
 
-@router.get("/{login}/followed", response_model=list[UserRefWithNickname])
-async def get_player_followed_players(
+@router.get("/{login}/connections", response_model=PlayerConnections, dependencies=[PLAYER_EXISTS_DEPENDENCY])
+async def connections(
     *,
     session: SessionDependency,
+    state: MutableStateDependency,
+    main_config: MainConfigDependency,
     login: PlayerLogin,
-    offset: int = 0,
-    limit: int = Query(default=50, le=100)
-) -> list[UserRefWithNickname]:
-    return await get_followed_players(session, login, limit, offset)
+) -> PlayerConnections:
+    return await get_connections(session, state, main_config, login)
 
 
-@router.get("/{login}/is_followed_by_me", response_model=bool)
-async def is_followed_by_me(
+@router.get("/{login}/relation", response_model=PlayerRelation)
+async def relation(
     *,
     session: SessionDependency,
     login: PlayerLogin,
     client_login: MandatoryPlayerLoginDependency,
-) -> bool:
-    return await is_player_following_player(session, client_login, login)
+) -> PlayerRelation:
+    return PlayerRelation(
+        you_follow_since=await get_follows_since(session, client_login, login),
+        follows_you_since=await get_follows_since(session, login, client_login)
+    )
 
 
 @router.post("/{login}/follow", dependencies=[PLAYER_EXISTS_DEPENDENCY])
@@ -259,12 +259,13 @@ async def get_player(
     if not db_player:
         raise HTTPException(status_code=404, detail="Player not found")
 
-    activity = state.get_user_activity_in_channel(
-        user_ref=UserReference.logged(login),
-        channel=IncomingChallengesEventChannel(user_ref=login)
-    )
+    activity = get_ws_activity(state, login)
 
-    if not activity:
+    if activity:
+        activities = {login: activity}
+        await promote_to_playing(session, activities)
+        activity = activities[login]
+    else:
         last_request_sent = await last_seen_in_logs(session, login)
         last_active = last_request_sent or db_player.joined_at
         last_active_unixsecs = max(db_player.last_recorded_activity_before_v3, int(last_active.timestamp()))

@@ -5,11 +5,11 @@ from board.piece import PieceColor
 from common.dependencies import MainConfigDependency, MandatoryUserDependency, MutableStateDependency, OptionalUserDependency, SecretConfigDependency, SessionDependency
 from game.dependencies import CLIENT_IS_UPLOADER_IF_EXTERNAL_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency, GameWithOutcomeDependency, OptionalPlayerColorDependency
 from game.methods.event import append_event, get_next_event_index
-from game.methods.get import get_current_games, get_latest_time_update, get_recent_games
+from game.methods.get import get_latest_time_update, search_games
 from game.methods.timeout import check_timeout, plan_timeout_check
 from game.models.chat import GameChatMessageEvent, GameSendChatMessagePayload
-from game.models.main import Game, GamePublic, GameSummaryPublic
-from game.models.rest.common import GameFilter
+from game.models.main import Game, GamePublic
+from game.models.rest.common import GameSearchPayload, GameSearchResult
 from game.models.time_added import GameAddTimePayload, GameTimeAddedEvent
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from net.base_router import LoggingRoute
@@ -22,26 +22,15 @@ from pubsub.outgoing_event.update import NewChatMessage
 router = APIRouter(prefix="/game", route_class=LoggingRoute)
 
 
-@router.post("/current", response_model=list[GameSummaryPublic])
-async def get_current_games_route(
+@router.post("/search", response_model=GameSearchResult)
+async def search_games_route(
     *,
     session: SessionDependency,
     offset: int = 0,
     limit: int = Query(default=10, le=50),
-    game_filter: GameFilter = GameFilter()
-) -> list[GameSummaryPublic]:
-    return await get_current_games(session, game_filter, offset, limit)
-
-
-@router.post("/recent", response_model=list[GameSummaryPublic])
-async def get_recent_games_route(
-    *,
-    session: SessionDependency,
-    offset: int = 0,
-    limit: int = Query(default=10, le=50),
-    game_filter: GameFilter = GameFilter()
-) -> list[GameSummaryPublic]:
-    return await get_recent_games(session, game_filter, offset, limit)
+    payload: GameSearchPayload = GameSearchPayload()
+) -> GameSearchResult:
+    return await search_games(session, payload, offset, limit)
 
 
 @router.get("/{game_id}", response_model=GamePublic)
@@ -93,6 +82,7 @@ async def send_chat_message(
     is_spectator = not is_ongoing or client.reference not in (db_game.white_player_ref, db_game.black_player_ref)
 
     db_event = GameChatMessageEvent(
+        occurred_at=datetime.now(UTC),
         event_index=await get_next_event_index(session, payload.game_id),
         author_ref=client.reference,
         text=payload.text[:255],
@@ -121,6 +111,7 @@ async def add_time(
     session: SessionDependency,
     state: MutableStateDependency,
     main_config: MainConfigDependency,
+    secret_config: SecretConfigDependency,
     db_game: GameDependency,
     player_color: OptionalPlayerColorDependency,
 ) -> None:
@@ -172,6 +163,9 @@ async def add_time(
     await append_event(session, state, event, payload.game_id)
 
     await plan_timeout_check(
+        state,
+        main_config,
+        secret_config,
         triggering_time_update=appended_time_update,
         game_id=payload.game_id,
         is_external=db_game.external_uploader_ref is not None

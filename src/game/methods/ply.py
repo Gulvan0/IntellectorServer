@@ -72,7 +72,7 @@ async def _construct_new_ply_time_update(
         game_id=game_id
     )
 
-    if latest_time_update.ticking_side:
+    if latest_time_update.ticking_side and latest_time_update.updated_at:  # a ticking clock always has its start recorded
         ms_passed = int((ply_dt.replace(tzinfo=None) - latest_time_update.updated_at).total_seconds() * 1000)  # the stored one is naive UTC
         if latest_time_update.ticking_side == PieceColor.WHITE:
             new_time_update.white_ms -= ms_passed
@@ -199,6 +199,9 @@ async def append_ply(
         )
     elif new_time_update:
         await plan_timeout_check(
+            mutable_state,
+            main_config,
+            secret_config,
             triggering_time_update=new_time_update,
             game_id=payload.game_id,
             is_external=is_external

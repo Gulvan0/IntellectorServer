@@ -1,9 +1,12 @@
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Query
-from sqlmodel import col, desc, distinct, select
+from sqlalchemy.orm import selectinload
+from sqlmodel import col, desc, func, select
 
 from net.base_router import LoggingRoute
 from player.methods import resolve_player_refs
-from study.models import ListStudiesPayload, Study, StudyCreate, StudyPublic, StudyTag, StudyUpdate, StudySummaryPublic
+from study.models import ListStudiesPayload, ListStudiesResult, Study, StudyCreate, StudyPublic, StudyTag, StudyUpdate, StudySummaryPublic
 from study.datatypes import StudyPublicity
 from common.dependencies import OptionalPlayerLoginDependency, SessionDependency, MandatoryPlayerLoginDependency
 
@@ -19,13 +22,14 @@ async def create_study(*, session: SessionDependency, client_login: MandatoryPla
     await session.commit()
 
     await session.refresh(db_study)
+    await session.refresh(db_study, attribute_names=["tags"])
 
     collected_refs = db_study.collect_refs()
     resolved_refs = await resolve_player_refs(collected_refs, session)
     return db_study.to_summary(resolved_refs)
 
 
-@router.post("/list", response_model=list[StudySummaryPublic])
+@router.post("/list", response_model=ListStudiesResult)
 async def list_studies(
     *,
     session: SessionDependency,
@@ -33,27 +37,43 @@ async def list_studies(
     payload: ListStudiesPayload,
     offset: int = 0,
     limit: int = Query(default=10, le=50)
-) -> list[StudySummaryPublic]:
-    query = select(Study).order_by(desc(Study.created_at), desc(Study.id)).offset(offset).limit(limit)
+) -> ListStudiesResult:
+    conditions: list[Any] = [Study.deleted == False]  # noqa: E712
 
     if payload.author_login is not None:
-        query = query.where(Study.author_login == payload.author_login)
+        conditions.append(Study.author_login == payload.author_login)
         if client_login != payload.author_login:
-            query = query.where(col(Study.publicity).in_([StudyPublicity.PUBLIC, StudyPublicity.PROFILE_AND_LINK_ONLY]))
+            conditions.append(col(Study.publicity).in_([StudyPublicity.PUBLIC, StudyPublicity.PROFILE_AND_LINK_ONLY]))
     else:
-        query = query.where(Study.publicity == StudyPublicity.PUBLIC)
+        conditions.append(Study.publicity == StudyPublicity.PUBLIC)
 
-    if payload.tags:
-        fitting_ids = select(distinct(StudyTag.study_id)).where(col(StudyTag.tag).in_(payload.tags))
-        query = query.where(col(Study.id).in_(fitting_ids))
+    for tag in payload.tags or []:
+        conditions.append(col(Study.id).in_(select(StudyTag.study_id).where(StudyTag.tag == tag)))
 
-    result = list(await session.exec(query))
+    db_studies = list(await session.exec(select(
+        Study
+    ).where(
+        *conditions
+    ).order_by(
+        desc(Study.created_at),
+        desc(Study.id)
+    ).offset(
+        offset
+    ).limit(
+        limit
+    ).options(
+        selectinload(Study.tags)  # type: ignore[arg-type]
+    )))
+    total = (await session.exec(select(func.count(col(Study.id))).where(*conditions))).one()
 
     collected_refs = set()
-    for db_study in result:
+    for db_study in db_studies:
         collected_refs |= db_study.collect_refs()
     resolved_refs = await resolve_player_refs(collected_refs, session)
-    return [db_study.to_summary(resolved_refs) for db_study in result]
+    return ListStudiesResult(
+        studies=[db_study.to_summary(resolved_refs) for db_study in db_studies],
+        total=total
+    )
 
 
 @router.get("/{study_id}", response_model=StudyPublic)

@@ -1,7 +1,8 @@
+from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 from sqlmodel import Field, Relationship
 
-from common.field_types import CurrentDatetime, PlayerRef
+from common.field_types import PlayerRef, legacy_nullable_datetime_field
 from common.models import UserRefWithNickname
 from common.resolved_refs import ResolvedRefs
 from game.datatypes import EventKind
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class GameChatMessageEventBase(CustomSQLModel):
-    occurred_at: CurrentDatetime
+    occurred_at: datetime | None = legacy_nullable_datetime_field()
     event_index: int
     text: str
     spectator: bool

@@ -112,13 +112,13 @@ class Study(StudyBase, table=True):
             created_at=self.created_at,
             modified_at=self.modified_at,
             author=resolved_refs.get(self.author_login),
+            tags=[StudyTagPublic.cast(tag) for tag in self.tags],
         )
 
     def to_public(self, resolved_refs: ResolvedRefs) -> StudyPublic:
         return StudyPublic(
             **self.to_summary(resolved_refs).model_dump(),
             deleted=self.deleted,
-            tags=[StudyTagPublic.cast(tag) for tag in self.tags],
             nodes=[StudyPlyTreeNodePublic.cast(node) for node in self.nodes]
         )
 
@@ -178,6 +178,7 @@ class StudySummaryPublic(StudyBase):
     created_at: datetime
     modified_at: datetime
     author: UserRefWithNickname
+    tags: list[StudyTagPublic]
 
 
 class StudyPublic(StudyBase):
@@ -192,4 +193,9 @@ class StudyPublic(StudyBase):
 
 class ListStudiesPayload(CustomModel):
     author_login: PlayerLogin | None = None
-    tags: list[str] | None = None
+    tags: list[str] | None = None  # a study must have all of them
+
+
+class ListStudiesResult(CustomModel):
+    studies: list[StudySummaryPublic]
+    total: int

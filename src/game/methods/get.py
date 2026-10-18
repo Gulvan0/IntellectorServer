@@ -10,7 +10,7 @@ from game.models.main import Game, GameSummaryPublic
 from game.models.offer import GameOfferEvent
 from game.models.outcome import GameOutcome
 from game.models.ply import GamePlyEvent
-from game.models.rest.common import GameFilter
+from game.models.rest.common import GameFilter, GameSearchCounts, GameSearchPayload, GameSearchRatedCounts, GameSearchResult
 from game.models.time_update import GameTimeUpdate
 from board.constants.sip import DEFAULT_STARTING_SIP
 from board.piece import PieceColor, PieceKind
@@ -76,7 +76,7 @@ async def is_offer_active(session: AsyncSession, game_id: int, offer_kind: Offer
             GameOfferEvent.offer_kind == offer_kind,
             GameOfferEvent.offer_author == offer_author
         ).order_by(
-            desc(GameOfferEvent.occurred_at)
+            desc(GameOfferEvent.event_index)  # occurred_at is null in migrated games
         )
     )
     return result.first() == OfferAction.CREATE.value
@@ -119,17 +119,14 @@ async def _query_games_as_public(session: AsyncSession, query: SelectOfScalar[Ga
     ]
 
 
-async def get_current_games(session: AsyncSession, game_filter: GameFilter | None = None, offset: int = 0, limit: int | None = 10) -> list[GameSummaryPublic]:
-    if not game_filter:
-        game_filter = GameFilter()
-
+async def get_games(session: AsyncSession, game_filter: GameFilter, offset: int = 0, limit: int | None = 10) -> list[GameSummaryPublic]:
     return await _query_games_as_public(session, select(
         Game
     ).where(
-        Game.outcome == None,  # noqa
         *game_filter.construct_conditions()
     ).order_by(
-        desc(Game.started_at)
+        desc(Game.started_at),
+        desc(Game.id)
     ).offset(
         offset
     ).limit(
@@ -137,22 +134,56 @@ async def get_current_games(session: AsyncSession, game_filter: GameFilter | Non
     ))
 
 
-async def get_recent_games(session: AsyncSession, game_filter: GameFilter | None = None, offset: int = 0, limit: int = 10) -> list[GameSummaryPublic]:
-    if not game_filter:
-        game_filter = GameFilter()
+async def get_current_games(session: AsyncSession, player_ref: str | None = None, offset: int = 0, limit: int | None = 10) -> list[GameSummaryPublic]:
+    return await get_games(session, GameFilter(player_ref=player_ref, finished=False), offset, limit)
 
-    return await _query_games_as_public(session, select(
-        Game
+
+async def count_games(session: AsyncSession, game_filter: GameFilter) -> int:
+    result = await session.exec(select(
+        func.count(col(Game.id))
     ).where(
-        Game.outcome != None,  # noqa
         *game_filter.construct_conditions()
-    ).order_by(
-        desc(Game.started_at)
-    ).offset(
-        offset
-    ).limit(
-        limit
     ))
+    return result.one()
+
+
+async def count_games_by_facet(session: AsyncSession, game_filter: GameFilter) -> GameSearchCounts:
+    db_kind_counts = await session.exec(select(
+        Game.time_control_kind,
+        func.count(col(Game.id))
+    ).where(
+        *game_filter.construct_conditions(ignore_kinds=True)
+    ).group_by(
+        Game.time_control_kind
+    ))
+    kind_counts = {kind: 0 for kind in TimeControlKind}
+    for kind, count in db_kind_counts:
+        kind_counts[TimeControlKind(kind)] = count
+
+    db_rated_counts = await session.exec(select(
+        Game.rated,
+        func.count(col(Game.id))
+    ).where(
+        *game_filter.construct_conditions(ignore_rated=True)
+    ).group_by(
+        col(Game.rated)
+    ))
+    rated_counts = GameSearchRatedCounts(rated=0, casual=0)
+    for rated, count in db_rated_counts:
+        if rated:
+            rated_counts.rated = count
+        else:
+            rated_counts.casual = count
+
+    return GameSearchCounts(time_control_kinds=kind_counts, rated=rated_counts)
+
+
+async def search_games(session: AsyncSession, payload: GameSearchPayload, offset: int, limit: int) -> GameSearchResult:
+    return GameSearchResult(
+        games=await get_games(session, payload, offset, limit),
+        total=await count_games(session, payload),
+        counts=await count_games_by_facet(session, payload) if payload.with_counts else None
+    )
 
 
 async def get_ongoing_finite_game(session: AsyncSession) -> Game | None:

@@ -1,9 +1,10 @@
+from datetime import datetime
 from typing import TYPE_CHECKING
 from sqlalchemy.orm import Load, joinedload
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
-from common.field_types import CurrentDatetime
+from common.field_types import legacy_nullable_datetime_field
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from game.datatypes import OutcomeKind
 from utils.custom_model import CustomModel, CustomSQLModel
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
 
 
 class GameOutcomeBase(CustomSQLModel):
-    game_ended_at: CurrentDatetime
+    game_ended_at: datetime | None = legacy_nullable_datetime_field()
     kind: OutcomeKind
     winner: PieceColor | None = None
 

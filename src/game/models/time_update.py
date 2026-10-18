@@ -20,7 +20,7 @@ class GameTimeUpdateReason(StrEnum):
 
 
 class GameTimeUpdateBase(CustomSQLModel):
-    updated_at: datetime
+    updated_at: datetime | None  # null in games migrated from the old server, which didn't record it
     white_ms: int
     black_ms: int
     ticking_side: PieceColor | None
@@ -40,7 +40,7 @@ class GameTimeUpdate(GameTimeUpdateBase, table=True):
             PieceColor.BLACK: self.black_ms
         }
 
-        if not self.ticking_side:
+        if not self.ticking_side or not self.updated_at:  # a legacy update has no time, but no clock ticks after it either
             return remainders
 
         if not reference_ts:

@@ -1,9 +1,10 @@
+from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 from sqlalchemy.orm import Load, joinedload
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor, PieceKind
-from common.field_types import CurrentDatetime, Sip
+from common.field_types import Sip, legacy_nullable_datetime_field
 from game.datatypes import EventKind
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from board.ply import PlyKind
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class GamePlyEventBase(CustomSQLModel):
-    occurred_at: CurrentDatetime
+    occurred_at: datetime | None = legacy_nullable_datetime_field()
     event_index: int
     ply_index: int
     from_i: int

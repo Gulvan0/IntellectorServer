@@ -1,8 +1,9 @@
+from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
-from common.field_types import CurrentDatetime
+from common.field_types import legacy_nullable_datetime_field
 from game.datatypes import EventKind, OfferAction, OfferKind
 from utils.custom_model import CustomSQLModel
 
@@ -12,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class GameOfferEventBase(CustomSQLModel):
-    occurred_at: CurrentDatetime
+    occurred_at: datetime | None = legacy_nullable_datetime_field()
     event_index: int
     action: OfferAction
     offer_kind: OfferKind

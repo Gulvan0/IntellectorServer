@@ -233,6 +233,7 @@ def game_state(
             receiver = piece_color()
             amount_seconds = randint(10, 15)
 
+            assert time_update.updated_at
             secs_passed = (current_time - time_update.updated_at).total_seconds()
             ms_passed = floor(secs_passed * 1000)
 

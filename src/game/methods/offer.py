@@ -99,6 +99,8 @@ async def accept_draw(
 async def accept_takeback(
     session: AsyncSession,
     state: MutableState,
+    main_config: MainConfig,
+    secret_config: SecretConfig,
     offer_author: PieceColor,
     game: Game
 ) -> None:
@@ -125,7 +127,7 @@ async def accept_takeback(
 
         await append_offer_event(session, state, OfferAction.ACCEPT, OfferKind.TAKEBACK, offer_author, game_id)
 
-        await perform_rollback(session, state, game_id, game, validation_results)
+        await perform_rollback(session, state, main_config, secret_config, game_id, game, validation_results)
 
 
 async def cancel_all_active_offers(session: AsyncSession, state: MutableState, game_id: int) -> None:

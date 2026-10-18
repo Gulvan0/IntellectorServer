@@ -98,13 +98,11 @@ async def verify_admin(client_login: MandatoryPlayerLoginDependency, session: Se
 CLIENT_IS_ADMIN_DEPENDENCY = Depends(verify_admin)
 
 
+# like get_optional_user, an unknown token counts as no token
 async def get_optional_player_login(state: MutableStateDependency, token: OptionalUserTokenHeaderDependency) -> str | None:
-    if token is not None:
-        client = state.token_to_user.get(token)
-        if not client:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        if not client.is_guest():
-            return client.login
+    client = state.token_to_user.get(token) if token is not None else None
+    if client and not client.is_guest():
+        return client.login
     return None
 
 

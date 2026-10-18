@@ -36,7 +36,10 @@ def process_passwords_file(data: dict[str, str], first_games: dict[str, datetime
         elif login == "paulnotintellector":
             nickname = "PaulNotIntellector"
 
-        joined_at = first_games.get(login, datetime.now(UTC))
+        if login == "gulvan":
+            joined_at = datetime(2021, 5, 19, tzinfo=UTC)
+        else:
+            joined_at = first_games.get(login, datetime.now(UTC))
 
         players.append(
             Player(

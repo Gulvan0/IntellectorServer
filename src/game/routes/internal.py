@@ -99,7 +99,7 @@ async def perform_offer_action(
             if payload.offer_kind == OfferKind.DRAW:
                 await accept_draw(session, state, main_config, secret_config, payload.game_id, client_color.opposite(), skip_activity_check=False)
             else:
-                await accept_takeback(session, state, client_color.opposite(), db_game)
+                await accept_takeback(session, state, main_config, secret_config, client_color.opposite(), db_game)
 
 
 @router.post("/resign", dependencies=[

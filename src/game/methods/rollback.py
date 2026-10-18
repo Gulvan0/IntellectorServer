@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException
 
+from config.models import MainConfig, SecretConfig
 from game.methods.event import append_rollback_event, get_next_event_index
 from game.methods.get import get_initial_time, get_ply_history
 from game.methods.timeout import plan_timeout_check
@@ -77,6 +78,8 @@ async def validate_rollback(
 async def perform_rollback(
     session: AsyncSession,
     mutable_state: MutableState,
+    main_config: MainConfig,
+    secret_config: SecretConfig,
     game_id: int,
     db_game: Game,
     validation_results: RollbackSuccessfulValidationResults
@@ -129,6 +132,9 @@ async def perform_rollback(
 
     if time_update:
         await plan_timeout_check(
+            mutable_state,
+            main_config,
+            secret_config,
             triggering_time_update=time_update,
             game_id=game_id,
             is_external=is_external

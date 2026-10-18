@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Any
 from game.datatypes import OfferAction, OfferKind
 from game.models.chat import GameChatMessageEvent
@@ -76,6 +77,7 @@ async def append_offer_event(
         session=session,
         mutable_state=mutable_state,
         event=GameOfferEvent(
+            occurred_at=datetime.now(UTC),
             event_index=await get_next_event_index(session, game_id),
             action=action,
             offer_kind=offer_kind,

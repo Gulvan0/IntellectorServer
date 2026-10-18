@@ -3,8 +3,9 @@ from typing import TYPE_CHECKING
 from sqlalchemy.orm import selectinload
 from sqlmodel import Field, Relationship
 
+from common.datatypes import UserStatus
 from common.field_types import CurrentDatetime, CurrentTimestamp
-from common.models import UserActivity
+from common.models import UserActivity, UserRefWithNickname
 from player.datatypes import RankedGameStats, UserRestrictionKind, UserRole
 from common.time_control import TimeControlKind
 from utils.custom_model import CustomModel, CustomSQLModel
@@ -149,3 +150,31 @@ class PlayerGameStats(CustomModel):
     by_time_control: dict[TimeControlKind, PlayerGameStatsByTimeControl]
     best_ranked: TimeControlKind | None
     total_count: int
+
+
+class PlayerRelation(CustomModel):
+    you_follow_since: datetime | None = None
+    follows_you_since: datetime | None = None
+
+
+class PlayerMainRating(CustomModel):
+    time_control_kind: TimeControlKind
+    elo: int
+    provisional: bool
+
+
+class PlayerCard(CustomModel):
+    player: UserRefWithNickname
+    status: UserStatus
+    main_rating: PlayerMainRating | None = None
+
+
+class PlayerConnections(CustomModel):
+    friends: list[PlayerCard]  # mutual follows
+    following: list[PlayerCard]  # followed by the player, not following them back
+    followers: list[PlayerCard]  # following the player, not followed back
+
+
+class EloHistoryEntry(CustomModel):
+    ts: datetime
+    elo: int

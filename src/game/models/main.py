@@ -4,7 +4,7 @@ from typing import Literal
 from sqlalchemy.orm import Load, joinedload, selectinload
 from sqlmodel import Field, Relationship
 
-from common.field_types import CurrentDatetime, OptionalSip, PlayerRef, OptionalPlayerRef, Sip
+from common.field_types import OptionalSip, PlayerRef, OptionalPlayerRef, Sip, legacy_nullable_datetime_field
 from common.models import UserRefWithNickname
 from common.resolved_refs import ResolvedRefs
 from common.time_control import TimeControlKind
@@ -33,7 +33,7 @@ GenericEventList = list[GenericEvent]
 
 
 class GameBase(CustomSQLModel):
-    started_at: CurrentDatetime
+    started_at: datetime | None = legacy_nullable_datetime_field()
 
     time_control_kind: TimeControlKind
     rated: bool

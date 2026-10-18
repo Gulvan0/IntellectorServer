@@ -2,6 +2,7 @@ import traceback
 
 from auth.models import *  # noqa: F401, F403
 from challenge.methods.cancel import cancel_old_challenges
+from game.methods.timeout import replan_all_timeout_checks
 from challenge.models import *  # noqa: F401, F403
 from common.models import *  # noqa: F401, F403
 from config.models import *  # noqa: F401, F403
@@ -75,6 +76,8 @@ class App(FastAPI):
 
             session.add(ServerLaunch())
             await session.commit()
+
+            await replan_all_timeout_checks(session, self.mutable_state, self.main_config, self.secret_config)
 
         asyncio.create_task(self.stale_challenge_cancelation_loop())
 

@@ -15,6 +15,8 @@ class EloParams(CustomModel):
 
 class RuleParams(CustomModel):
     secs_added_manually: int
+    first_move_deadline_secs: int  # for each of the two plies made before the clocks start
+    external_first_move_deadline_secs: int
 
 
 class LimitParams(CustomModel):

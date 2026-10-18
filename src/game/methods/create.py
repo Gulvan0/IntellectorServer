@@ -6,6 +6,7 @@ from challenge.models import Challenge
 from common.models import Id
 from common.user_ref import UserReference
 from config.models import MainConfig, SecretConfig
+from game.methods.timeout import plan_timeout_check
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from notification.methods import delete_new_public_challenge_notifications, send_game_started_notifications
 from player.methods import get_ranked_game_stats_for_time_control, resolve_player_refs
@@ -47,6 +48,7 @@ async def create_game(
     session: AsyncSession,
     state: MutableState,
     main_config: MainConfig,
+    secret_config: SecretConfig,
     deactivated_challenge: Challenge | None = None
 ) -> GameSummaryPublic:
     if deactivated_challenge:
@@ -93,15 +95,16 @@ async def create_game(
     )
     session.add(db_game)
 
-    if time_control:
-        session.add(GameTimeUpdate(
-            updated_at=started_at,
-            white_ms=time_control.start_seconds * 1000,
-            black_ms=time_control.start_seconds * 1000,
-            ticking_side=None,
-            reason=GameTimeUpdateReason.INIT,
-            game=db_game
-        ))
+    initial_time_update = GameTimeUpdate(
+        updated_at=started_at,
+        white_ms=time_control.start_seconds * 1000,
+        black_ms=time_control.start_seconds * 1000,
+        ticking_side=None,
+        reason=GameTimeUpdateReason.INIT,
+        game=db_game
+    ) if time_control else None
+    if initial_time_update:
+        session.add(initial_time_update)
 
     if deactivated_challenge:
         deactivated_challenge.active = False
@@ -113,6 +116,18 @@ async def create_game(
     await session.refresh(db_game)
     if db_time_control:
         await session.refresh(db_time_control)
+
+    if initial_time_update:
+        assert db_game.id
+        await session.refresh(initial_time_update)  # the commit expired it, and an async session can't reload it lazily
+        await plan_timeout_check(
+            state,
+            main_config,
+            secret_config,
+            triggering_time_update=initial_time_update,
+            game_id=db_game.id,
+            is_external=external_uploader_ref is not None
+        )
 
     collected_refs = db_game.collect_refs(include_nested=False)
     resolved_refs = await resolve_player_refs(collected_refs, session)
@@ -154,6 +169,7 @@ async def create_internal_game(
         session=session,
         state=state,
         main_config=main_config,
+        secret_config=secret_config,
         deactivated_challenge=challenge
     )
 
@@ -195,7 +211,8 @@ async def create_external_game(
     custom_starting_sip: str | None,
     session: AsyncSession,
     state: MutableState,
-    main_config: MainConfig
+    main_config: MainConfig,
+    secret_config: SecretConfig
 ) -> GameSummaryPublic:
     return await create_game(
         white_player_ref=white_player_ref,
@@ -206,5 +223,6 @@ async def create_external_game(
         external_uploader_ref=uploader.reference,
         session=session,
         state=state,
-        main_config=main_config
+        main_config=main_config,
+        secret_config=secret_config
     )

@@ -36,7 +36,7 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding='utf-8')
 
 
-def _parse_game(args: tuple[int, str, str | None]) -> tuple[list[object], RatedGameInfo | None, str, str, datetime]:
+def _parse_game(args: tuple[int, str, str | None]) -> tuple[list[object], RatedGameInfo | None, str, str, datetime | None]:
     game_id, full_log, revived_dt = args
     return parse_log(game_id, full_log, revived_dt)
 
@@ -124,7 +124,7 @@ if __name__ == '__main__':
                 SESSION.commit()
                 pending_count = 0
 
-            if started_at.year > 2020:
+            if started_at and started_at.year > 2020:
                 if white_ref not in first_games:
                     first_games[white_ref] = started_at - timedelta(minutes=3)
                 if black_ref not in first_games:

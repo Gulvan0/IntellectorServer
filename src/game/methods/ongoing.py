@@ -2,7 +2,6 @@ from board.constants.sip import DEFAULT_STARTING_SIP
 from common.models import Id
 from game.methods.get import get_current_games, get_last_ply_event, get_latest_time_update
 from game.models.main import Game, OngoingGamePublic, OngoingGameUpdate
-from game.models.rest.common import GameFilter
 from game.models.time_update import GameTimeUpdatePublic
 from net.state import MutableState
 from pubsub.models.channel import PlayerOngoingGamesEventChannel
@@ -24,7 +23,7 @@ async def get_ongoing_game_update(session: AsyncSession, game_id: int, custom_st
 
 
 async def get_player_ongoing_games(session: AsyncSession, player_ref: str) -> list[OngoingGamePublic]:
-    summaries = await get_current_games(session, GameFilter(player_ref=player_ref), limit=None)
+    summaries = await get_current_games(session, player_ref, limit=None)
 
     ongoing_games = []
     for summary in summaries:

@@ -35,7 +35,8 @@ async def create(
     client: MandatoryUserDependency,
     session: SessionDependency,
     state: MutableStateDependency,
-    main_config: MainConfigDependency
+    main_config: MainConfigDependency,
+    secret_config: SecretConfigDependency
 ) -> GameSummaryPublic:
     return await create_external_game(
         uploader=client,
@@ -45,7 +46,8 @@ async def create(
         custom_starting_sip=payload.custom_starting_sip,
         session=session,
         state=state,
-        main_config=main_config
+        main_config=main_config,
+        secret_config=secret_config
     )
 
 
@@ -105,7 +107,9 @@ async def rollback(
     payload: ExternalGameRollbackPayload,
     db_game: GameDependency,
     session: SessionDependency,
-    state: MutableStateDependency
+    state: MutableStateDependency,
+    main_config: MainConfigDependency,
+    secret_config: SecretConfigDependency
 ) -> None:
     validation_results = await validate_rollback(session, payload.game_id, RollbackPlyCountInput(payload.new_ply_cnt))
-    await perform_rollback(session, state, payload.game_id, db_game, validation_results)
+    await perform_rollback(session, state, main_config, secret_config, payload.game_id, db_game, validation_results)

@@ -1,5 +1,5 @@
 from datetime import datetime, UTC
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, Query, UploadFile
 from sqlalchemy import update
 from sqlmodel import col, desc, select
 
@@ -11,8 +11,15 @@ from log.methods import last_seen_in_logs
 from player.datatypes import RankedGameStats
 from player.dependencies import PLAYER_EXISTS_DEPENDENCY, DBPlayerDependency
 from net.base_router import LoggingRoute
-from player.methods import get_connections, get_elo_history, get_follows_since, get_overall_ranked_game_stats, get_ws_activity, promote_to_playing
-from common.dependencies import CLIENT_IS_ADMIN_DEPENDENCY, MainConfigDependency, MandatoryPlayerLoginDependency, MutableStateDependency, SessionDependency
+from player.methods import get_connections, get_elo_history, get_follows_since, get_overall_ranked_game_stats, get_ws_activity, promote_to_playing, search_players
+from common.dependencies import (
+    CLIENT_IS_ADMIN_DEPENDENCY,
+    MainConfigDependency,
+    MandatoryPlayerLoginDependency,
+    MutableStateDependency,
+    OptionalPlayerLoginDependency,
+    SessionDependency,
+)
 from common.field_types import PlayerLogin
 from player.models import (
     EloHistoryEntry,
@@ -27,6 +34,7 @@ from player.models import (
     PlayerRestrictionPublic,
     PlayerRole,
     PlayerRolePublic,
+    PlayerSearchResult,
     PlayerUpdate,
     RestrictionBatchRemovalPayload,
     RestrictionCastingPayload,
@@ -36,6 +44,21 @@ from player.models import (
 
 
 router = APIRouter(prefix="/player", route_class=LoggingRoute)
+
+
+# before `/{login}`, which would take "search" for a login
+@router.get("/search", response_model=PlayerSearchResult)
+async def search(
+    *,
+    session: SessionDependency,
+    state: MutableStateDependency,
+    main_config: MainConfigDependency,
+    client_login: OptionalPlayerLoginDependency,
+    query: str = Query(max_length=64),
+    limit: int = Query(default=12, ge=1, le=50),
+    exclude_self: bool = False,
+) -> PlayerSearchResult:
+    return await search_players(session, state, main_config, query, limit, client_login, exclude_self)
 
 
 @router.get("/{login}/game_stats", response_model=PlayerGameStats)

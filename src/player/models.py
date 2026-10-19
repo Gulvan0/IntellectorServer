@@ -40,18 +40,20 @@ class Player(PlayerBase, table=True):
             options.append(selectinload(Player.restrictions))  # type: ignore[arg-type]
         return options
 
-    def to_public(self, activity: UserActivity) -> PlayerPublic:
+    def main_role(self) -> UserRole | None:
         main_role = None
         for db_role in self.roles:
             main_role = db_role.role
             if not self.preferred_role or db_role.role == self.preferred_role:
                 break
+        return main_role
 
+    def to_public(self, activity: UserActivity) -> PlayerPublic:
         return PlayerPublic(
             login=self.login,
             joined_at=self.joined_at,
             nickname=self.nickname,
-            main_role=main_role,
+            main_role=self.main_role(),
             activity=activity,
         )
 
@@ -167,6 +169,19 @@ class PlayerCard(CustomModel):
     player: UserRefWithNickname
     status: UserStatus
     main_rating: PlayerMainRating | None = None
+
+
+class PlayerSearchEntry(CustomModel):
+    player: UserRefWithNickname
+    status: UserStatus
+    main_role: UserRole | None = None
+    relation: PlayerRelation  # empty for a guest
+    main_rating: PlayerMainRating | None = None
+
+
+class PlayerSearchResult(CustomModel):
+    players: list[PlayerSearchEntry]  # best matches first
+    total_count: int  # every match, the ones past the limit included
 
 
 class PlayerConnections(CustomModel):

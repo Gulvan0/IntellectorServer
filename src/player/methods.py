@@ -2,7 +2,9 @@ from collections.abc import Collection, Iterable
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlmodel import and_, col, desc, or_, select, func
+from sqlalchemy import ColumnElement
+from sqlalchemy.orm import aliased
+from sqlmodel import and_, case, col, desc, or_, select, func
 from common.datatypes import UserStatus
 from common.models import UserActivity, UserRefWithNickname
 from common.resolved_refs import ResolvedRefs
@@ -19,7 +21,10 @@ from player.models import (
     PlayerEloProgress,
     PlayerFollowedPlayer,
     PlayerMainRating,
+    PlayerRelation,
     PlayerRestriction,
+    PlayerSearchEntry,
+    PlayerSearchResult,
 )
 from player.datatypes import RankedGameStats, OverallRankedGameStats, UserRestrictionKind
 from pubsub.models.channel import IncomingChallengesEventChannel
@@ -233,6 +238,100 @@ async def get_connections(session: AsyncSession, state: MutableState, main_confi
         friends=cards(followed & followers),
         following=cards(followed - followers),
         followers=cards(followers - followed)
+    )
+
+
+NICKNAME_SEPARATORS = list("_-. 0123456789")
+
+
+def escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+async def search_players(
+    session: AsyncSession,
+    state: MutableState,
+    main_config: MainConfig,
+    query: str,
+    limit: int,
+    client_login: str | None,
+    exclude_client: bool,
+) -> PlayerSearchResult:
+    """
+    Players whose nickname contains `query`, case-insensitively. Ranked by where the match is (the
+    whole nickname, its start, right after a separator, anywhere), then by the relation to the client
+    (friends, followed, following the client, none), then shorter nicknames first, then alphabetically.
+    """
+    needle = query.strip().lower()
+    if not needle:
+        return PlayerSearchResult(players=[], total_count=0)
+
+    nickname = func.lower(col(Player.nickname))
+    conditions: list[ColumnElement[bool]] = [nickname.like(f"%{escape_like(needle)}%", escape="\\")]
+    if exclude_client and client_login:
+        conditions.append(col(Player.login) != client_login)
+
+    total_count = (await session.exec(select(func.count()).select_from(Player).where(*conditions))).one()
+
+    position = func.locate(needle, nickname)
+    match_rank = case(
+        (nickname == needle, 0),
+        (position == 1, 1),
+        (func.substring(nickname, position - 1, 1).in_(NICKNAME_SEPARATORS), 2),
+        else_=3
+    )
+
+    # for a guest, `== client_login` is `IS NULL`, which no follow row matches
+    you_follow = aliased(PlayerFollowedPlayer)
+    follows_you = aliased(PlayerFollowedPlayer)
+    you_follow_since = col(you_follow.follows_since)
+    follows_you_since = col(follows_you.follows_since)
+    relation_rank = case(
+        (and_(you_follow_since.is_not(None), follows_you_since.is_not(None)), 0),
+        (you_follow_since.is_not(None), 1),
+        (follows_you_since.is_not(None), 2),
+        else_=3
+    )
+
+    db_rows = (await session.exec(select(
+        Player,
+        you_follow_since,
+        follows_you_since
+    ).outerjoin(
+        you_follow,
+        and_(col(you_follow.follower_login) == client_login, col(you_follow.followed_login) == Player.login)
+    ).outerjoin(
+        follows_you,
+        and_(col(follows_you.follower_login) == Player.login, col(follows_you.followed_login) == client_login)
+    ).where(
+        *conditions
+    ).order_by(
+        match_rank,
+        relation_rank,
+        func.char_length(col(Player.nickname)),
+        nickname
+    ).limit(
+        limit
+    ).options(
+        *Player.load_options(roles=True)
+    ))).all()
+
+    logins = [db_player.login for db_player, _, _ in db_rows]
+    statuses = await get_player_statuses(session, state, logins)
+    ranked_stats = await get_overall_ranked_game_stats_batch(session, main_config, logins)
+
+    return PlayerSearchResult(
+        players=[
+            PlayerSearchEntry(
+                player=UserRefWithNickname(user_ref=db_player.login, nickname=db_player.nickname),
+                status=statuses[db_player.login],
+                main_role=db_player.main_role(),
+                relation=PlayerRelation(you_follow_since=db_you_follow_since, follows_you_since=db_follows_you_since),
+                main_rating=main_rating_of(ranked_stats[db_player.login])
+            )
+            for db_player, db_you_follow_since, db_follows_you_since in db_rows
+        ],
+        total_count=total_count
     )
 
 

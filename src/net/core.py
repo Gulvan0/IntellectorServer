@@ -3,6 +3,7 @@ import traceback
 from auth.models import *  # noqa: F401, F403
 from challenge.methods.cancel import cancel_old_challenges
 from game.methods.timeout import replan_all_timeout_checks
+from player.status import publish_player_status_changes
 from challenge.models import *  # noqa: F401, F403
 from common.models import *  # noqa: F401, F403
 from config.models import *  # noqa: F401, F403
@@ -80,6 +81,7 @@ class App(FastAPI):
             await replan_all_timeout_checks(session, self.mutable_state, self.main_config, self.secret_config)
 
         asyncio.create_task(self.stale_challenge_cancelation_loop())
+        asyncio.create_task(self.player_status_publication_loop())
 
         yield
 
@@ -91,6 +93,15 @@ class App(FastAPI):
                     await cancel_old_challenges(session, self.mutable_state, self.secret_config)
             except Exception:
                 await self._log_task_failure("stale_challenge_cancelation")
+
+    async def player_status_publication_loop(self) -> None:
+        while True:
+            await asyncio.sleep(5)
+            try:
+                async with self.get_db_session() as session:
+                    await publish_player_status_changes(session, self.mutable_state)
+            except Exception:
+                await self._log_task_failure("player_status_publication")
 
     @asynccontextmanager
     async def get_db_session(self) -> AsyncGenerator[AsyncSession, None]:

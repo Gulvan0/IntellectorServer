@@ -1,6 +1,8 @@
 from challenge.samples import active_public_challenges, incoming_challenges, outgoing_challenges
+from common.datatypes import UserStatus
 from common.samples import underscore_str, user_ref_with_nickname, user_ref_with_nickname_list
 from game.samples import game_state_refreshes, minimal_representative_games, ongoing_games
+from player.models import PlayerStatusState
 from pubsub.models.channel import (
     GameEventChannel,
     CurrentGameListEventChannel,
@@ -8,6 +10,7 @@ from pubsub.models.channel import (
     OutgoingChallengesEventChannel,
     PublicChallengeListEventChannel,
     PlayerOngoingGamesEventChannel,
+    PlayerStatusEventChannel,
     SubscriberListEventChannel,
 )
 from pubsub.models.state import (
@@ -87,4 +90,14 @@ class SubscriberListRefresh(RefreshEvent[SubscriberListChannelStateRefresh, Subs
             SubscriberListChannelStateRefresh(subscribers=user_ref_with_nickname_list(3), unauthenticated_subs_count=1),
             SubscriberListChannelStateRefresh(subscribers=user_ref_with_nickname_list(1), unauthenticated_subs_count=0),
             SubscriberListChannelStateRefresh(subscribers=[], unauthenticated_subs_count=6),
+        ]
+
+
+class PlayerStatusRefresh(RefreshEvent[PlayerStatusState, PlayerStatusEventChannel]):
+    @classmethod
+    def payload_examples(cls) -> list[PlayerStatusState]:
+        return [
+            PlayerStatusState(status=UserStatus.PLAYING, last_active_unixsecs=1767225600),
+            PlayerStatusState(status=UserStatus.OFFLINE, last_active_unixsecs=1767225600),
+            PlayerStatusState(status=UserStatus.OFFLINE),
         ]

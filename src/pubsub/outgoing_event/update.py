@@ -1,6 +1,7 @@
 
 from challenge.models import ChallengePublic
 from challenge.samples import incoming_challenges, minimal_representative_challenges
+from common.datatypes import UserStatus
 from common.models import Id, IdList, UserRefWithNickname
 from common.samples import user_ref_with_nickname
 from game.models.chat import ChatMessageBroadcastedData
@@ -21,6 +22,7 @@ from game.samples import (
     rollback_broadcasted_data,
     time_added_broadcasted_data,
 )
+from player.models import PlayerStatusState
 from pubsub.models.channel import (
     EveryoneEventChannel,
     GameEventChannel,
@@ -29,6 +31,7 @@ from pubsub.models.channel import (
     OutgoingChallengesEventChannel,
     PublicChallengeListEventChannel,
     PlayerOngoingGamesEventChannel,
+    PlayerStatusEventChannel,
     SubscriberListEventChannel,
 )
 from pubsub.outgoing_event.base import OutgoingEvent
@@ -301,6 +304,23 @@ class GameEnded(OutgoingEvent[GameEndedBroadcastedData, GameEventChannel]):
     @classmethod
     def payload_examples(cls) -> list[GameEndedBroadcastedData]:
         return game_ended_data_samples()
+
+
+class PlayerStatusChanged(OutgoingEvent[PlayerStatusState, PlayerStatusEventChannel]):
+    @classmethod
+    def description(cls) -> str:
+        return (
+            "Broadcasted whenever a player's status changes. Checked every few seconds, so a change"
+            " can reach the subscribers that much later"
+        )
+
+    @classmethod
+    def payload_examples(cls) -> list[PlayerStatusState]:
+        return [
+            PlayerStatusState(status=UserStatus.PLAYING, last_active_unixsecs=1767225600),
+            PlayerStatusState(status=UserStatus.OFFLINE, last_active_unixsecs=1767225600),
+            PlayerStatusState(status=UserStatus.OFFLINE),
+        ]
 
 
 class NewSubscriber(OutgoingEvent[UserRefWithNickname | None, SubscriberListEventChannel]):

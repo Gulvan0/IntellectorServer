@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 from uuid import UUID, uuid4
 from fastapi import WebSocket
 from pydantic import BaseModel, ValidationError
@@ -52,21 +52,30 @@ class WebSocketWrapper:
             return self.app.mutable_state.token_to_user.get(self.saved_token)
         return None
 
-    async def _send_logged_json(self, payload: dict[str, Any]) -> None:
+    async def _send_logged_jsons(self, payloads: list[dict[str, Any]]) -> None:
         async with AsyncSession(self.app.db_engine) as session:
             user = self.get_user_ref()
-            session.add(WSLog(
-                connection_id=str(self.uuid),
-                authorized_as=user.reference if user else None,
-                payload=dump_ws_payload(payload),
-                incoming=False
-            ))
+            for payload in payloads:
+                session.add(WSLog(
+                    connection_id=str(self.uuid),
+                    authorized_as=user.reference if user else None,
+                    payload=dump_ws_payload(payload),
+                    incoming=False
+                ))
             await session.commit()
 
-        await self.ws.send_json(payload)
+        for payload in payloads:
+            await self.ws.send_json(payload)
+
+    async def _send_logged_json(self, payload: dict[str, Any]) -> None:
+        await self._send_logged_jsons([payload])
 
     async def send_event[T: BaseModel | None, C: EventChannel](self, event_instance: OutgoingEvent[T, C]) -> None:
         await self._send_logged_json(event_instance.to_dict())
+
+    async def send_events(self, event_instances: Sequence[OutgoingEvent[Any, Any]]) -> None:
+        """Sends the events in order, logging them all at once"""
+        await self._send_logged_jsons([event_instance.to_dict() for event_instance in event_instances])
 
     async def send_pong(self) -> None:
         await self.ws.send_text("pong")

@@ -5,6 +5,7 @@ from common.models import UserActivity
 from common.user_ref import UserReference
 from net.sub_storage import SubscriberStorage
 from net.task_storage import ConcurrentTaskStorage
+from player.models import PlayerStatusState
 from pubsub.models.channel import EventChannel, EveryoneEventChannel
 from utils.bijective_map import BijectiveMap
 
@@ -18,6 +19,7 @@ class MutableState:
     game_timeout_check_timers: dict[int, TimerHandle] = field(default_factory=dict)
     user_challenge_cancelling_timers: dict[UserReference, TimerHandle] = field(default_factory=dict)
     concurrent_tasks: ConcurrentTaskStorage = field(default_factory=ConcurrentTaskStorage)
+    published_player_statuses: dict[str, PlayerStatusState] = field(default_factory=dict)  # by login, for the players someone subscribed to the status of
 
     __game_end_locks: dict[int, Lock] = field(default_factory=dict)
 

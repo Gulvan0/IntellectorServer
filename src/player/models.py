@@ -165,6 +165,11 @@ class PlayerMainRating(CustomModel):
     provisional: bool
 
 
+class PlayerStatusState(CustomModel):
+    status: UserStatus
+    last_active_unixsecs: int | None = None  # unknown for a player who hasn't been connected since the server started watching them
+
+
 class PlayerCard(CustomModel):
     player: UserRefWithNickname
     status: UserStatus

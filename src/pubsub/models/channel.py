@@ -47,19 +47,29 @@ class PlayerOngoingGamesEventChannel(CustomFrozenModel, frozen=True):
     watched_ref: str
 
 
+class PlayerStatusEventChannel(CustomFrozenModel, frozen=True):
+    group: ClassVar[str] = 'player_status'
+    channel_group: Literal['player_status'] = 'player_status'
+
+    watched_ref: str
+
+
+SubscriberListedEventChannel = Union[
+    EveryoneEventChannel,
+    PublicChallengeListEventChannel,
+    CurrentGameListEventChannel,
+    IncomingChallengesEventChannel,
+    OutgoingChallengesEventChannel,
+    GameEventChannel,
+    PlayerOngoingGamesEventChannel,
+]
+
+
 class SubscriberListEventChannel(CustomFrozenModel, frozen=True):
     group: ClassVar[str] = 'subscriber_list'
     channel_group: Literal['subscriber_list'] = 'subscriber_list'
 
-    channel: Union[
-        EveryoneEventChannel,
-        PublicChallengeListEventChannel,
-        CurrentGameListEventChannel,
-        IncomingChallengesEventChannel,
-        OutgoingChallengesEventChannel,
-        GameEventChannel,
-        PlayerOngoingGamesEventChannel,
-    ]
+    channel: SubscriberListedEventChannel
 
 
 type SubEligibleEventChannel = Union[
@@ -69,6 +79,7 @@ type SubEligibleEventChannel = Union[
     OutgoingChallengesEventChannel,
     GameEventChannel,
     PlayerOngoingGamesEventChannel,
+    PlayerStatusEventChannel,
     SubscriberListEventChannel,
 ]
 

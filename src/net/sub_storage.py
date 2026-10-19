@@ -67,6 +67,13 @@ class SubscriberStorage:
         uuid = self._resolve_websocket_reference(websocket_ref)
         return set(channel for channel, channel_subs in self.subscribers.items() if uuid in channel_subs)
 
+    def get_subscribed_channels[C: EventChannel](self, channel_type: type[C]) -> list[C]:
+        return [
+            channel
+            for channel, subs in self.subscribers.items()
+            if isinstance(channel, channel_type) and subs
+        ]
+
     def count_subscribers(self, channel: EventChannel = EveryoneEventChannel()) -> int:
         return len(self.subscribers[channel])
 

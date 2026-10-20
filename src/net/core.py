@@ -47,6 +47,7 @@ from pubsub.models.channel import EveryoneEventChannel
 from pubsub.ws_handlers import broadcast_subscriber_left
 from config.models import MainConfig, SecretConfig
 from log.models import ServerLaunch, TaskFailureLog
+from log.ws_log_buffer import WSLogBuffer
 from config.loader import load
 from utils.async_orm_session import AsyncSession
 from net.ws_wrapper import WebSocketWrapper
@@ -82,8 +83,12 @@ class App(FastAPI):
 
         asyncio.create_task(self.stale_challenge_cancelation_loop())
         asyncio.create_task(self.player_status_publication_loop())
+        ws_log_flush_task = asyncio.create_task(self.ws_log_flush_loop())
 
         yield
+
+        ws_log_flush_task.cancel()
+        await self.ws_log_buffer.flush()
 
     async def stale_challenge_cancelation_loop(self) -> None:
         while True:
@@ -102,6 +107,14 @@ class App(FastAPI):
                     await publish_player_status_changes(session, self.mutable_state)
             except Exception:
                 await self._log_task_failure("player_status_publication")
+
+    async def ws_log_flush_loop(self) -> None:
+        while True:
+            await self.ws_log_buffer.wait_until_flush_due()
+            try:
+                await self.ws_log_buffer.flush()
+            except Exception:
+                await self._log_task_failure("ws_log_flush")
 
     @asynccontextmanager
     async def get_db_session(self) -> AsyncGenerator[AsyncSession, None]:
@@ -128,6 +141,7 @@ class App(FastAPI):
 
         self.db_engine: AsyncEngine = create_async_engine(self.secret_config.db.url)
         self.mutable_state.concurrent_tasks.db_engine = self.db_engine
+        self.ws_log_buffer: WSLogBuffer = WSLogBuffer(self.db_engine)
 
         for router in rest_routers:
             self.include_router(router)

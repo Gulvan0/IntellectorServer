@@ -169,7 +169,7 @@ def clone_time_update(original: GameTimeUpdate) -> GameTimeUpdate:
     )
 
 
-def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list[object], RatedGameInfo | None, str, str, datetime | None]:
+def parse_log(game_id: int, full_log: str, estimated_dt: str | None) -> tuple[list[object], RatedGameInfo | None, str, str, datetime | None]:
     added_objects: list[object] = []
 
     players = get_players(full_log)
@@ -200,7 +200,7 @@ def parse_log(game_id: int, full_log: str, revived_dt: str | None) -> tuple[list
     rollback_events: list[GameRollbackEvent] = []
 
     # null if the log doesn't record it; the old logs never record when the other events happened, so theirs are null
-    started_at = get_datetime(full_log) or (datetime.fromisoformat(revived_dt) if revived_dt else None)
+    started_at = get_datetime(full_log) or (datetime.fromisoformat(estimated_dt).replace(tzinfo=MSK_TZ) if estimated_dt else None)
     event_index = 0
     time_update = GameTimeUpdate(
         updated_at=started_at,

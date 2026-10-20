@@ -1,10 +1,11 @@
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import CHAR
 from sqlalchemy.dialects.mysql import TEXT
 from sqlmodel import Field, Relationship, Column
 
-from common.field_types import CurrentDatetime, OptionalPlayerRef
+from common.field_types import CurrentDatetime, OptionalPlayerRef, precise_current_datetime_field
 from log.datatypes import RestMethod
 from utils.custom_model import CustomSQLModel
 
@@ -17,7 +18,7 @@ class ServerLaunch(CustomSQLModel, table=True):
 # <private>
 class RESTRequestLog(CustomSQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    ts: CurrentDatetime
+    ts: datetime = precise_current_datetime_field()
     client_host: str
     authorized_as: OptionalPlayerRef = Field(index=True)
     endpoint: str
@@ -41,7 +42,7 @@ class RESTResponseLog(CustomSQLModel, table=True):
 # <private>
 class WSLog(CustomSQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    ts: CurrentDatetime
+    ts: datetime = precise_current_datetime_field()
     connection_id: str = Field(sa_column=Column(CHAR(36)))
     authorized_as: OptionalPlayerRef = Field(index=True)
     payload: str = Field(sa_column=Column(TEXT))

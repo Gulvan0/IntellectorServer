@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import datetime, timedelta
+import csv
 import json
 from pathlib import Path
 import re
@@ -19,7 +20,7 @@ from sqlmodel import Session
 from config.loader import load
 from config.models import SecretConfig
 from migration.antifraud import process_log
-from migration.game import parse_log, RatedGameInfo
+from migration.game import MSK_TZ, parse_log, RatedGameInfo
 from migration.player import process_passwords_file, process_player_file
 from migration.study import process_study
 
@@ -37,8 +38,13 @@ def _read_text(path: Path) -> str:
 
 
 def _parse_game(args: tuple[int, str, str | None]) -> tuple[list[object], RatedGameInfo | None, str, str, datetime | None]:
-    game_id, full_log, revived_dt = args
-    return parse_log(game_id, full_log, revived_dt)
+    game_id, full_log, estimated_dt = args
+    return parse_log(game_id, full_log, estimated_dt)
+
+
+def _read_csv_column(path: str, key_column: str, value_column: str) -> dict[str, str]:
+    with open(path, encoding='utf-8', newline='') as file:
+        return {row[key_column]: row[value_column] for row in csv.DictReader(file)}
 
 
 if __name__ == '__main__':
@@ -68,7 +74,13 @@ if __name__ == '__main__':
     else:
         root = Path.cwd()
 
-    revived_dts: dict[str, str] = json.loads(Path('revived_dts.json').read_text(encoding='utf-8'))
+    # Estimated from the community chat for the games whose logs predate start time recording; MSK
+    estimated_dts = _read_csv_column('old_games_datetimes.csv', 'game_id', 'estimated_datetime')
+    # The players' first messages in the community chat; MSK
+    first_messages = {
+        login: datetime.fromisoformat(raw_dt).replace(tzinfo=MSK_TZ)
+        for login, raw_dt in _read_csv_column('first_messages.csv', 'login', 'first_message_date').items()
+    }
     player_rated_games: defaultdict[str, list[RatedGameInfo]] = defaultdict(list)
     first_games: dict[str, datetime] = {}
 
@@ -85,7 +97,7 @@ if __name__ == '__main__':
         game_contents: list[str] = list(io_executor.map(_read_text, game_paths))
 
     parse_args_list: list[tuple[int, str, str | None]] = [
-        (int(p.stem), content, revived_dts.get(p.stem))
+        (int(p.stem), content, estimated_dts.get(p.stem))
         for p, content in zip(game_paths, game_contents)
     ]
     del game_contents
@@ -145,7 +157,7 @@ if __name__ == '__main__':
 
     print('Passwords')
     raw_passwords: dict[str, str] = json.loads((root / 'other/passwords.json').read_text(encoding='utf-8'))
-    players, passwords = process_passwords_file(raw_passwords, first_games, last_activities)
+    players, passwords = process_passwords_file(raw_passwords, first_messages, first_games, last_activities)
     SESSION.add_all(players)
     SESSION.commit()
     SESSION.add_all(passwords)

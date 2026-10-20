@@ -24,11 +24,13 @@ def get_client_ref(request: Request, app: App) -> str | None:
     return None
 
 
-async def log_info(request: Request, response_code: int, response_body: bytes, app: App) -> None:
+async def log_request(request: Request, app: App) -> int | None:
+    """Commits the request before it is handled, so a request that crashes or hangs the server is still logged.
+    Returns the log entry's id, or None if the method isn't logged"""
     try:
         method = RestMethod(request.method.lower())
     except ValueError:
-        return
+        return None
 
     async with AsyncSession(app.db_engine) as session:
         request_entry = RESTRequestLog(
@@ -39,13 +41,23 @@ async def log_info(request: Request, response_code: int, response_body: bytes, a
             headers_json=dump_headers(request.headers),
             payload=dump_bytes(await request.body()),
         )
-        response_entry = RESTResponseLog(
-            response_code=response_code,
-            response=dump_bytes(response_body),
-            request=request_entry
-        )
         session.add(request_entry)
-        session.add(response_entry)
+        await session.flush()
+        request_id = request_entry.id  # read before commit, which expires the entry's attributes
+        await session.commit()
+        return request_id
+
+
+async def log_response(request_id: int | None, response_code: int, response_body: bytes, app: App) -> None:
+    if request_id is None:
+        return
+
+    async with AsyncSession(app.db_engine) as session:
+        session.add(RESTResponseLog(
+            request_id=request_id,
+            response_code=response_code,
+            response=dump_bytes(response_body)
+        ))
         await session.commit()
 
 
@@ -55,16 +67,17 @@ class LoggingRoute(APIRoute):
 
         async def custom_route_handler(request: Request) -> Response:
             await request.body()  # Cache the request's body
+            request_id = await log_request(request, request.app)
 
             try:
                 response = await original_route_handler(request)
             except HTTPException as exc:
                 body = json.dumps(exc.body() if isinstance(exc, RestException) else {"detail": exc.detail}).encode()
-                request.app.mutable_state.concurrent_tasks.plan(log_info(request, exc.status_code, body, request.app))
+                request.app.mutable_state.concurrent_tasks.plan(log_response(request_id, exc.status_code, body, request.app))
                 raise
             except Exception as exc:
                 body = json.dumps({"detail": str(exc)}).encode()
-                request.app.mutable_state.concurrent_tasks.plan(log_info(request, 500, body, request.app))
+                request.app.mutable_state.concurrent_tasks.plan(log_response(request_id, 500, body, request.app))
                 raise
             existing_task = response.background
 
@@ -74,7 +87,7 @@ class LoggingRoute(APIRoute):
                     chunks.append(chunk)
                 response_body = b''.join(chunks)  # type: ignore
 
-                task = BackgroundTask(log_info, request, response.status_code, response_body, request.app)
+                task = BackgroundTask(log_response, request_id, response.status_code, response_body, request.app)
                 response = Response(
                     content=response_body,
                     status_code=response.status_code,
@@ -82,7 +95,7 @@ class LoggingRoute(APIRoute):
                     media_type=response.media_type
                 )
             else:
-                task = BackgroundTask(log_info, request, response.status_code, response.body, request.app)  # type: ignore[arg-type]
+                task = BackgroundTask(log_response, request_id, response.status_code, response.body, request.app)  # type: ignore[arg-type]
 
             if existing_task:
                 response.background = BackgroundTasks([existing_task, task])

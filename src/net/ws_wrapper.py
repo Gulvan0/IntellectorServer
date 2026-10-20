@@ -14,7 +14,6 @@ from pubsub.models.channel import EventChannel
 from log.models import WSLog
 from net.utils.ws_error import ErrorKind
 from pubsub.outgoing_event.base import OutgoingEvent
-from utils.async_orm_session import AsyncSession
 
 import time
 import json
@@ -53,16 +52,14 @@ class WebSocketWrapper:
         return None
 
     async def _send_logged_jsons(self, payloads: list[dict[str, Any]]) -> None:
-        async with AsyncSession(self.app.db_engine) as session:
-            user = self.get_user_ref()
-            for payload in payloads:
-                session.add(WSLog(
-                    connection_id=str(self.uuid),
-                    authorized_as=user.reference if user else None,
-                    payload=dump_ws_payload(payload),
-                    incoming=False
-                ))
-            await session.commit()
+        user = self.get_user_ref()
+        for payload in payloads:
+            self.app.ws_log_buffer.add(WSLog(
+                connection_id=str(self.uuid),
+                authorized_as=user.reference if user else None,
+                payload=dump_ws_payload(payload),
+                incoming=False
+            ))
 
         for payload in payloads:
             await self.ws.send_json(payload)

@@ -12,7 +12,7 @@ def process_player_file(login: str, data: dict) -> tuple[list[PlayerFollowedPlay
     ], data.get("lastMessageTimestamp")
 
 
-def process_passwords_file(data: dict[str, str], first_games: dict[str, datetime], last_activity: Mapping[str, int | None]) -> tuple[list[Player], list[PlayerPassword]]:
+def process_passwords_file(data: dict[str, str], first_messages: dict[str, datetime], first_games: dict[str, datetime], last_activity: Mapping[str, int | None]) -> tuple[list[Player], list[PlayerPassword]]:
     players = []
     passwords = []
 
@@ -36,7 +36,9 @@ def process_passwords_file(data: dict[str, str], first_games: dict[str, datetime
         elif login == "paulnotintellector":
             nickname = "PaulNotIntellector"
 
-        if login == "gulvan":
+        if login in first_messages:
+            joined_at = first_messages[login]
+        elif login == "gulvan":
             joined_at = datetime(2021, 5, 19, tzinfo=UTC)
         else:
             joined_at = first_games.get(login, datetime.now(UTC))

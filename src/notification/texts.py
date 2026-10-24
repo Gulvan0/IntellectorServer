@@ -7,12 +7,21 @@ from game.models.main import GameSummaryPublic
 def format_time_control(time_control: FischerTimeControlEntity | None) -> str | None:
     if not time_control:
         return None
-    if time_control.start_seconds % 60 == 0:
-        formatted_start_secs = str(time_control.start_seconds // 60)
-    elif time_control.start_seconds > 60:
-        formatted_start_secs = f"{time_control.start_seconds // 60}m{time_control.start_seconds % 60}s"
+    start_seconds = time_control.start_seconds
+    start_minutes, seconds_remainder = divmod(start_seconds, 60)
+    if start_minutes >= 100:
+        hours, minutes_remainder = divmod(start_minutes, 60)
+        formatted_start_secs = f"{hours}h"
+        if minutes_remainder:
+            formatted_start_secs += f"{minutes_remainder}m"
+        if seconds_remainder:
+            formatted_start_secs += f"{seconds_remainder}s"
+    elif seconds_remainder == 0:
+        formatted_start_secs = str(start_minutes)
+    elif start_minutes > 0:
+        formatted_start_secs = f"{start_minutes}m{seconds_remainder}s"
     else:
-        formatted_start_secs = f"{time_control.start_seconds % 60}s"
+        formatted_start_secs = f"{seconds_remainder}s"
     return f"{formatted_start_secs}+{time_control.increment_seconds}"
 
 

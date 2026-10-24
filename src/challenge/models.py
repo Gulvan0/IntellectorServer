@@ -8,7 +8,7 @@ from common.models import UserRefWithNickname
 from common.resolved_refs import ResolvedRefs
 from common.time_control import FischerTimeControlEntity, TimeControlKind
 from common.field_types import CurrentDatetime, PlayerRef, OptionalSip, OptionalPlayerRef
-from game.models.main import Game, GameSummaryPublic
+from game.models.main import Game, GameSummaryPublic, PlayerRatingPublic
 from utils.custom_model import CustomModel, CustomSQLModel
 
 
@@ -147,10 +147,12 @@ class ChallengePublic(ChallengeBase):
     active: bool
     fischer_time_control: ChallengeFischerTimeControlPublic | None = None
     resulting_game: GameSummaryPublic | None = None
+    caller_rating: PlayerRatingPublic | None = None  # filled for rated public challenges of players: the rating the caller would play at
 
 
 class ChallengeCreateResponse(CustomModel):
     result: Literal["CREATED", "MERGED"]
     challenge: ChallengePublic | None = None
     callee_online: bool | None = None
+    callee_session_lost: bool | None = None  # set for guest callees: the server no longer knows their token, so they can only return as a new guest
     game: GameSummaryPublic | None = None

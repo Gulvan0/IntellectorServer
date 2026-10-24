@@ -5,7 +5,9 @@ from challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
 from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic
 from challenge.sql import time_control_equality_conditions
 from common.user_ref import UserReference
-from player.methods import resolve_player_refs
+from config.models import MainConfig
+from game.models.main import PlayerRatingPublic
+from player.methods import get_ranked_game_stats_for_time_control, resolve_player_refs
 from utils.async_orm_session import AsyncSession
 
 
@@ -139,16 +141,45 @@ async def get_direct_challenges(
     ))
 
 
-async def get_active_public_challenges(session: AsyncSession, offset: int = 0, limit: int = 50) -> list[ChallengePublic]:
-    return await _query_challenges_as_public(session, select(
-        Challenge
-    ).where(
+def _active_public_challenge_conditions() -> list:
+    return [
         Challenge.active == True,  # noqa
         Challenge.kind == ChallengeKind.PUBLIC,
+    ]
+
+
+async def fill_caller_rating(session: AsyncSession, main_config: MainConfig, challenge: ChallengePublic) -> None:
+    """Sets the rating a rated challenge's caller would play at; guests and casual challenges get none"""
+    caller = UserReference(challenge.caller.user_ref)
+    if not challenge.rated or not caller.is_player():
+        return
+    stats = await get_ranked_game_stats_for_time_control(session, main_config, caller.login, challenge.time_control_kind)
+    challenge.caller_rating = PlayerRatingPublic(elo=stats.elo or main_config.elo.default, provisional=stats.is_elo_provisional)
+
+
+async def get_active_public_challenges(session: AsyncSession, main_config: MainConfig, offset: int = 0, limit: int = 50) -> list[ChallengePublic]:
+    """Newest first; the id breaks ties, so that offset paging neither skips nor repeats challenges of the same instant"""
+    challenges = await _query_challenges_as_public(session, select(
+        Challenge
+    ).where(
+        *_active_public_challenge_conditions()
+    ).order_by(
+        desc(Challenge.created_at),
+        desc(Challenge.id)
     ).offset(
         offset
     ).limit(
         limit
-    ).order_by(
-        desc(Challenge.created_at)
     ))
+    for challenge in challenges:
+        await fill_caller_rating(session, main_config, challenge)
+    return challenges
+
+
+async def count_active_public_challenges(session: AsyncSession) -> int:
+    result = await session.exec(select(
+        func.count(col(Challenge.id))
+    ).where(
+        *_active_public_challenge_conditions()
+    ))
+    return result.one()

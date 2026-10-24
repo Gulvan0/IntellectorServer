@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query, Response
 from challenge.datatypes import ChallengeKind
-from challenge.methods.get import get_active_public_challenges, get_direct_challenges
+from challenge.methods.get import fill_caller_rating, get_active_public_challenges, get_direct_challenges
 from challenge.methods.merge import try_merging
 from challenge.methods.validation import perform_common_validations, validate_direct_callee
 from challenge.methods.cancel import cancel_challenge as cancel_specific_challenge
@@ -66,7 +66,9 @@ async def create_open_challenge(
             session=task_session
         ))
 
-        event = NewPublicChallenge(public_challenge, PublicChallengeListEventChannel())
+        listed_challenge = public_challenge.model_copy()
+        await fill_caller_rating(session, main_config, listed_challenge)
+        event = NewPublicChallenge(listed_challenge, PublicChallengeListEventChannel())
         state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event))
 
     created_event = OutgoingChallengeCreated(public_challenge, OutgoingChallengesEventChannel(user_ref=caller.reference))
@@ -95,6 +97,7 @@ async def create_direct_challenge(
 
     direct_challenges_observer_channel = IncomingChallengesEventChannel(user_ref=challenge.callee_ref)
     callee_online = state.has_user_subscriber(callee, direct_challenges_observer_channel)
+    callee_session_lost = not state.has_guest_session(callee) if callee.is_guest() else None
 
     db_challenge = challenge.to_db_challenge(caller.reference)
     session.add(db_challenge)
@@ -115,12 +118,12 @@ async def create_direct_challenge(
     created_event = OutgoingChallengeCreated(public_challenge, OutgoingChallengesEventChannel(user_ref=caller.reference))
     state.concurrent_tasks.plan(state.ws_subscribers.broadcast(created_event))
 
-    return ChallengeCreateResponse(result="CREATED", challenge=public_challenge, callee_online=callee_online)
+    return ChallengeCreateResponse(result="CREATED", challenge=public_challenge, callee_online=callee_online, callee_session_lost=callee_session_lost)
 
 
 @router.get("/public", response_model=list[ChallengePublic])
-async def get_public_challenges(*, session: SessionDependency, offset: int = 0, limit: int = Query(default=50, le=50)) -> list[ChallengePublic]:
-    return await get_active_public_challenges(session, offset, limit)
+async def get_public_challenges(*, session: SessionDependency, main_config: MainConfigDependency, offset: int = 0, limit: int = Query(default=50, le=50)) -> list[ChallengePublic]:
+    return await get_active_public_challenges(session, main_config, offset, limit)
 
 
 @router.get("/my_direct", response_model=list[ChallengePublic])
@@ -192,6 +195,9 @@ async def accept_challenge(
     else:
         if db_challenge.caller_ref == client.reference:
             raise HTTPException(status_code=422, detail="Cannot accept own challenge")
+
+    if db_challenge.rated and client.is_guest():
+        raise HTTPException(status_code=403, detail="Guests cannot play rated games")
 
     db_game = await create_internal_game(db_challenge, client, session, state, main_config, secret_config)
 

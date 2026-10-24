@@ -1,7 +1,9 @@
 import asyncio
+import os
 from asyncio import StreamWriter
 import logging
 from ssl import SSLError
+from typing import Any
 
 from auth import routes as auth_routes
 from challenge import routes as challenge_routes
@@ -68,6 +70,23 @@ app.add_middleware(
 )
 
 
+PLAIN_HTTP_PORT = 8080
+
+
+async def _plain_http_app(scope: Any, receive: Any, send: Any) -> None:
+    # the main listener runs the app's startup and shutdown, so this one must not repeat them
+    if scope["type"] == "lifespan":
+        while True:
+            message = await receive()
+            if message["type"] == "lifespan.startup":
+                await send({"type": "lifespan.startup.complete"})
+            elif message["type"] == "lifespan.shutdown":
+                await send({"type": "lifespan.shutdown.complete"})
+                return
+    else:
+        await app(scope, receive, send)
+
+
 async def run_server() -> None:
     logging.basicConfig(level=logging.INFO)
 
@@ -77,7 +96,17 @@ async def run_server() -> None:
     config.errorlog = logging.getLogger("hypercorn.error")
     config.keyfile = app.secret_config.ssl.key_path
     config.certfile = app.secret_config.ssl.cert_path
-    await serve(app, config)  # type: ignore
+    servers = [serve(app, config)]  # type: ignore
+
+    if os.getenv("STAGE", "TEST").lower() == "test":
+        # for devices that cannot trust the self-signed certificate (e.g. a phone on the local network)
+        plain_config = Config()
+        plain_config.bind = [f"0.0.0.0:{PLAIN_HTTP_PORT}"]
+        plain_config.accesslog = config.accesslog
+        plain_config.errorlog = config.errorlog
+        servers.append(serve(_plain_http_app, plain_config))  # type: ignore
+
+    await asyncio.gather(*servers)
 
 
 if __name__ == "__main__":

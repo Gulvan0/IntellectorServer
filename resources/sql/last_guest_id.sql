@@ -4,12 +4,12 @@ FROM (
     SELECT
         authorized_as
     FROM
-        test_schema.restrequestlog
+        restrequestlog
     UNION ALL
     SELECT
         authorized_as
     FROM
-        test_schema.wslog
+        wslog
 ) AS src
 WHERE
     authorized_as LIKE "\_%"

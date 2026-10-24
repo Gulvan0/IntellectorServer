@@ -41,5 +41,8 @@ class MutableState:
     def has_user_subscriber(self, user_ref: UserReference, channel: EventChannel = EveryoneEventChannel()) -> bool:
         return self.ws_subscribers.has_user_subscriber(self.token_to_user, user_ref, channel)
 
+    def has_guest_session(self, guest: UserReference) -> bool:
+        return self.token_to_user.get_inverse(guest) is not None
+
     def get_user_activity_in_channel(self, user_ref: UserReference, channel: EventChannel) -> UserActivity | None:
         return self.ws_subscribers.get_user_activity_in_channel(self.token_to_user, user_ref, channel)

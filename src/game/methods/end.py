@@ -13,8 +13,9 @@ from net.state import MutableState
 from notification.methods import delete_game_started_notifications
 from player.methods import get_ranked_game_stats_for_time_control, resolve_player_refs
 from player.models import PlayerEloProgress
-from pubsub.models.channel import GameEventChannel, CurrentGameListEventChannel
-from pubsub.outgoing_event.update import GameEnded, NewRecentGame
+from common.models import Id
+from pubsub.models.channel import GameEventChannel, CurrentGameListEventChannel, RecentGameListEventChannel
+from pubsub.outgoing_event.update import CurrentGameEnded, GameEnded, NewRecentGame
 from board.piece import PieceColor
 from utils.async_orm_session import AsyncSession
 
@@ -133,15 +134,28 @@ async def end_game(
         await session.refresh(db_game)
         await session.refresh(db_game, attribute_names=['fischer_time_control', 'outcome'])  # to_summary reads them, and an async session can't load them lazily
 
-        async def broadcast_new_recent_game() -> None:
+        async def broadcast_game_lists_update() -> None:
+            await state.ws_subscribers.broadcast(CurrentGameEnded(Id(id=game_id), CurrentGameListEventChannel()))
+            if outcome == OutcomeKind.ABORT:
+                return
+
+            matching_channels = [
+                channel
+                for channel in state.ws_subscribers.get_subscribed_channels(RecentGameListEventChannel)
+                if channel.matches(db_game.time_control_kind, db_game.rated)
+            ]
+            if not matching_channels:
+                return
+
             collected_refs = db_game.collect_refs(include_nested=False)
             resolved_refs = await resolve_player_refs(collected_refs, session)
-            await state.ws_subscribers.broadcast(NewRecentGame(
-                db_game.to_summary(resolved_refs),
-                CurrentGameListEventChannel()
-            ))
+            summary = db_game.to_summary(resolved_refs)
+            await asyncio.gather(*[
+                state.ws_subscribers.broadcast(NewRecentGame(summary, channel))
+                for channel in matching_channels
+            ])
 
-        # runs alongside broadcast_new_recent_game, which uses `session`, so it gets a session of its own
+        # runs alongside broadcast_game_lists_update, which uses `session`, so it gets a session of its own
         async def delete_notifications() -> None:
             async with AsyncSession(session.engine) as notifications_session:
                 await delete_game_started_notifications(
@@ -151,7 +165,7 @@ async def end_game(
                 )
 
         await asyncio.gather(
-            broadcast_new_recent_game(),
+            broadcast_game_lists_update(),
             state.ws_subscribers.broadcast(GameEnded(
                 db_outcome.to_broadcasted_data(elo_updates),
                 GameEventChannel(game_id=game_id)

@@ -161,6 +161,7 @@ class GameSummaryPublic(GameBase):
     outcome: GameOutcomePublic | None
     white_rating: PlayerRatingPublic | None = None
     black_rating: PlayerRatingPublic | None = None
+    last_ply_at: datetime | None = None  # filled by game search for ongoing games only; null before the first ply
 
 
 class GamePublic(GameSummaryPublic):

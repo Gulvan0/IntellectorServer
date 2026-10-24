@@ -11,7 +11,7 @@ from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from notification.methods import delete_new_public_challenge_notifications, send_game_started_notifications
 from player.methods import get_ranked_game_stats_for_time_control, resolve_player_refs
 from pubsub.models.channel import CurrentGameListEventChannel, IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, PlayerOngoingGamesEventChannel
-from game.models.main import Game, GameStartedBroadcastedData, GameSummaryPublic
+from game.models.main import Game, GameSummaryPublic
 from game.models.time_control import GameFischerTimeControl
 from net.state import MutableState
 from common.time_control import FischerTimeControlEntity, TimeControlKind
@@ -52,7 +52,8 @@ async def create_game(
     deactivated_challenge: Challenge | None = None
 ) -> GameSummaryPublic:
     if deactivated_challenge:
-        cancel_timer = state.user_challenge_cancelling_timers.get(UserReference.logged(deactivated_challenge.caller_ref))
+        caller = UserReference(deactivated_challenge.caller_ref)
+        cancel_timer = state.user_challenge_cancelling_timers.get(UserReference.guest(caller.guest_id) if caller.is_guest() else UserReference.logged(caller.login))
         if cancel_timer:
             cancel_timer.cancel()
 
@@ -137,7 +138,7 @@ async def create_game(
         game_started_event = OngoingGameStarted(summary, PlayerOngoingGamesEventChannel(watched_ref=player_ref))
         state.concurrent_tasks.plan(state.ws_subscribers.broadcast(game_started_event))
 
-    new_game_event = NewActiveGame(GameStartedBroadcastedData.cast(summary), CurrentGameListEventChannel())
+    new_game_event = NewActiveGame(summary, CurrentGameListEventChannel())
     state.concurrent_tasks.plan(state.ws_subscribers.broadcast(new_game_event))
 
     return summary

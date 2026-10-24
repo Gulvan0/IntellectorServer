@@ -1,7 +1,6 @@
-from collections import defaultdict
 from dataclasses import dataclass
 from enum import StrEnum, auto
-from typing import DefaultDict, Iterable
+from typing import Iterable
 from uuid import UUID
 from pydantic import BaseModel
 
@@ -16,6 +15,9 @@ from utils.bijective_map import BijectiveMap
 import asyncio
 
 
+BROADCAST_SEND_TIMEOUT_SECS = 5
+
+
 class SubscriberTag(StrEnum):
     WHITE_PLAYER = auto()
     BLACK_PLAYER = auto()
@@ -28,7 +30,9 @@ class Subscriber:
 
 
 class SubscriberStorage:
-    subscribers: DefaultDict[EventChannel, dict[UUID, Subscriber]] = defaultdict(dict)
+    def __init__(self) -> None:
+        self.subscribers: dict[EventChannel, dict[UUID, Subscriber]] = {}
+        self._channels_by_ws: dict[UUID, set[EventChannel]] = {}
 
     @staticmethod
     def _resolve_websocket_reference(websocket_ref: WebSocketWrapper | UUID) -> UUID:
@@ -52,20 +56,39 @@ class SubscriberStorage:
         }
 
     def subscribe(self, websocket: WebSocketWrapper, channel: EventChannel, tags: set[SubscriberTag] | None = None) -> None:
-        self.subscribers[channel][websocket.uuid] = Subscriber(websocket, tags or set())
+        self.subscribers.setdefault(channel, {})[websocket.uuid] = Subscriber(websocket, tags or set())
+        self._channels_by_ws.setdefault(websocket.uuid, set()).add(channel)
+
+    def set_tags(self, websocket: WebSocketWrapper, channel: EventChannel, tags: set[SubscriberTag]) -> None:
+        subscriber = self.subscribers.get(channel, {}).get(websocket.uuid)
+        if subscriber is not None:
+            subscriber.tags = tags
 
     def unsubscribe(self, websocket_ref: WebSocketWrapper | UUID, channel: EventChannel) -> None:
         uuid = self._resolve_websocket_reference(websocket_ref)
-        self.subscribers[channel].pop(uuid, None)
+        self._remove(uuid, channel)
+        ws_channels = self._channels_by_ws.get(uuid)
+        if ws_channels is not None:
+            ws_channels.discard(channel)
+            if not ws_channels:
+                del self._channels_by_ws[uuid]
 
     def fully_remove(self, websocket_ref: WebSocketWrapper | UUID) -> None:
         uuid = self._resolve_websocket_reference(websocket_ref)
-        for channel_subs in self.subscribers.values():
-            channel_subs.pop(uuid, None)
+        for channel in self._channels_by_ws.pop(uuid, set()):
+            self._remove(uuid, channel)
+
+    def _remove(self, uuid: UUID, channel: EventChannel) -> None:
+        channel_subs = self.subscribers.get(channel)
+        if channel_subs is None:
+            return
+        channel_subs.pop(uuid, None)
+        if not channel_subs:
+            del self.subscribers[channel]
 
     def get_subscriptions(self, websocket_ref: WebSocketWrapper | UUID) -> set[EventChannel]:
         uuid = self._resolve_websocket_reference(websocket_ref)
-        return set(channel for channel, channel_subs in self.subscribers.items() if uuid in channel_subs)
+        return set(self._channels_by_ws.get(uuid, ()))
 
     def get_subscribed_channels[C: EventChannel](self, channel_type: type[C]) -> list[C]:
         return [
@@ -75,13 +98,13 @@ class SubscriberStorage:
         ]
 
     def count_subscribers(self, channel: EventChannel = EveryoneEventChannel()) -> int:
-        return len(self.subscribers[channel])
+        return len(self.subscribers.get(channel, ()))
 
     def get_subscribers(self, channel: EventChannel = EveryoneEventChannel()) -> Iterable[Subscriber]:
-        return self.subscribers[channel].values()
+        return list(self.subscribers.get(channel, {}).values())
 
     def has_ws_subscriber(self, websocket_ref: WebSocketWrapper | UUID, channel: EventChannel = EveryoneEventChannel()) -> bool:
-        return self._resolve_websocket_reference(websocket_ref) in self.subscribers[channel]
+        return self._resolve_websocket_reference(websocket_ref) in self.subscribers.get(channel, ())
 
     def has_token_subscriber(self, token: str, channel: EventChannel = EveryoneEventChannel()) -> bool:
         for subscriber in self.get_subscribers(channel):
@@ -132,5 +155,19 @@ class SubscriberStorage:
                 continue
             if tag_blacklist and subscriber.tags.intersection(tag_blacklist):
                 continue
-            sending_coroutines.append(subscriber.ws.send_event(event_instance))
+            sending_coroutines.append(self._send_or_drop(subscriber.ws, event_instance))
         await asyncio.gather(*sending_coroutines)
+
+    @staticmethod
+    async def _send_or_drop(ws: WebSocketWrapper, event_instance: OutgoingEvent) -> None:
+        """Closes the connection if it can't take the event in time, so that one stalled client can't hold up a broadcast.
+
+        A send cancelled by the timeout may have written a partial frame, so the connection can't be reused afterwards;
+        the client reconnects and gets fresh snapshots on re-subscribing."""
+        try:
+            await asyncio.wait_for(ws.send_event(event_instance), BROADCAST_SEND_TIMEOUT_SECS)
+        except asyncio.TimeoutError:
+            try:
+                await asyncio.wait_for(ws.ws.close(), BROADCAST_SEND_TIMEOUT_SECS)
+            except Exception:
+                pass  # the connection is stalled, so a failed close handshake is expected

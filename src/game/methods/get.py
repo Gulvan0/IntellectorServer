@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy import ScalarResult
 from sqlalchemy.engine import TupleResult
 from sqlmodel import and_, col, desc, or_, select, func
@@ -119,14 +120,21 @@ async def _query_games_as_public(session: AsyncSession, query: SelectOfScalar[Ga
     ]
 
 
+def _games_order(game_filter: GameFilter) -> list:
+    """Finished games: the latest ended first. Otherwise the latest started first: started_at is null for some imported games, ids follow the start order anyway"""
+    if game_filter.finished:
+        ended_at = select(GameOutcome.game_ended_at).where(GameOutcome.game_id == Game.id).scalar_subquery()
+        return [ended_at.is_(None), desc(ended_at), desc(Game.id)]  # MySQL has no NULLS LAST
+    return [desc(Game.id)]
+
+
 async def get_games(session: AsyncSession, game_filter: GameFilter, offset: int = 0, limit: int | None = 10) -> list[GameSummaryPublic]:
     return await _query_games_as_public(session, select(
         Game
     ).where(
         *game_filter.construct_conditions()
     ).order_by(
-        desc(Game.started_at),
-        desc(Game.id)
+        *_games_order(game_filter)
     ).offset(
         offset
     ).limit(
@@ -178,9 +186,45 @@ async def count_games_by_facet(session: AsyncSession, game_filter: GameFilter) -
     return GameSearchCounts(time_control_kinds=kind_counts, rated=rated_counts)
 
 
+async def get_last_ply_times(session: AsyncSession, game_ids: list[int]) -> dict[int, datetime]:
+    """The time of each game's latest standing ply; games without one are left out"""
+    if not game_ids:
+        return {}
+    result = await session.exec(select(
+        GamePlyEvent.game_id,
+        func.max(GamePlyEvent.occurred_at)
+    ).where(
+        col(GamePlyEvent.game_id).in_(game_ids),
+        GamePlyEvent.is_cancelled == False  # noqa
+    ).group_by(
+        col(GamePlyEvent.game_id)
+    ))
+    return {game_id: occurred_at for game_id, occurred_at in result if occurred_at is not None}
+
+
+async def _fill_last_ply_times(session: AsyncSession, games: list[GameSummaryPublic]) -> None:
+    last_ply_times = await get_last_ply_times(session, [game.id for game in games if game.outcome is None])
+    for game in games:
+        game.last_ply_at = last_ply_times.get(game.id)
+
+
+async def get_all_current_games(session: AsyncSession) -> list[GameSummaryPublic]:
+    games = await get_current_games(session, limit=None)
+    await _fill_last_ply_times(session, games)
+    return games
+
+
+async def get_recent_games(session: AsyncSession, game_filter: GameFilter, limit: int) -> list[GameSummaryPublic]:
+    """The latest ended games matching the filter, aborted ones excluded"""
+    return await get_games(session, game_filter.model_copy(update={'finished': True, 'exclude_aborted': True}), limit=limit)
+
+
 async def search_games(session: AsyncSession, payload: GameSearchPayload, offset: int, limit: int) -> GameSearchResult:
+    games = await get_games(session, payload, offset, limit)
+    await _fill_last_ply_times(session, games)
+
     return GameSearchResult(
-        games=await get_games(session, payload, offset, limit),
+        games=games,
         total=await count_games(session, payload),
         counts=await count_games_by_facet(session, payload) if payload.with_counts else None
     )

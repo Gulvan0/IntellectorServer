@@ -9,7 +9,6 @@ from net.utils.log_codecs import dump_ws_payload
 from net.ws_wrapper import WebSocketWrapper
 from net.models import WebsocketIncomingMessage
 from net.utils.ws_error import ErrorKind, WebSocketException
-from utils.bijective_map import BijectiveMap
 
 import time
 
@@ -61,14 +60,21 @@ class WebSocketHandlerCollection:
             return handler_callable
         return decorator
 
-    async def handle(self, token_map: BijectiveMap[str, UserReference], ws: WebSocketWrapper, data: Any) -> None:
+    @staticmethod
+    def _redact_secrets(data: Any) -> Any:
+        """Keeps the session token out of the logs"""
+        if isinstance(data, dict) and isinstance(data.get("body"), dict) and data["body"].get("token"):
+            return {**data, "body": {**data["body"], "token": "***"}}
+        return data
+
+    async def handle(self, ws: WebSocketWrapper, data: Any) -> None:
         now_ts = int(time.time())
         ws.last_message = now_ts
 
         log_entry = WSLog(
             connection_id=str(ws.uuid),
             authorized_as=None,
-            payload=dump_ws_payload(data),
+            payload=dump_ws_payload(self._redact_secrets(data)),
             incoming=True
         )
 
@@ -90,19 +96,9 @@ class WebSocketHandlerCollection:
 
         ws.last_activity = now_ts
 
-        client = None
-        if message.token:
-            client = token_map.get(message.token)
-            if not client:
-                async with ws.app.get_db_session() as session:
-                    session.add(log_entry)
-                    await session.commit()
-                await ws.send_error(ErrorKind.AUTH_ERROR, "Invalid token")
-                return
+        client = ws.get_user_ref()
+        if client:
             log_entry.authorized_as = client.reference
-
-        # the socket is attributed to whoever sent its latest message (used for presence checks and logging)
-        ws.saved_token = message.token if client else None
 
         async with ws.app.get_db_session() as session:
             session.add(log_entry)
@@ -122,4 +118,4 @@ class WebSocketHandlerCollection:
         try:
             await handler.handler_callable(ws, client, payload)
         except WebSocketException as e:
-            await ws.send_error(e.kind, e.message)
+            await ws.send_error(e.kind, e.message, e.channel)

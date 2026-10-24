@@ -11,6 +11,7 @@ from pubsub.models.channel import (
     PublicChallengeListEventChannel,
     PlayerOngoingGamesEventChannel,
     PlayerStatusEventChannel,
+    RecentGameListEventChannel,
     SubscriberListEventChannel,
 )
 from pubsub.models.state import (
@@ -18,6 +19,8 @@ from pubsub.models.state import (
     CurrentGameListStateRefresh,
     GameStateRefresh,
     PlayerOngoingGamesStateRefresh,
+    PublicChallengeListStateRefresh,
+    RecentGameListStateRefresh,
     SubscriberListChannelStateRefresh,
 )
 from pubsub.outgoing_event.base import RefreshEvent
@@ -37,13 +40,13 @@ class PlayerOngoingGamesRefresh(RefreshEvent[PlayerOngoingGamesStateRefresh, Pla
         ]
 
 
-class PublicChallengeListRefresh(RefreshEvent[ChallengeListStateRefresh, PublicChallengeListEventChannel]):
+class PublicChallengeListRefresh(RefreshEvent[PublicChallengeListStateRefresh, PublicChallengeListEventChannel]):
     @classmethod
-    def payload_examples(cls) -> list[ChallengeListStateRefresh]:
+    def payload_examples(cls) -> list[PublicChallengeListStateRefresh]:
         return [
-            ChallengeListStateRefresh(challenges=active_public_challenges(3)),
-            ChallengeListStateRefresh(challenges=active_public_challenges(1)),
-            ChallengeListStateRefresh(challenges=[]),
+            PublicChallengeListStateRefresh(challenges=active_public_challenges(3), total=74, has_more=True),
+            PublicChallengeListStateRefresh(challenges=active_public_challenges(1), total=1, has_more=False),
+            PublicChallengeListStateRefresh(challenges=[], total=0, has_more=False),
         ]
 
 
@@ -53,6 +56,15 @@ class CurrentGameListRefresh(RefreshEvent[CurrentGameListStateRefresh, CurrentGa
         return [
             CurrentGameListStateRefresh(games=minimal_representative_games(finished=False)),
             CurrentGameListStateRefresh(games=[]),
+        ]
+
+
+class RecentGameListRefresh(RefreshEvent[RecentGameListStateRefresh, RecentGameListEventChannel]):
+    @classmethod
+    def payload_examples(cls) -> list[RecentGameListStateRefresh]:
+        return [
+            RecentGameListStateRefresh(games=minimal_representative_games(finished=True)),
+            RecentGameListStateRefresh(games=[]),
         ]
 
 

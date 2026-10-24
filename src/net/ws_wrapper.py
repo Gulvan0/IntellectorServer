@@ -80,11 +80,14 @@ class WebSocketWrapper:
     async def send_unsubscribed(self) -> None:
         await self.ws.send_text("unsubscribed")
 
-    async def send_error(self, error: ErrorKind, details: Any) -> None:
-        await self._send_logged_json(dict(
+    async def send_error(self, error: ErrorKind, details: Any, channel: EventChannel | None = None) -> None:
+        payload = dict(
             error=error.value,
             details=details
-        ))
+        )
+        if channel:
+            payload["channel"] = channel.model_dump(mode="json")
+        await self._send_logged_json(payload)
 
     async def send_validation_error(self, error: ValidationError) -> None:
         await self.send_error(ErrorKind.VALIDATION_ERROR, error.errors())

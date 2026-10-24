@@ -469,18 +469,6 @@ def game_state_refreshes(count: int = 3) -> list[GameStateRefresh]:
     return result
 
 
-def game_started_data_samples() -> list[GameStartedBroadcastedData]:
-    return [
-        game_started_data(
-            players=(None, bot_user_ref_with_nickname()),
-            rated=False,
-            custom_starting_sip='AUTO',
-            external_uploader_login='GENERATE'
-        )[0],
-        game_started_data(rated=True)[0],
-    ]
-
-
 def game_ended_data_samples(count: int = 3) -> list[GameEndedBroadcastedData]:
     result = []
 

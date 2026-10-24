@@ -29,7 +29,7 @@ async def get_player_ongoing_games(session: AsyncSession, player_ref: str) -> li
     for summary in summaries:
         update = await get_ongoing_game_update(session, summary.id, summary.custom_starting_sip)
         ongoing_games.append(OngoingGamePublic(
-            **summary.model_dump(exclude={'latest_sip'}),
+            **summary.model_dump(exclude={'latest_sip', 'last_ply_at'}),
             latest_sip=update.latest_sip,
             ply_cnt=update.ply_cnt,
             last_ply_at=update.last_ply_at,

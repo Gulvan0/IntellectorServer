@@ -12,7 +12,20 @@ class ChallengeListStateRefresh(CustomModel):
     challenges: list[ChallengePublic]
 
 
+class PublicChallengeListStateRefresh(CustomModel):
+    """The newest public challenges, a head window of the list: the further ones come from GET /challenge/public"""
+    challenges: list[ChallengePublic]
+    total: int
+    has_more: bool
+
+
 class CurrentGameListStateRefresh(CustomModel):
+    """All ongoing games, the latest started first"""
+    games: list[GameSummaryPublic]
+
+
+class RecentGameListStateRefresh(CustomModel):
+    """The latest finished non-aborted games matching the channel's filter, the latest ended first"""
     games: list[GameSummaryPublic]
 
 

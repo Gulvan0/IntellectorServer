@@ -1,5 +1,9 @@
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pubsub.models.channel import EventChannel
 
 
 class ErrorKind(StrEnum):
@@ -13,3 +17,5 @@ class ErrorKind(StrEnum):
 class WebSocketException(Exception):
     message: str
     kind: ErrorKind = ErrorKind.PROCESSING_ERROR
+    channel: "EventChannel | None" = None
+    """Set when the error concerns a particular channel, so the client can tell which subscription failed"""

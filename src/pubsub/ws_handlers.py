@@ -1,19 +1,22 @@
 import asyncio
 from typing import Any, TypeIs
-from challenge.methods.get import get_active_public_challenges, get_direct_challenges
+from challenge.methods.get import count_active_public_challenges, get_active_public_challenges, get_direct_challenges
 from common.user_ref import UserReference
-from game.methods.get import get_current_games, get_latest_time_update
+from config.models import MainConfig
+from game.methods.get import get_all_current_games, get_latest_time_update, get_recent_games
 from game.methods.ongoing import get_player_ongoing_games
 from game.models.main import Game
+from game.models.rest.common import GameFilter
 from net.ws_wrapper import WebSocketWrapper
 from net.incoming import WebSocketHandlerCollection
 from net.sub_storage import SubscriberStorage, SubscriberTag
-from net.utils.ws_error import WebSocketException
+from net.utils.ws_error import ErrorKind, WebSocketException
 from player.methods import resolve_player_refs, resolve_player_ref, resolve_optional_player_ref
 from player.models import PlayerStatusState
 from player.status import track_player_statuses
 from pubsub.models.channel import (
     EventChannel,
+    EveryoneEventChannel,
     GameEventChannel,
     CurrentGameListEventChannel,
     IncomingChallengesEventChannel,
@@ -21,12 +24,21 @@ from pubsub.models.channel import (
     PublicChallengeListEventChannel,
     PlayerOngoingGamesEventChannel,
     PlayerStatusEventChannel,
+    RecentGameListEventChannel,
     SubEligibleEventChannel,
     SubscriberListEventChannel,
     SubscriberListedEventChannel,
 )
-from pubsub.models.other import SubUnsubManyPayload, SubUnsubPayload
-from pubsub.models.state import ChallengeListStateRefresh, CurrentGameListStateRefresh, GameStateRefresh, PlayerOngoingGamesStateRefresh, SubscriberListChannelStateRefresh
+from pubsub.models.other import SessionPayload, SubUnsubManyPayload, SubUnsubPayload
+from pubsub.models.state import (
+    ChallengeListStateRefresh,
+    CurrentGameListStateRefresh,
+    GameStateRefresh,
+    PlayerOngoingGamesStateRefresh,
+    PublicChallengeListStateRefresh,
+    RecentGameListStateRefresh,
+    SubscriberListChannelStateRefresh,
+)
 from pubsub.outgoing_event.base import RefreshEvent
 from pubsub.outgoing_event.refresh import (
     CurrentGameListRefresh,
@@ -36,24 +48,36 @@ from pubsub.outgoing_event.refresh import (
     PublicChallengeListRefresh,
     PlayerOngoingGamesRefresh,
     PlayerStatusRefresh,
+    RecentGameListRefresh,
     SubscriberListRefresh,
 )
 from pubsub.outgoing_event.update import NewSubscriber, SubscriberLeft
 from utils.async_orm_session import AsyncSession
 
 
-async def get_public_challenge_list_refresh(session: AsyncSession, channel: PublicChallengeListEventChannel) -> PublicChallengeListRefresh:
-    public_challenges = await get_active_public_challenges(session)
+RECENT_GAME_LIST_SIZE = 12
+
+
+async def get_public_challenge_list_refresh(session: AsyncSession, main_config: MainConfig, channel: PublicChallengeListEventChannel) -> PublicChallengeListRefresh:
+    public_challenges = await get_active_public_challenges(session, main_config)
+    total = await count_active_public_challenges(session)
     return PublicChallengeListRefresh(
-        payload=ChallengeListStateRefresh(challenges=public_challenges),
+        payload=PublicChallengeListStateRefresh(challenges=public_challenges, total=total, has_more=total > len(public_challenges)),
         target_channel=channel
     )
 
 
-async def get_game_list_refresh(session: AsyncSession, channel: CurrentGameListEventChannel) -> CurrentGameListRefresh:
-    games = await get_current_games(session)
+async def get_current_game_list_refresh(session: AsyncSession, channel: CurrentGameListEventChannel) -> CurrentGameListRefresh:
     return CurrentGameListRefresh(
-        payload=CurrentGameListStateRefresh(games=games),
+        payload=CurrentGameListStateRefresh(games=await get_all_current_games(session)),
+        target_channel=channel
+    )
+
+
+async def get_recent_game_list_refresh(session: AsyncSession, channel: RecentGameListEventChannel) -> RecentGameListRefresh:
+    game_filter = GameFilter(time_control_kinds=list(channel.time_control_kinds) or None, rated=channel.rated)
+    return RecentGameListRefresh(
+        payload=RecentGameListStateRefresh(games=await get_recent_games(session, game_filter, RECENT_GAME_LIST_SIZE)),
         target_channel=channel
     )
 
@@ -142,6 +166,7 @@ async def get_subscriber_list_refresh(session: AsyncSession, channel: Subscriber
 
 async def get_refresh(
     session: AsyncSession,
+    main_config: MainConfig,
     channel: SubEligibleEventChannel,
     client: UserReference | None,
     sub_storage: SubscriberStorage,
@@ -150,9 +175,11 @@ async def get_refresh(
 ) -> RefreshEvent[Any, Any]:
     match channel:
         case PublicChallengeListEventChannel():
-            return await get_public_challenge_list_refresh(session, channel)
+            return await get_public_challenge_list_refresh(session, main_config, channel)
         case CurrentGameListEventChannel():
-            return await get_game_list_refresh(session, channel)
+            return await get_current_game_list_refresh(session, channel)
+        case RecentGameListEventChannel():
+            return await get_recent_game_list_refresh(session, channel)
         case IncomingChallengesEventChannel():
             return await get_incoming_challenges_refresh(session, channel, client)
         case OutgoingChallengesEventChannel():
@@ -169,7 +196,7 @@ async def get_refresh(
 
 def announces_subscribers(channel: EventChannel) -> TypeIs[SubscriberListedEventChannel]:
     """Whether the channel's subscriber list hears of users joining and leaving it"""
-    return not isinstance(channel, (SubscriberListEventChannel, PlayerStatusEventChannel))
+    return not isinstance(channel, (SubscriberListEventChannel, PlayerStatusEventChannel, RecentGameListEventChannel))
 
 
 async def subscribe(ws: WebSocketWrapper, client: UserReference | None, channels: list[SubEligibleEventChannel]) -> None:
@@ -184,6 +211,16 @@ async def subscribe(ws: WebSocketWrapper, client: UserReference | None, channels
 
     refresh_events: list[RefreshEvent[Any, Any]] = []
     announced_channels: list[SubscriberListedEventChannel] = []
+
+    # registered before the refreshes are computed: a change landing meanwhile is then in the refresh, and the client drops the events that precede it
+    newly_subscribed: dict[SubEligibleEventChannel, bool] = {}
+    for channel in channels:
+        if sub_storage.has_ws_subscriber(ws, channel):
+            continue
+        # whoever is already there through another connection was announced then
+        newly_subscribed[channel] = not (client is not None and sub_storage.has_user_subscriber(state.token_to_user, client, channel))
+        sub_storage.subscribe(ws, channel)
+
     # everything that needs the session stays inside the block: a session used after it's closed checks out a new connection that's never returned
     async with ws.app.get_db_session() as session:
         status_logins = [channel.watched_ref for channel in channels if isinstance(channel, PlayerStatusEventChannel)]
@@ -192,20 +229,17 @@ async def subscribe(ws: WebSocketWrapper, client: UserReference | None, channels
         for channel in channels:
             tags: set[SubscriberTag] = set()
             try:
-                refresh_events.append(await get_refresh(session, channel, client, sub_storage, tags, status_states))
+                refresh_events.append(await get_refresh(session, ws.app.main_config, channel, client, sub_storage, tags, status_states))
             except WebSocketException as e:
-                await ws.send_error(e.kind, e.message)
+                if channel in newly_subscribed:
+                    sub_storage.unsubscribe(ws, channel)
+                await ws.send_error(e.kind, e.message, channel)
                 continue
 
-            # whoever is already there through another connection was announced then
-            already_present = client is not None and sub_storage.has_user_subscriber(state.token_to_user, client, channel)
-
-            perform_actual_subscription = not sub_storage.has_ws_subscriber(ws, channel)
-            if perform_actual_subscription:
-                sub_storage.subscribe(ws, channel, tags)
-
-            if perform_actual_subscription and not already_present and announces_subscribers(channel):
-                announced_channels.append(channel)
+            if channel in newly_subscribed:
+                sub_storage.set_tags(ws, channel, tags)
+                if newly_subscribed[channel] and announces_subscribers(channel):
+                    announced_channels.append(channel)
 
         state.concurrent_tasks.plan(ws.send_events(refresh_events))
 
@@ -217,7 +251,7 @@ async def subscribe(ws: WebSocketWrapper, client: UserReference | None, channels
                 ))
 
 
-async def unsubscribe(ws: WebSocketWrapper, client: UserReference | None, channels: list[SubEligibleEventChannel]) -> None:
+async def unsubscribe(ws: WebSocketWrapper, client: UserReference | None, channels: list[SubEligibleEventChannel], *, confirm: bool = True) -> None:
     """Skips the channels `ws` isn't subscribed to"""
     state = ws.app.mutable_state
 
@@ -225,7 +259,8 @@ async def unsubscribe(ws: WebSocketWrapper, client: UserReference | None, channe
     for channel in left_channels:
         state.ws_subscribers.unsubscribe(ws, channel)
 
-    state.concurrent_tasks.plan(ws.send_unsubscribed())
+    if confirm:
+        state.concurrent_tasks.plan(ws.send_unsubscribed())
 
     if any(isinstance(channel, OutgoingChallengesEventChannel) for channel in left_channels):
         state.concurrent_tasks.plan(ws.app.plan_challenge_cancellation_if_unwatched(client))
@@ -235,6 +270,40 @@ async def unsubscribe(ws: WebSocketWrapper, client: UserReference | None, channe
 
 
 collection = WebSocketHandlerCollection()
+
+
+@collection.register(SessionPayload)
+async def session(ws: WebSocketWrapper, client: UserReference | None, payload: SessionPayload) -> None:
+    """Sets who the socket acts as and makes its subscriptions exactly `payload.channels`. An invalid token leaves the socket anonymous and unsubscribed"""
+    state = ws.app.mutable_state
+
+    new_client = state.token_to_user.get(payload.token) if payload.token else None
+    token_is_invalid = bool(payload.token) and new_client is None
+    requested_channels = [] if token_is_invalid else payload.channels
+
+    current_channels = [
+        channel for channel in state.ws_subscribers.get_subscriptions(ws)
+        if not isinstance(channel, EveryoneEventChannel)
+    ]
+
+    if new_client == client:
+        channels_to_leave = [channel for channel in current_channels if channel not in requested_channels]
+        channels_to_join = [channel for channel in requested_channels if channel not in current_channels]
+    else:
+        # the subscriber lists must see the old identity leave and the new one join
+        channels_to_leave = current_channels
+        channels_to_join = requested_channels
+
+    if channels_to_leave:
+        await unsubscribe(ws, client, channels_to_leave, confirm=False)
+
+    ws.saved_token = payload.token if new_client else None
+
+    if channels_to_join:
+        await subscribe(ws, new_client, channels_to_join)
+
+    if token_is_invalid:
+        raise WebSocketException("Invalid token", ErrorKind.AUTH_ERROR)
 
 
 @collection.register(SubUnsubPayload)
@@ -250,7 +319,7 @@ async def sub_many(ws: WebSocketWrapper, client: UserReference | None, payload: 
 @collection.register(SubUnsubPayload)
 async def unsub(ws: WebSocketWrapper, client: UserReference | None, payload: SubUnsubPayload) -> None:
     if not ws.app.mutable_state.ws_subscribers.has_ws_subscriber(ws, payload.channel):
-        raise WebSocketException(f"Failed to unsubscribe from channel {payload.channel.model_dump_json()}: you're not subscribed to it!")
+        raise WebSocketException(f"Failed to unsubscribe from channel {payload.channel.model_dump_json()}: you're not subscribed to it!", channel=payload.channel)
 
     await unsubscribe(ws, client, [payload.channel])
 

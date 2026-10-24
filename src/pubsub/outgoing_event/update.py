@@ -5,7 +5,7 @@ from common.datatypes import UserStatus
 from common.models import Id, IdList, UserRefWithNickname
 from common.samples import user_ref_with_nickname
 from game.models.chat import ChatMessageBroadcastedData
-from game.models.main import GameStartedBroadcastedData, GameSummaryPublic, OngoingGameUpdate
+from game.models.main import GameSummaryPublic, OngoingGameUpdate
 from game.models.offer import OfferActionBroadcastedData
 from game.models.outcome import GameEndedBroadcastedData
 from game.models.ply import PlyBroadcastedData
@@ -14,7 +14,6 @@ from game.models.time_added import TimeAddedBroadcastedData
 from game.samples import (
     chat_message_broadcasted_data,
     game_ended_data_samples,
-    game_started_data_samples,
     minimal_representative_games,
     offer_action_broadcasted_data,
     ongoing_game_updates,
@@ -32,6 +31,7 @@ from pubsub.models.channel import (
     PublicChallengeListEventChannel,
     PlayerOngoingGamesEventChannel,
     PlayerStatusEventChannel,
+    RecentGameListEventChannel,
     SubscriberListEventChannel,
 )
 from pubsub.outgoing_event.base import OutgoingEvent
@@ -120,28 +120,41 @@ class PublicChallengesCancelledByServer(OutgoingEvent[IdList, PublicChallengeLis
         )
 
 
-class NewActiveGame(OutgoingEvent[GameStartedBroadcastedData, CurrentGameListEventChannel]):
+class NewActiveGame(OutgoingEvent[GameSummaryPublic, CurrentGameListEventChannel]):
     @classmethod
     def title(cls) -> str:
-        return "Game Started (for game lists watchers)"
+        return "Game Started (for current game list watchers)"
 
     @classmethod
     def description(cls) -> str:
-        return "Broadcasted whenever a new game starts"
+        return "Broadcasted whenever a new game starts. A new game has no plies yet"
 
     @classmethod
-    def payload_examples(cls) -> list[GameStartedBroadcastedData]:
-        return game_started_data_samples()
+    def payload_examples(cls) -> list[GameSummaryPublic]:
+        return minimal_representative_games(finished=False)
 
 
-class NewRecentGame(OutgoingEvent[GameSummaryPublic, CurrentGameListEventChannel]):
+class CurrentGameEnded(OutgoingEvent[Id, CurrentGameListEventChannel]):
     @classmethod
     def title(cls) -> str:
-        return "Game Ended (for game lists watchers)"
+        return "Game Ended (for current game list watchers)"
 
     @classmethod
     def description(cls) -> str:
-        return "Broadcasted whenever a game ends"
+        return "Broadcasted whenever an ongoing game ends, aborted ones included. The game leaves the list"
+
+
+class NewRecentGame(OutgoingEvent[GameSummaryPublic, RecentGameListEventChannel]):
+    @classmethod
+    def title(cls) -> str:
+        return "Game Ended (for recent game list watchers)"
+
+    @classmethod
+    def description(cls) -> str:
+        return (
+            "Broadcasted to the recent game lists whose filter the game matches whenever a game ends, unless it is aborted."
+            " The game becomes the first one of the list, and the last one drops out of it"
+        )
 
     @classmethod
     def payload_examples(cls) -> list[GameSummaryPublic]:

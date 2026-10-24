@@ -8,3 +8,8 @@ class SubUnsubPayload(CustomModel):
 
 class SubUnsubManyPayload(CustomModel):
     channels: list[SubEligibleEventChannel]
+
+
+class SessionPayload(CustomModel):
+    token: str | None = None
+    channels: list[SubEligibleEventChannel] = []

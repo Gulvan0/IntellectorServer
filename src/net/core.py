@@ -186,6 +186,14 @@ class App(FastAPI):
         if not self.mutable_state.ws_subscribers.count_subscribers(challenge_channel):
             await self.__plan_challenge_cancellation(user)
 
+    async def __save_last_ws_activity(self, login: str, last_activity: int) -> None:
+        async with self.get_db_session() as session:
+            db_player = await session.get(Player, login)
+            if db_player and last_activity > db_player.last_ws_activity:
+                db_player.last_ws_activity = last_activity
+                session.add(db_player)
+                await session.commit()
+
     async def websocket_endpoint(self, websocket: WebSocket) -> None:
         await websocket.accept()
         now_ts = int(time.time())
@@ -199,11 +207,14 @@ class App(FastAPI):
                     if time.time() - ws_wrapper.last_message > 60:
                         raise WebSocketDisconnect()
                 else:
-                    await self.ws_handlers.handle(self.mutable_state.token_to_user, ws_wrapper, data)
+                    await self.ws_handlers.handle(ws_wrapper, data)
         except (WebSocketDisconnect, ConnectionClosedError, ConnectionClosed, ConnectionClosedOK):
             client = ws_wrapper.get_user_ref()
             channels = self.mutable_state.ws_subscribers.get_subscriptions(ws_wrapper)
             self.mutable_state.ws_subscribers.fully_remove(ws_wrapper)
+
+            if client and client.is_player():
+                await self.__save_last_ws_activity(client.reference, ws_wrapper.last_activity)
 
             for channel in channels:
                 if channel != EveryoneEventChannel():

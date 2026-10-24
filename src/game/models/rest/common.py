@@ -2,7 +2,9 @@ from sqlalchemy import ColumnElement
 from sqlmodel import col, or_
 
 from common.time_control import TimeControlKind
+from game.datatypes import OutcomeKind
 from game.models.main import Game, GameSummaryPublic
+from game.models.outcome import GameOutcome
 from common.field_types import OptionalPlayerRef
 from utils.custom_model import CustomModel
 
@@ -12,6 +14,7 @@ class GameFilter(CustomModel):
     time_control_kinds: list[TimeControlKind] | None = None  # any of them; null for any kind
     rated: bool | None = None
     finished: bool | None = None
+    exclude_aborted: bool = False
 
     def construct_conditions(self, ignore_kinds: bool = False, ignore_rated: bool = False) -> list[bool | ColumnElement[bool]]:
         conditions: list[bool | ColumnElement[bool]] = []
@@ -26,6 +29,8 @@ class GameFilter(CustomModel):
             conditions.append(Game.rated == self.rated)
         if self.finished is not None:
             conditions.append(Game.outcome != None if self.finished else Game.outcome == None)  # noqa
+        if self.exclude_aborted:
+            conditions.append(~col(Game.outcome).has(col(GameOutcome.kind) == OutcomeKind.ABORT))
         return conditions
 
 

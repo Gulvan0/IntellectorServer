@@ -78,6 +78,7 @@ class StudyBase(CustomSQLModel):
     publicity: StudyPublicity
     starting_sip: Sip
     key_sip: Sip
+    key_path: str | None = Field(default=None, max_length=500)  # the node marked as the card preview; none = the main line's end
 
 
 class Study(StudyBase, table=True):
@@ -108,6 +109,7 @@ class Study(StudyBase, table=True):
             publicity=self.publicity,
             starting_sip=self.starting_sip,
             key_sip=self.key_sip,
+            key_path=self.key_path,
             id=self.id,
             created_at=self.created_at,
             modified_at=self.modified_at,
@@ -148,11 +150,12 @@ class StudyUpdate(CustomSQLModel):
     publicity: StudyPublicity | None = None
     starting_sip: str | None = None
     key_sip: str | None = None
+    key_path: str | None = Field(max_length=500, default=None)  # replaced together with nodes, cleared when null
     tags: list[str] | None = None
     nodes: list[ApiPlyTreeNode] | None = None
 
     def dump_plain_fields(self) -> dict[str, Any]:
-        return self.model_dump(exclude={"tags", "nodes"}, exclude_unset=True, exclude_none=True)
+        return self.model_dump(exclude={"tags", "nodes", "key_path"}, exclude_unset=True, exclude_none=True)
 
     def to_db_tags(self) -> list[StudyTag] | None:
         if self.tags is None:

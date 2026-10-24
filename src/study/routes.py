@@ -112,6 +112,7 @@ async def update_study(*, session: SessionDependency, client_login: MandatoryPla
     updated_nodes = study.to_db_nodes()
     if updated_nodes is not None:
         db_study.nodes = updated_nodes
+        db_study.key_path = study.key_path
 
     session.add(db_study)
     await session.commit()

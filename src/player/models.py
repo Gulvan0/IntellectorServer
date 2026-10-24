@@ -22,7 +22,7 @@ class PlayerBase(CustomSQLModel):
 
 
 class Player(PlayerBase, table=True):
-    last_recorded_activity_before_v3: CurrentTimestamp
+    last_ws_activity: CurrentTimestamp
     preferred_role: UserRole | None = None
     # avatar: bytes | None = Field(sa_column=Column(LargeBinary), default=None)
 

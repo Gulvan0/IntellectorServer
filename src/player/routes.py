@@ -291,7 +291,7 @@ async def get_player(
     else:
         last_request_sent = await last_seen_in_logs(session, login)
         last_active = last_request_sent or db_player.joined_at
-        last_active_unixsecs = max(db_player.last_recorded_activity_before_v3, int(last_active.timestamp()))
+        last_active_unixsecs = max(db_player.last_ws_activity, int(last_active.timestamp()))
         activity = UserActivity(
             status=UserStatus.OFFLINE,
             last_active_unixsecs=last_active_unixsecs

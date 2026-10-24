@@ -47,7 +47,7 @@ def process_passwords_file(data: dict[str, str], first_messages: dict[str, datet
             Player(
                 login=login,
                 joined_at=joined_at,
-                last_recorded_activity_before_v3=last_activity.get(login) or int(joined_at.timestamp()),
+                last_ws_activity=last_activity.get(login) or int(joined_at.timestamp()),
                 nickname=nickname,
                 roles=[PlayerRole(role=role) for role in roles]
             )

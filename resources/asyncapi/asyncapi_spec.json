@@ -557,6 +557,7 @@
                             "enum": [
                                 "fatum",
                                 "breakthrough",
+                                "stalemate",
                                 "timeout",
                                 "resign",
                                 "abandon",
@@ -1346,6 +1347,7 @@
                             "enum": [
                                 "fatum",
                                 "breakthrough",
+                                "stalemate",
                                 "timeout",
                                 "resign",
                                 "abandon",
@@ -1800,6 +1802,7 @@
                             "enum": [
                                 "fatum",
                                 "breakthrough",
+                                "stalemate",
                                 "timeout",
                                 "resign",
                                 "abandon",
@@ -2492,6 +2495,7 @@
                             "enum": [
                                 "fatum",
                                 "breakthrough",
+                                "stalemate",
                                 "timeout",
                                 "resign",
                                 "abandon",
@@ -3151,6 +3155,7 @@
                             "enum": [
                                 "fatum",
                                 "breakthrough",
+                                "stalemate",
                                 "timeout",
                                 "resign",
                                 "abandon",
@@ -3770,6 +3775,7 @@
                             "enum": [
                                 "fatum",
                                 "breakthrough",
+                                "stalemate",
                                 "timeout",
                                 "resign",
                                 "abandon",

@@ -132,7 +132,7 @@ async def get_my_direct_challenges(*, session: SessionDependency, client: Mandat
 
 
 @router.get("/{challenge_id}", response_model=ChallengePublic)
-async def get_challenge(*, session: SessionDependency, challenge_id: int) -> ChallengePublic:
+async def get_challenge(*, session: SessionDependency, main_config: MainConfigDependency, challenge_id: int) -> ChallengePublic:
     db_challenge = await session.get(Challenge, challenge_id, options=Challenge.load_options())
 
     if not db_challenge:
@@ -140,7 +140,9 @@ async def get_challenge(*, session: SessionDependency, challenge_id: int) -> Cha
 
     collected_refs = db_challenge.collect_refs(include_nested=True)
     resolved_refs = await resolve_player_refs(collected_refs, session)
-    return db_challenge.to_public(resolved_refs)
+    challenge = db_challenge.to_public(resolved_refs)
+    await fill_caller_rating(session, main_config, challenge)
+    return challenge
 
 
 @router.delete("/{challenge_id}")

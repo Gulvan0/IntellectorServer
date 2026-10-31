@@ -40,6 +40,8 @@ OUTCOME_PATTERN = re.compile(r'#R\|(.+?)/(.+?)(\s*$|;)')
 SIP_PATTERN = re.compile(r'#S\|(.+?);')
 REMAINDERS_PATTERN = re.compile(r'#L\|(\d+?)/(\d+?)(\s*$|;)')
 
+GUEST_SAME_SESSION_GAP = 10
+
 MSK_TZ = timezone(timedelta(hours=3))
 
 OPENINGS = generate_mapping()
@@ -169,7 +171,47 @@ def clone_time_update(original: GameTimeUpdate) -> GameTimeUpdate:
     )
 
 
-def parse_log(game_id: int, full_log: str, estimated_dt: str | None) -> tuple[list[object], RatedGameInfo | None, str, str, datetime | None]:
+def build_guest_renumbering(game_logs: list[tuple[int, str]]) -> dict[int, dict[str, str]]:
+    """Maps game id -> {old guest ref -> new guest ref}.
+
+    Guests are numbered 1, 2, ... in the order of their first game. An old guest id met again keeps its new id
+    only if the previous game with that old id is at most GUEST_SAME_SESSION_GAP games ago; otherwise it is a different guest.
+    """
+    renumbering: dict[int, dict[str, str]] = {}
+    last_seen: dict[str, tuple[int, str]] = {}  # old ref -> (game id, new ref)
+    next_guest_id = 1
+
+    for game_id, full_log in sorted(game_logs):
+        players = get_players(full_log)
+        if not players:
+            continue
+
+        game_mapping: dict[str, str] = {}
+        for ref in players:
+            if not ref.startswith("_") or ref in game_mapping:
+                continue
+
+            previous = last_seen.get(ref)
+            if previous is not None and game_id - previous[0] <= GUEST_SAME_SESSION_GAP:
+                new_ref = previous[1]
+            else:
+                new_ref = f"_{next_guest_id}"
+                next_guest_id += 1
+
+            last_seen[ref] = (game_id, new_ref)
+            game_mapping[ref] = new_ref
+
+        renumbering[game_id] = game_mapping
+
+    return renumbering
+
+
+def parse_log(
+    game_id: int,
+    full_log: str,
+    estimated_dt: str | None,
+    guest_renumbering: dict[str, str] | None = None
+) -> tuple[list[object], RatedGameInfo | None, str, str, datetime | None]:
     added_objects: list[object] = []
 
     players = get_players(full_log)
@@ -179,7 +221,8 @@ def parse_log(game_id: int, full_log: str, estimated_dt: str | None) -> tuple[li
     if not players:
         raise ValueError(f"No players: {game_id}")
 
-    white_ref, black_ref = players
+    guest_renumbering = guest_renumbering or {}
+    white_ref, black_ref = (guest_renumbering.get(ref, ref) for ref in players)
 
     starting_sip = get_starting_sip(full_log)
     if starting_sip == DEFAULT_STARTING_SIP_V1 or not starting_sip:

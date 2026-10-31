@@ -14,6 +14,7 @@ class TimeRemainders(CustomModel):
 class OutcomeKind(StrEnum):
     FATUM = auto()
     BREAKTHROUGH = auto()
+    STALEMATE = auto()
     TIMEOUT = auto()
     RESIGN = auto()
     ABANDON = auto()

@@ -147,7 +147,7 @@ class ChallengePublic(ChallengeBase):
     active: bool
     fischer_time_control: ChallengeFischerTimeControlPublic | None = None
     resulting_game: GameSummaryPublic | None = None
-    caller_rating: PlayerRatingPublic | None = None  # filled for rated public challenges of players: the rating the caller would play at
+    caller_rating: PlayerRatingPublic | None = None  # filled for rated challenges of players (listed public ones, and GET /challenge/{id}): the rating the caller would play at
 
 
 class ChallengeCreateResponse(CustomModel):

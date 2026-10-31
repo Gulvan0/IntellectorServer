@@ -20,7 +20,7 @@ from sqlmodel import Session
 from config.loader import load
 from config.models import SecretConfig
 from migration.antifraud import process_log
-from migration.game import MSK_TZ, parse_log, RatedGameInfo
+from migration.game import MSK_TZ, build_guest_renumbering, parse_log, RatedGameInfo
 from migration.player import process_passwords_file, process_player_file
 from migration.study import process_study
 
@@ -37,9 +37,9 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding='utf-8')
 
 
-def _parse_game(args: tuple[int, str, str | None]) -> tuple[list[object], RatedGameInfo | None, str, str, datetime | None]:
-    game_id, full_log, estimated_dt = args
-    return parse_log(game_id, full_log, estimated_dt)
+def _parse_game(args: tuple[int, str, str | None, dict[str, str]]) -> tuple[list[object], RatedGameInfo | None, str, str, datetime | None]:
+    game_id, full_log, estimated_dt, guest_renumbering = args
+    return parse_log(game_id, full_log, estimated_dt, guest_renumbering)
 
 
 def _read_csv_column(path: str, key_column: str, value_column: str) -> dict[str, str]:
@@ -96,8 +96,12 @@ if __name__ == '__main__':
     with ThreadPoolExecutor() as io_executor:
         game_contents: list[str] = list(io_executor.map(_read_text, game_paths))
 
-    parse_args_list: list[tuple[int, str, str | None]] = [
-        (int(p.stem), content, estimated_dts.get(p.stem))
+    guest_renumbering = build_guest_renumbering([
+        (int(p.stem), content)
+        for p, content in zip(game_paths, game_contents)
+    ])
+    parse_args_list: list[tuple[int, str, str | None, dict[str, str]]] = [
+        (int(p.stem), content, estimated_dts.get(p.stem), guest_renumbering.get(int(p.stem), {}))
         for p, content in zip(game_paths, game_contents)
     ]
     del game_contents

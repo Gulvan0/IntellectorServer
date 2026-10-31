@@ -1,15 +1,15 @@
 SELECT
-    MAX(CAST(SUBSTR(authorized_as, 2) AS UNSIGNED))
+    MAX(CAST(SUBSTR(player_ref, 2) AS UNSIGNED))
 FROM (
     SELECT
-        authorized_as
+        white_player_ref AS player_ref
     FROM
-        restrequestlog
+        game
     UNION ALL
     SELECT
-        authorized_as
+        black_player_ref AS player_ref
     FROM
-        wslog
+        game
 ) AS src
 WHERE
-    authorized_as LIKE "\_%"
+    player_ref LIKE "\_%"

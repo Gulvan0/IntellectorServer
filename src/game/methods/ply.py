@@ -41,6 +41,9 @@ async def _get_simple_outcome(session: AsyncSession, game_id: int, new_position:
         case PositionFinalityGroup.BREAKTHROUGH:
             return SimpleOutcome(kind=OutcomeKind.BREAKTHROUGH, winner=new_position.color_to_move.opposite())
 
+    if not new_position.available_plys():  # no legal moves is a loss for the side to move
+        return SimpleOutcome(kind=OutcomeKind.STALEMATE, winner=new_position.color_to_move.opposite())
+
     if await has_occured_thrice(session, game_id, new_sip):
         return SimpleOutcome(kind=OutcomeKind.REPETITION)
 

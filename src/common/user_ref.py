@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from common.bots import LEGACY_ANACONDA_NAME, registered_bot_display_name
+
 
 @dataclass(frozen=True)
 class UserReference:
@@ -39,7 +41,10 @@ class UserReference:
     @property
     def bot_name(self) -> str:
         assert self.is_bot()
-        return self.reference[1:].title()
+        return self.reference[1:]
+
+    def is_registered_bot(self) -> bool:
+        return self.is_bot() and registered_bot_display_name(self.bot_name) is not None
 
     def __str__(self) -> str:
         return self.reference
@@ -48,6 +53,8 @@ class UserReference:
         if self.is_guest():
             return f"Guest {self.guest_id}"
         elif self.is_bot():
-            return f"{self.bot_name} (bot)"
+            if self.bot_name == LEGACY_ANACONDA_NAME:
+                return f"{LEGACY_ANACONDA_NAME} (Bot)"
+            return f"{registered_bot_display_name(self.bot_name) or self.bot_name.title()} (Bot)"
         else:
             return self.login

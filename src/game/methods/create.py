@@ -11,6 +11,8 @@ from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from notification.methods import delete_new_public_challenge_notifications, send_game_started_notifications
 from player.methods import get_ranked_game_stats_for_time_control, resolve_player_refs
 from pubsub.models.channel import CurrentGameListEventChannel, IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel, PlayerOngoingGamesEventChannel
+from fastapi import HTTPException
+from game.models.bot_settings import GameBotSettings
 from game.models.main import Game, GameSummaryPublic
 from game.models.time_control import GameFischerTimeControl
 from net.state import MutableState
@@ -49,7 +51,8 @@ async def create_game(
     state: MutableState,
     main_config: MainConfig,
     secret_config: SecretConfig,
-    deactivated_challenge: Challenge | None = None
+    deactivated_challenge: Challenge | None = None,
+    bot_settings: GameBotSettings | None = None
 ) -> GameSummaryPublic:
     if deactivated_challenge:
         caller = UserReference(deactivated_challenge.caller_ref)
@@ -92,7 +95,8 @@ async def create_game(
         white_elo_provisional=white_elo[1] if white_elo else None,
         black_elo=black_elo[0] if black_elo else None,
         black_elo_provisional=black_elo[1] if black_elo else None,
-        fischer_time_control=db_time_control
+        fischer_time_control=db_time_control,
+        bot_settings=bot_settings
     )
     session.add(db_game)
 
@@ -115,6 +119,7 @@ async def create_game(
     await session.commit()
 
     await session.refresh(db_game)
+    await session.refresh(db_game, attribute_names=['bot_settings'])  # to_summary_as_new reads it, and an async session can't load it lazily
     if db_time_control:
         await session.refresh(db_time_control)
 
@@ -210,11 +215,22 @@ async def create_external_game(
     black_player_ref: str,
     time_control: FischerTimeControlEntity | None,
     custom_starting_sip: str | None,
+    bot_think_cap_secs: int | None,
     session: AsyncSession,
     state: MutableState,
     main_config: MainConfig,
     secret_config: SecretConfig
 ) -> GameSummaryPublic:
+    """External games are played by the uploader against a registered bot"""
+    if uploader.reference == white_player_ref:
+        opponent = UserReference(black_player_ref)
+    elif uploader.reference == black_player_ref:
+        opponent = UserReference(white_player_ref)
+    else:
+        raise HTTPException(status_code=422, detail="The uploader has to be one of the players")
+    if not opponent.is_registered_bot():
+        raise HTTPException(status_code=422, detail=f"{opponent.reference} is not a registered bot")
+
     return await create_game(
         white_player_ref=white_player_ref,
         black_player_ref=black_player_ref,
@@ -225,5 +241,6 @@ async def create_external_game(
         session=session,
         state=state,
         main_config=main_config,
-        secret_config=secret_config
+        secret_config=secret_config,
+        bot_settings=GameBotSettings(think_cap_secs=bot_think_cap_secs)
     )

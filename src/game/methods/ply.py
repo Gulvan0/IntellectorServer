@@ -154,7 +154,7 @@ async def append_ply(
             ply_dt,
             new_ply_index,
             color_to_move=perform_ply_result.new_position.color_to_move,
-            timeout_grace_ms=0,
+            timeout_grace_ms=60000 if is_external else 0,  # the same grace as the timeout check gives external games
             bonus_secs=increment_seconds
         )
     else:

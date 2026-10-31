@@ -13,6 +13,7 @@ class ExternalGameCreatePayload(CustomModel):
     black_player_ref: PlayerRef
     custom_starting_sip: OptionalSip
     time_control: GameFischerTimeControlCreate | None = None
+    bot_think_cap_secs: int | None = PydanticField(default=None, ge=1, le=1800)
 
 
 class ExternalGameAppendPlyPayload(CustomModel):

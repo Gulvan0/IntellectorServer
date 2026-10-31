@@ -8,6 +8,7 @@ from common.field_types import OptionalSip, PlayerRef, OptionalPlayerRef, Sip, l
 from common.models import UserRefWithNickname
 from common.resolved_refs import ResolvedRefs
 from common.time_control import TimeControlKind
+from game.models.bot_settings import GameBotSettings
 from game.models.time_control import GameFischerTimeControl, GameFischerTimeControlPublic
 from game.models.outcome import GameOutcome, GameOutcomePublic
 from game.models.ply import GamePlyEvent, GamePlyEventPublic
@@ -61,6 +62,8 @@ class Game(GameBase, table=True):
     offer_events: list[GameOfferEvent] = Relationship(back_populates="game", cascade_delete=True)
     time_added_events: list[GameTimeAddedEvent] = Relationship(back_populates="game", cascade_delete=True)
     rollback_events: list[GameRollbackEvent] = Relationship(back_populates="game", cascade_delete=True)
+    # joined on every load: summaries read it, and an async session can't load it lazily
+    bot_settings: GameBotSettings | None = Relationship(back_populates="game", cascade_delete=True, sa_relationship_kwargs={"lazy": "joined"})
 
     @classmethod
     def load_options(cls, just_summary: bool, include_time_control: bool = True) -> list:
@@ -134,6 +137,7 @@ class Game(GameBase, table=True):
             outcome=outcome.to_public() if outcome else None,
             white_rating=PlayerRatingPublic.of(self.white_elo, self.white_elo_provisional),
             black_rating=PlayerRatingPublic.of(self.black_elo, self.black_elo_provisional),
+            bot_think_cap_secs=self.bot_settings.think_cap_secs if self.bot_settings else None,
         )
 
     def to_summary(self, resolved_refs: ResolvedRefs) -> GameSummaryPublic:
@@ -162,6 +166,7 @@ class GameSummaryPublic(GameBase):
     white_rating: PlayerRatingPublic | None = None
     black_rating: PlayerRatingPublic | None = None
     last_ply_at: datetime | None = None  # filled by game search for ongoing games only; null before the first ply
+    bot_think_cap_secs: int | None = None  # games against a bot only: how long the bot may think over a move; none for no cap
 
 
 class GamePublic(GameSummaryPublic):

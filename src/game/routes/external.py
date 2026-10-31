@@ -10,7 +10,8 @@ from common.dependencies import (
 )
 from game.dependencies import CLIENT_IS_UPLOADER_DEPENDENCY, GAME_EXISTS_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, GameDependency, SummarizedGameDependency
 from game.methods.ply import append_ply
-from game.exceptions import PlyInvalidException
+from game.datatypes import OutcomeKind, SimpleOutcome
+from game.exceptions import PlyInvalidException, TimeoutReachedException
 from game.methods.create import create_external_game
 from game.methods.end import end_game
 from game.methods.rollback import RollbackPlyCountInput, perform_rollback, validate_rollback
@@ -44,6 +45,7 @@ async def create(
         black_player_ref=payload.black_player_ref,
         time_control=payload.time_control,
         custom_starting_sip=payload.custom_starting_sip,
+        bot_think_cap_secs=payload.bot_think_cap_secs,
         session=session,
         state=state,
         main_config=main_config,
@@ -76,6 +78,19 @@ async def append_ply_route(
             db_game,
             payload.time_remainders
         )
+    except TimeoutReachedException as e:
+        await end_game(
+            session,
+            state,
+            main_config,
+            secret_config,
+            payload.game_id,
+            OutcomeKind.TIMEOUT,
+            e.winner,
+            e.reached_at,
+            pre_retrieved_db_game=db_game,
+        )
+        return ExternalGameAppendPlyResponse(outcome=SimpleOutcome(kind=OutcomeKind.TIMEOUT, winner=e.winner))
     except PlyInvalidException as e:
         raise HTTPException(status_code=422, detail=f"Impossible ply. Current SIP is {e.current_sip}")
     else:

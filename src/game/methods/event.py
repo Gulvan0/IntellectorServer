@@ -9,7 +9,6 @@ from game.models.rollback import GameRollbackEvent
 from game.models.time_added import GameTimeAddedEvent
 from game.methods.ongoing import broadcast_ongoing_game_update
 from net.state import MutableState
-from net.sub_storage import SubscriberTag
 from player.methods import resolve_player_refs
 from pubsub.models.channel import GameEventChannel
 from pubsub.outgoing_event.base import OutgoingEvent
@@ -44,11 +43,10 @@ async def append_event(
     session.add(event)
 
     target_channel = GameEventChannel(game_id=game_id)
-    tag_blacklist = set()
     match event:
         case GamePlyEvent():
+            # the mover gets it too: their other tabs know of the ply only from it
             ws_event: OutgoingEvent[Any, Any] = NewPly(event.to_broadcasted_data(), target_channel)
-            tag_blacklist.add(SubscriberTag.WHITE_PLAYER if event.moving_color == PieceColor.WHITE else SubscriberTag.BLACK_PLAYER)
         case GameChatMessageEvent():
             resolved_refs = await resolve_player_refs({event.author_ref}, session)
             ws_event = NewChatMessage(event.to_broadcasted_data(resolved_refs), target_channel)
@@ -59,7 +57,7 @@ async def append_event(
 
     # saved before it's announced: a client reacting to the event must find it stored
     await session.commit()
-    await mutable_state.ws_subscribers.broadcast(ws_event, tag_blacklist=tag_blacklist)
+    await mutable_state.ws_subscribers.broadcast(ws_event)
 
     if isinstance(event, GamePlyEvent | GameTimeAddedEvent):
         await broadcast_ongoing_game_update(session, mutable_state, game_id)

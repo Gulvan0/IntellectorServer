@@ -26,4 +26,5 @@ class GameFischerTimeControlPublic(GameFischerTimeControlBase):
 
 
 class GameFischerTimeControlCreate(GameFischerTimeControlBase):
-    pass
+    start_seconds: int = Field(gt=0, le=60 * 60 * 6)
+    increment_seconds: int = Field(default=0, ge=0, le=60 * 2)

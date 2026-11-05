@@ -1,9 +1,9 @@
 common:
-  min_client_build: 1745671032
-  server_build: 1745671032
   keep_alive:
-    beat_interval_ms: 2500
-    timeout_ms: 10000
+    silence_check_interval_secs: 30
+    max_client_silence_secs: 90  # over a minute: browsers throttle a hidden tab's timers to about one wake-up per minute, stretching the gap between its pings to that
+    away_after_secs: 300
+    send_timeout_secs: 5
   elo:
     default: 1200
     max_log_slope: 7.0
@@ -13,6 +13,30 @@ common:
     secs_added_manually: 15
     first_move_deadline_secs: 30
     external_first_move_deadline_secs: 300
+    heartbeat_stale_secs: 90
+    min_suspension_ttl_secs: 300
+    correspondence_suspension_ttl_secs: 129600
   limits:
     max_total_active_challenges: 5
     max_same_callee_active_challenges: 3
+    max_http_body_bytes: 1048576
+    max_ws_message_bytes: 65536
+    max_guest_tokens: 100000
+    db_pool_size: 10
+    db_pool_max_overflow: 20
+  rate_limits:
+    http_by_ip: {max_requests: 1200, window_secs: 60}
+    general: {max_requests: 300, window_secs: 60}
+    signin: {max_requests: 10, window_secs: 60}
+    signin_failures: {max_requests: 30, window_secs: 900}
+    registration: {max_requests: 20, window_secs: 3600}
+    guest: {max_requests: 30, window_secs: 60}
+    game_creation: {max_requests: 30, window_secs: 60}
+    game_action: {max_requests: 300, window_secs: 60}
+    chat: {max_requests: 30, window_secs: 60}
+    write: {max_requests: 120, window_secs: 60}
+    search: {max_requests: 120, window_secs: 60}
+    ws_connect: {max_requests: 60, window_secs: 60}
+    ws_message: {max_requests: 240, window_secs: 60}
+    client_error: {max_requests: 30, window_secs: 60}
+    max_ws_connections_per_ip: 50

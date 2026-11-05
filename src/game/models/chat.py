@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
+from pydantic import StringConstraints
 from sqlmodel import Field, Relationship
 
 from common.field_types import PlayerRef, legacy_nullable_datetime_field
@@ -57,4 +58,4 @@ class ChatMessageBroadcastedData(GameChatMessageEventBase):
 
 class GameSendChatMessagePayload(CustomModel):
     game_id: int
-    text: str
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]

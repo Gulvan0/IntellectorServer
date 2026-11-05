@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly restore test of the latest dump
+PartOf=intellector.target
+
+[Timer]
+OnCalendar=Sun *-*-* 05:00:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=intellector.target

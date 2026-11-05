@@ -8,3 +8,4 @@ src/.mypy_cache
 resources/cert
 src/op.py
 error_log.txt
+/infra/.env

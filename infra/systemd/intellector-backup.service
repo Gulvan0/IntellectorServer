@@ -1,0 +1,12 @@
+[Unit]
+Description=Database backup to offsite storage
+PartOf=intellector.target
+Requires=mysql.service
+After=mysql.service
+OnFailure=intellector-alert@%n.service
+
+[Service]
+Type=oneshot
+User=intellector
+Environment=RCLONE_CONFIG=/srv/intellector/rclone.conf
+ExecStart=/srv/intellector/infra/scripts/backup.sh

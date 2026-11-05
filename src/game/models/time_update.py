@@ -4,6 +4,7 @@ from enum import StrEnum, auto
 from sqlmodel import Field, Relationship
 
 from board.piece import PieceColor
+from common.field_types import PreciseUtcDateTime
 from utils.custom_model import CustomSQLModel
 
 
@@ -17,10 +18,12 @@ class GameTimeUpdateReason(StrEnum):
     ROLLBACK = auto()
     TIME_ADDED = auto()
     GAME_ENDED = auto()
+    SUSPENDED = auto()
+    RESUMED = auto()
 
 
 class GameTimeUpdateBase(CustomSQLModel):
-    updated_at: datetime | None  # null in games migrated from the old server, which didn't record it
+    updated_at: datetime | None = Field(sa_type=PreciseUtcDateTime)  # null in games migrated from the old server, which didn't record it
     white_ms: int
     black_ms: int
     ticking_side: PieceColor | None
@@ -46,8 +49,7 @@ class GameTimeUpdate(GameTimeUpdateBase, table=True):
         if not reference_ts:
             reference_ts = datetime.now(UTC)
 
-        # We need to strip the timezone so that both operands will be offset-naive
-        delta_secs = (reference_ts.replace(tzinfo=None) - self.updated_at).total_seconds()
+        delta_secs = (reference_ts - self.updated_at).total_seconds()
         delta_ms = int(delta_secs * 1000)
         remainders[self.ticking_side] -= delta_ms
 

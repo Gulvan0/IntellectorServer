@@ -1,0 +1,15 @@
+[Unit]
+Description=Archive log days older than a week offsite and purge them
+PartOf=intellector.target
+Requires=mysql.service
+After=mysql.service
+OnFailure=intellector-alert@%n.service
+
+[Service]
+Type=oneshot
+User=intellector
+WorkingDirectory=/srv/intellector/server/current
+Environment=STAGE=prod
+Environment=PYTHONPATH=src
+Environment=RCLONE_CONFIG=/srv/intellector/rclone.conf
+ExecStart=/srv/intellector/server/current/venv/bin/python -m jobs.log_archive --destination B2:intellector-backup/logs

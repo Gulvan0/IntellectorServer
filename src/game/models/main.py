@@ -4,7 +4,7 @@ from typing import Literal
 from sqlalchemy.orm import Load, joinedload, selectinload
 from sqlmodel import Field, Relationship
 
-from common.field_types import OptionalSip, PlayerRef, OptionalPlayerRef, Sip, legacy_nullable_datetime_field
+from common.field_types import OptionalSip, OptionalPlayerRef, Sip, legacy_nullable_datetime_field
 from common.models import UserRefWithNickname
 from common.resolved_refs import ResolvedRefs
 from common.time_control import TimeControlKind
@@ -15,6 +15,7 @@ from game.models.ply import GamePlyEvent, GamePlyEventPublic
 from game.models.chat import GameChatMessageEvent, GameChatMessageEventPublic
 from game.models.offer import GameOfferEvent, GameOfferEventPublic
 from game.models.rollback import GameRollbackEvent, GameRollbackEventPublic
+from game.models.suspension import GameSuspensionEvent, GameSuspensionEventPublic
 from game.models.time_added import GameTimeAddedEvent, GameTimeAddedEventPublic
 from game.models.time_update import GameTimeUpdate, GameTimeUpdatePublic
 from utils.custom_model import CustomModel, CustomSQLModel
@@ -29,7 +30,7 @@ class PlayerRatingPublic(CustomModel):
         return PlayerRatingPublic(elo=elo, provisional=bool(provisional)) if elo is not None else None
 
 
-GenericEvent = GamePlyEventPublic | GameChatMessageEventPublic | GameOfferEventPublic | GameTimeAddedEventPublic | GameRollbackEventPublic
+GenericEvent = GamePlyEventPublic | GameChatMessageEventPublic | GameOfferEventPublic | GameTimeAddedEventPublic | GameRollbackEventPublic | GameSuspensionEventPublic
 GenericEventList = list[GenericEvent]
 
 
@@ -44,8 +45,8 @@ class GameBase(CustomSQLModel):
 
 class Game(GameBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    white_player_ref: PlayerRef
-    black_player_ref: PlayerRef
+    white_player_ref: str = Field(max_length=32, index=True)
+    black_player_ref: str = Field(max_length=32, index=True)
     latest_sip: Sip
     opening_sip: Sip
     event_cnt: int = 0  # events appended so far; get_next_event_index hands out 0, 1, 2, ...
@@ -53,7 +54,7 @@ class Game(GameBase, table=True):
     white_elo: int | None = None
     white_elo_provisional: bool | None = None
     black_elo: int | None = None
-    black_elo_provisional: bool | None = None  # events appended so far; get_next_event_index hands out 0, 1, 2, ...
+    black_elo_provisional: bool | None = None
 
     fischer_time_control: GameFischerTimeControl | None = Relationship(back_populates="game", cascade_delete=True)
     outcome: GameOutcome | None = Relationship(back_populates="game", cascade_delete=True)
@@ -62,6 +63,7 @@ class Game(GameBase, table=True):
     offer_events: list[GameOfferEvent] = Relationship(back_populates="game", cascade_delete=True)
     time_added_events: list[GameTimeAddedEvent] = Relationship(back_populates="game", cascade_delete=True)
     rollback_events: list[GameRollbackEvent] = Relationship(back_populates="game", cascade_delete=True)
+    suspension_events: list[GameSuspensionEvent] = Relationship(back_populates="game", cascade_delete=True)
     # joined on every load: summaries read it, and an async session can't load it lazily
     bot_settings: GameBotSettings | None = Relationship(back_populates="game", cascade_delete=True, sa_relationship_kwargs={"lazy": "joined"})
 
@@ -85,6 +87,8 @@ class Game(GameBase, table=True):
                     .options(*GameTimeAddedEvent.load_options()),  # noqa: E131
                 selectinload(Game.rollback_events)  # type: ignore[arg-type]
                     .options(*GameRollbackEvent.load_options()),  # noqa: E131
+                selectinload(Game.suspension_events)  # type: ignore[arg-type]
+                    .options(*GameSuspensionEvent.load_options()),  # noqa: E131
             ]
         return options
 
@@ -113,6 +117,8 @@ class Game(GameBase, table=True):
             events.append(time_added_event.to_public())
         for rollback_event in self.rollback_events:
             events.append(rollback_event.to_public())
+        for suspension_event in self.suspension_events:
+            events.append(suspension_event.to_public())
 
         return sorted(events, key=lambda event: event.event_index)
 
@@ -172,6 +178,8 @@ class GameSummaryPublic(GameBase):
 class GamePublic(GameSummaryPublic):
     events: GenericEventList
     latest_time_update: GameTimeUpdatePublic | None
+    suspended_since: datetime | None = None  # external ongoing games only: set while the uploader is gone and the bot is to move
+    uploader_last_seen_at: datetime | None = None  # external ongoing games only
 
 
 class OngoingGameUpdate(CustomSQLModel):

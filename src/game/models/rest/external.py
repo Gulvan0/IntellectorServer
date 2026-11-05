@@ -46,6 +46,10 @@ class ExternalGameEndPayload(CustomModel):
         return self
 
 
+class ExternalGameHeartbeatPayload(CustomModel):
+    game_id: int
+
+
 class ExternalGameRollbackPayload(CustomModel):
     game_id: int
     new_ply_cnt: int = PydanticField(ge=0)

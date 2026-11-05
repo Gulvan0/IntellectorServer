@@ -1,4 +1,5 @@
 from enum import StrEnum, auto
+from math import ceil
 from typing import Any
 
 from fastapi import HTTPException, Request
@@ -14,6 +15,9 @@ class RestErrorCode(StrEnum):
     TOO_MANY_ACTIVE_CHALLENGES = auto()  # extra fields: max_active_challenges
     TOO_MANY_DIRECT_CHALLENGES = auto()  # extra fields: max_active_challenges
     SERVER_RESTARTING = auto()
+    RATE_LIMITED = auto()  # extra fields: retry_after_secs
+    PAYLOAD_TOO_LARGE = auto()  # extra fields: max_bytes
+    CHAT_RESTRICTED = auto()
 
 
 STATUS_CODES: dict[RestErrorCode, int] = {
@@ -25,6 +29,9 @@ STATUS_CODES: dict[RestErrorCode, int] = {
     RestErrorCode.TOO_MANY_ACTIVE_CHALLENGES: 422,
     RestErrorCode.TOO_MANY_DIRECT_CHALLENGES: 422,
     RestErrorCode.SERVER_RESTARTING: 503,
+    RestErrorCode.RATE_LIMITED: 429,
+    RestErrorCode.PAYLOAD_TOO_LARGE: 413,
+    RestErrorCode.CHAT_RESTRICTED: 403,
 }
 
 
@@ -41,6 +48,17 @@ class RestException(HTTPException):
 
     def body(self) -> dict[str, Any]:
         return {"detail": self.detail, "code": self.code, **self.extra_fields}
+
+
+def rate_limited_error(retry_after_secs: float) -> RestException:
+    whole_secs = ceil(retry_after_secs)
+    error = RestException(RestErrorCode.RATE_LIMITED, "Too many requests", retry_after_secs=whole_secs)
+    error.headers = {"Retry-After": str(whole_secs)}
+    return error
+
+
+def payload_too_large_error(max_bytes: int) -> RestException:
+    return RestException(RestErrorCode.PAYLOAD_TOO_LARGE, "Request body too large", max_bytes=max_bytes)
 
 
 async def handle_rest_exception(request: Request, exc: Exception) -> JSONResponse:

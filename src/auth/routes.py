@@ -1,35 +1,43 @@
+import asyncio
 from datetime import UTC, datetime
 from hashlib import md5
 from secrets import token_hex
 from fastapi import APIRouter, HTTPException
-from fastapi.routing import APIRoute
+from sqlalchemy.exc import IntegrityError
 
 from auth.models import AuthCredentials, PlayerPasswordUpdate, TokenResponse, GuestTokenResponse, WhoamiResponse, PlayerPassword
-from common.dependencies import MandatoryPlayerLoginDependency, MandatoryUserDependency, MutableStateDependency, SessionDependency
+from common.dependencies import AppDependency, MainConfigDependency, MandatoryPlayerLoginDependency, MandatoryUserDependency, MutableStateDependency, SessionDependency
 from common.models import UserRefWithNickname
-from net.base_router import LoggingRoute
-from net.utils.rest_error import RestErrorCode, RestException
+from net.base_router import LoggingRoute, RateLimitedRoute, rate_limited
+from net.rate_limit import RateLimitGroup
+from net.utils.rest_error import RestErrorCode, RestException, rate_limited_error
 
 import bcrypt
-import os
 
+from config.stage import is_test_stage
 from player.datatypes import UserRole
 from player.methods import create_player, resolve_player_ref
 from player.models import PlayerRole
 
 
-route_class: type[APIRoute] = APIRoute
-if os.getenv("STAGE", "").lower() == "test":  # To prevent password leakage
+route_class: type[RateLimitedRoute] = RateLimitedRoute
+if is_test_stage():  # To prevent password leakage
     route_class = LoggingRoute
 
 
 router = APIRouter(prefix="/auth", route_class=route_class)
 
 
+async def hash_password(password: bytes) -> bytes:
+    """In a thread, as hashing takes long enough to freeze every game on the server if done on the event loop"""
+    return await asyncio.to_thread(lambda: bcrypt.hashpw(password, bcrypt.gensalt()))
+
+
 @router.get("/guest", response_model=GuestTokenResponse)
-async def guest(state: MutableStateDependency) -> GuestTokenResponse:
+@rate_limited(RateLimitGroup.GUEST)
+async def guest(state: MutableStateDependency, main_config: MainConfigDependency) -> GuestTokenResponse:
     token = token_hex()
-    guest_id = state.add_guest(token)
+    guest_id = state.add_guest(token, main_config.limits.max_guest_tokens)
     return GuestTokenResponse(guest_id=guest_id, token=token)
 
 
@@ -44,11 +52,16 @@ async def whoami(user: MandatoryUserDependency, session: SessionDependency) -> W
 
 
 @router.post("/signin", response_model=TokenResponse)
-async def signin(*, credentials: AuthCredentials, session: SessionDependency, state: MutableStateDependency) -> TokenResponse:
+@rate_limited(RateLimitGroup.SIGNIN)
+async def signin(*, credentials: AuthCredentials, session: SessionDependency, state: MutableStateDependency, app: AppDependency) -> TokenResponse:
     login = credentials.login.lower()
     password_data = await session.get(PlayerPassword, login)
     if not password_data:
         raise RestException(RestErrorCode.USER_NOT_FOUND, "User not found")
+
+    retry_after_secs = app.rate_limiter.take(RateLimitGroup.SIGNIN_FAILURES, login)
+    if retry_after_secs is not None:
+        raise rate_limited_error(retry_after_secs)
 
     pwd_bytes = credentials.password.encode()
     if password_data.normal_md5:
@@ -56,12 +69,14 @@ async def signin(*, credentials: AuthCredentials, session: SessionDependency, st
             raise RestException(RestErrorCode.INVALID_CREDENTIALS, "Invalid credentials")
 
         password_data.created_at = datetime.now(UTC)
-        password_data.password_hash = bcrypt.hashpw(pwd_bytes, bcrypt.gensalt())
+        password_data.password_hash = await hash_password(pwd_bytes)
         password_data.normal_md5 = None
         session.add(password_data)
         await session.commit()
-    elif not bcrypt.checkpw(pwd_bytes, password_data.password_hash):
+    elif not await asyncio.to_thread(bcrypt.checkpw, pwd_bytes, password_data.password_hash):
         raise RestException(RestErrorCode.INVALID_CREDENTIALS, "Invalid credentials")
+
+    app.rate_limiter.give_back(RateLimitGroup.SIGNIN_FAILURES, login)
 
     token = token_hex()
     state.add_logged(token, login)
@@ -70,6 +85,7 @@ async def signin(*, credentials: AuthCredentials, session: SessionDependency, st
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
+@rate_limited(RateLimitGroup.REGISTRATION)
 async def register(*, credentials: AuthCredentials, session: SessionDependency, state: MutableStateDependency) -> TokenResponse:
     login = credentials.login.lower()
 
@@ -77,19 +93,23 @@ async def register(*, credentials: AuthCredentials, session: SessionDependency, 
     if password_data:
         raise RestException(RestErrorCode.USER_ALREADY_EXISTS, "User already exists")
 
-    await create_player(
-        session=session,
-        login=login,
-        nickname=credentials.login,  # case preserved!
-        commit=False
-    )
-
     password = PlayerPassword(
         login=login,
-        password_hash=bcrypt.hashpw(credentials.password.encode(), bcrypt.gensalt())
+        password_hash=await hash_password(credentials.password.encode())
     )
-    session.add(password)
-    await session.commit()
+
+    try:
+        await create_player(
+            session=session,
+            login=login,
+            nickname=credentials.login,  # case preserved!
+            commit=False
+        )
+        session.add(password)
+        await session.commit()
+    except IntegrityError:  # a simultaneous registration of this login got ahead of this one
+        await session.rollback()
+        raise RestException(RestErrorCode.USER_ALREADY_EXISTS, "User already exists")
 
     token = token_hex()
     state.add_logged(token, login)
@@ -98,6 +118,7 @@ async def register(*, credentials: AuthCredentials, session: SessionDependency, 
 
 
 @router.patch("/update_password", status_code=201)
+@rate_limited(RateLimitGroup.SIGNIN)  # hashes a password just the same
 async def update_password(
     *,
     payload: PlayerPasswordUpdate,
@@ -114,6 +135,6 @@ async def update_password(
 
     password_data.created_at = datetime.now(UTC)
     password_data.normal_md5 = None
-    password_data.password_hash = bcrypt.hashpw(payload.password.encode(), bcrypt.gensalt())
+    password_data.password_hash = await hash_password(payload.password.encode())
     session.add(password_data)
     await session.commit()

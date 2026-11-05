@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import csv
 import json
 from pathlib import Path
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 from sqlalchemy import create_engine
 from sqlmodel import Session
 from config.loader import load
+from config.stage import is_test_stage
 from config.models import SecretConfig
 from migration.antifraud import process_log
 from migration.game import MSK_TZ, build_guest_renumbering, parse_log, RatedGameInfo
@@ -25,10 +26,10 @@ from migration.player import process_passwords_file, process_player_file
 from migration.study import process_study
 
 
-IS_TEST = os.getenv("STAGE", "TEST")
+IS_TEST = is_test_stage()
 BACKUP_FOLDER = os.getenv("INTELLECTOR_BACKUP_DIR") or "C:/Users/mitmi/YandexDisk/backup"
 SECRET_CONFIG = load('secret', SecretConfig)
-DB_ENGINE = create_engine(SECRET_CONFIG.db.url.replace("aiomysql", "pymysql"))
+DB_ENGINE = create_engine(SECRET_CONFIG.db.sync_url(os.getenv("MIGRATION_DATABASE")))  # the variable targets a scratch database instead of the configured one
 
 _GAME_COMMIT_BATCH = 50
 
@@ -51,25 +52,27 @@ if __name__ == '__main__':
     SESSION = Session(DB_ENGINE)
 
     if IS_TEST:
-        from prompt_toolkit import prompt
-        from prompt_toolkit.completion import WordCompleter
+        backup_day = os.getenv("INTELLECTOR_BACKUP_DAY")  # skips the prompt
+        if not backup_day:
+            from prompt_toolkit import prompt
+            from prompt_toolkit.completion import WordCompleter
 
-        backups = list(sorted(
-            filter(
-                lambda x: re.match(r"\d{4}-\d{2}-\d{2}", x) is not None,
-                map(
-                    lambda x: x.stem,
-                    Path(BACKUP_FOLDER).iterdir()
-                )
-            ),
-            reverse=True
-        ))
-        print("Available backups:\n" + "; ".join(backups))
-        completer = WordCompleter(backups)
-        backup_day = (
-            prompt("Enter backup folder name (leave empty for most recent): ", completer=completer)
-            or backups[0]
-        )
+            backups = list(sorted(
+                filter(
+                    lambda x: re.match(r"\d{4}-\d{2}-\d{2}", x) is not None,
+                    map(
+                        lambda x: x.stem,
+                        Path(BACKUP_FOLDER).iterdir()
+                    )
+                ),
+                reverse=True
+            ))
+            print("Available backups:\n" + "; ".join(backups))
+            completer = WordCompleter(backups)
+            backup_day = (
+                prompt("Enter backup folder name (leave empty for most recent): ", completer=completer)
+                or backups[0]
+            )
         root = Path(f'{BACKUP_FOLDER}/{backup_day}')
     else:
         root = Path.cwd()
@@ -78,7 +81,7 @@ if __name__ == '__main__':
     estimated_dts = _read_csv_column('old_games_datetimes.csv', 'game_id', 'estimated_datetime')
     # The players' first messages in the community chat; MSK
     first_messages = {
-        login: datetime.fromisoformat(raw_dt).replace(tzinfo=MSK_TZ)
+        login: datetime.fromisoformat(raw_dt).replace(tzinfo=MSK_TZ).astimezone(UTC)
         for login, raw_dt in _read_csv_column('first_messages.csv', 'login', 'first_message_date').items()
     }
     player_rated_games: defaultdict[str, list[RatedGameInfo]] = defaultdict(list)
@@ -116,10 +119,10 @@ if __name__ == '__main__':
             for player_path in (root / 'player').iterdir():
                 print(f'Player {player_path.stem}')
                 data: dict[str, Any] = json.loads(player_path.read_text(encoding='utf-8'))
-                new_follow_rows, last_active_at = process_player_file(player_path.stem, data)
+                new_follow_rows, last_active_at = process_player_file(player_path.stem.lower(), data)
                 assert last_active_at
                 follow_rows.extend(new_follow_rows)
-                last_activities[player_path.stem] = last_active_at // 1000
+                last_activities[player_path.stem.lower()] = last_active_at // 1000
         except Exception as exc:
             _players_exc.append(exc)
 

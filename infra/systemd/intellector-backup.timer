@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly database backup
+PartOf=intellector.target
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=intellector.target

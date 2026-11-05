@@ -1,0 +1,7 @@
+[Unit]
+Description=Telegram alert about %i
+
+[Service]
+Type=oneshot
+User=intellector
+ExecStart=/srv/intellector/infra/scripts/alert.sh %i

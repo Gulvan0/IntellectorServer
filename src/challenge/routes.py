@@ -4,12 +4,15 @@ from challenge.methods.get import fill_caller_rating, get_active_public_challeng
 from challenge.methods.merge import try_merging
 from challenge.methods.validation import perform_common_validations, validate_direct_callee
 from challenge.methods.cancel import cancel_challenge as cancel_specific_challenge
+from challenge.methods.deactivate import deactivate_challenge
 from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengePublic
 from common.dependencies import AppDependency, MainConfigDependency, MandatoryUserDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
 from common.models import Id
 from game.methods.create import create_internal_game
 from game.models.main import GameSummaryPublic
-from net.base_router import LoggingRoute
+from net.base_router import LoggingRoute, rate_limited
+from net.rate_limit import RateLimitGroup
+from net.utils.rest_error import RestErrorCode, RestException
 from notification.methods import delete_new_public_challenge_notifications, send_new_public_challenge_notifications
 from player.methods import resolve_player_refs
 from pubsub.models.channel import IncomingChallengesEventChannel, OutgoingChallengesEventChannel, PublicChallengeListEventChannel
@@ -27,6 +30,7 @@ router = APIRouter(prefix="/challenge", route_class=LoggingRoute)
 
 
 @router.post("/create/open", status_code=201, response_model=ChallengeCreateResponse, response_model_exclude_none=True)
+@rate_limited(RateLimitGroup.GAME_CREATION)
 async def create_open_challenge(
     *,
     app: AppDependency,
@@ -78,6 +82,7 @@ async def create_open_challenge(
 
 
 @router.post("/create/direct", status_code=201, response_model=ChallengeCreateResponse, response_model_exclude_none=True)
+@rate_limited(RateLimitGroup.GAME_CREATION)
 async def create_direct_challenge(
     *,
     challenge: ChallengeCreateDirect,
@@ -146,6 +151,7 @@ async def get_challenge(*, session: SessionDependency, main_config: MainConfigDe
 
 
 @router.delete("/{challenge_id}")
+@rate_limited(RateLimitGroup.WRITE)
 async def cancel_challenge(
     *,
     challenge_id: int,
@@ -165,15 +171,15 @@ async def cancel_challenge(
     if db_challenge.caller_ref != client.reference:
         raise HTTPException(status_code=403, detail="Only the author of this challenge may cancel it")
 
-    await cancel_specific_challenge(db_challenge, session, state, secret_config)
-    session.add(db_challenge)
-    await session.commit()
+    if not await cancel_specific_challenge(db_challenge, session, state, secret_config):
+        raise HTTPException(status_code=422, detail="Challenge is already inactive (i.e. cancelled, accepted or rejected)")
 
     event = OutgoingChallengeCancelled(Id(id=challenge_id), OutgoingChallengesEventChannel(user_ref=client.reference))
     state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event))
 
 
 @router.post("/{challenge_id}/accept", response_model=GameSummaryPublic)
+@rate_limited(RateLimitGroup.WRITE)
 async def accept_challenge(
     *,
     challenge_id: int,
@@ -183,6 +189,9 @@ async def accept_challenge(
     main_config: MainConfigDependency,
     secret_config: SecretConfigDependency
 ) -> GameSummaryPublic:
+    if state.shutdown_activated:
+        raise RestException(RestErrorCode.SERVER_RESTARTING, "Server is preparing to be restarted")
+
     db_challenge = await session.get(Challenge, challenge_id, options=Challenge.load_options())
 
     if not db_challenge:
@@ -201,12 +210,16 @@ async def accept_challenge(
     if db_challenge.rated and client.is_guest():
         raise HTTPException(status_code=403, detail="Guests cannot play rated games")
 
+    if not await deactivate_challenge(challenge_id, session):
+        raise HTTPException(status_code=422, detail="Challenge is inactive (i.e. cancelled, accepted or rejected)")
+
     db_game = await create_internal_game(db_challenge, client, session, state, main_config, secret_config)
 
     return db_game
 
 
 @router.post("/{challenge_id}/decline")
+@rate_limited(RateLimitGroup.WRITE)
 async def decline_challenge(
     *,
     challenge_id: int,
@@ -231,16 +244,16 @@ async def decline_challenge(
 
     caller_ref = db_challenge.caller_ref  # eager
 
-    db_challenge.active = False
-    session.add(db_challenge)
+    if not await deactivate_challenge(challenge_id, session):
+        raise HTTPException(status_code=422, detail="Challenge is inactive (i.e. cancelled, accepted or rejected)")
+
+    await session.commit()
 
     state.concurrent_tasks.plan_with_own_session(lambda task_session: delete_new_public_challenge_notifications(
         challenge_id=challenge_id,
         session=task_session,
         vk_token=secret_config.integrations.vk.token
     ))
-
-    await session.commit()
 
     rejected_event = OutgoingChallengeRejected(Id(id=challenge_id), OutgoingChallengesEventChannel(user_ref=caller_ref))
     state.concurrent_tasks.plan(state.ws_subscribers.broadcast(rejected_event))

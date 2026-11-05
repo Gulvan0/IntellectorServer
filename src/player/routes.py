@@ -1,6 +1,7 @@
 from datetime import datetime, UTC
 from fastapi import APIRouter, HTTPException, Query, UploadFile
 from sqlalchemy import update
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, desc, select
 
 from common.datatypes import UserStatus
@@ -10,7 +11,8 @@ from game.methods.get import get_overall_player_game_counts
 from log.methods import last_seen_in_logs
 from player.datatypes import RankedGameStats
 from player.dependencies import PLAYER_EXISTS_DEPENDENCY, DBPlayerDependency
-from net.base_router import LoggingRoute
+from net.base_router import LoggingRoute, rate_limited
+from net.rate_limit import RateLimitGroup
 from player.methods import get_connections, get_elo_history, get_follows_since, get_overall_ranked_game_stats, get_ws_activity, promote_to_playing, search_players
 from common.dependencies import (
     CLIENT_IS_ADMIN_DEPENDENCY,
@@ -48,6 +50,7 @@ router = APIRouter(prefix="/player", route_class=LoggingRoute)
 
 # before `/{login}`, which would take "search" for a login
 @router.get("/search", response_model=PlayerSearchResult)
+@rate_limited(RateLimitGroup.SEARCH)
 async def search(
     *,
     session: SessionDependency,
@@ -123,6 +126,7 @@ async def relation(
 
 
 @router.post("/{login}/follow", dependencies=[PLAYER_EXISTS_DEPENDENCY])
+@rate_limited(RateLimitGroup.WRITE)
 async def follow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency) -> None:
     if client_login == login:
         raise HTTPException(status_code=422, detail="Cannot follow self")
@@ -135,10 +139,15 @@ async def follow(*, session: SessionDependency, login: PlayerLogin, client_login
         followed_login=login
     )
     session.add(db_player_followed_player)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError:  # a simultaneous follow got ahead of this one
+        await session.rollback()
+        raise HTTPException(status_code=422, detail="Already followed")
 
 
 @router.post("/{login}/unfollow")
+@rate_limited(RateLimitGroup.WRITE)
 async def unfollow(*, session: SessionDependency, login: PlayerLogin, client_login: MandatoryPlayerLoginDependency) -> None:
     if client_login == login:
         raise HTTPException(status_code=422, detail="Cannot unfollow self")
@@ -261,6 +270,7 @@ async def purge_restrictions(
 
 
 @router.post("/{login}/avatar/update")
+@rate_limited(RateLimitGroup.WRITE)
 async def update_avatar(
     *,
     session: SessionDependency,
@@ -301,6 +311,7 @@ async def get_player(
 
 
 @router.patch("/{login}")
+@rate_limited(RateLimitGroup.WRITE)
 async def update_player(
     *,
     session: SessionDependency,

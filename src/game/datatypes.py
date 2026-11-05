@@ -58,3 +58,4 @@ class EventKind(StrEnum):
     OFFER = auto()
     TIME_ADDED = auto()
     ROLLBACK = auto()
+    SUSPENSION = auto()

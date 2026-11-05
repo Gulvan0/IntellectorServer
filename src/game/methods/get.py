@@ -11,6 +11,7 @@ from game.models.main import Game, GameSummaryPublic
 from game.models.offer import GameOfferEvent
 from game.models.outcome import GameOutcome
 from game.models.ply import GamePlyEvent
+from game.models.presence import GameUploaderPresence
 from game.models.rest.common import GameFilter, GameSearchCounts, GameSearchPayload, GameSearchRatedCounts, GameSearchResult
 from game.models.time_update import GameTimeUpdate
 from board.constants.sip import DEFAULT_STARTING_SIP
@@ -209,7 +210,16 @@ async def _fill_last_ply_times(session: AsyncSession, games: list[GameSummaryPub
 
 
 async def get_all_current_games(session: AsyncSession) -> list[GameSummaryPublic]:
+    """The ongoing games for the main page: suspended ones, whose uploader is gone, are left out"""
     games = await get_current_games(session, limit=None)
+    suspended_result = await session.exec(
+        select(GameUploaderPresence.game_id)
+        .where(
+            GameUploaderPresence.suspended_at != None  # noqa
+        )
+    )
+    suspended_game_ids = set(suspended_result.all())
+    games = [game for game in games if game.id not in suspended_game_ids]
     await _fill_last_ply_times(session, games)
     return games
 
@@ -233,9 +243,8 @@ async def search_games(session: AsyncSession, payload: GameSearchPayload, offset
 async def get_ongoing_finite_game(session: AsyncSession) -> Game | None:
     result = await session.exec(
         select(Game)
-        .join(GameOutcome)
         .where(
-            Game.outcome != None,  # noqa
+            Game.outcome == None,  # noqa
             Game.time_control_kind != TimeControlKind.CORRESPONDENCE
         )
     )
@@ -284,7 +293,8 @@ async def get_latest_time_update(session: AsyncSession, game_id: int) -> GameTim
     return result.first()
 
 
-async def has_occured_thrice(session: AsyncSession, game_id: int, sip: str) -> bool:
+async def has_occured_thrice(session: AsyncSession, game_id: int, sip: str, starting_sip: str) -> bool:
+    """`starting_sip` must be in the form plies store theirs in, as no ply event stands for the starting position"""
     result = await session.exec(select(
         func.count(col(GamePlyEvent.id))
     ).where(
@@ -293,6 +303,8 @@ async def has_occured_thrice(session: AsyncSession, game_id: int, sip: str) -> b
         GamePlyEvent.sip_after == sip
     ))
     same_position_occurences_cnt = result.one()
+    if sip == starting_sip:
+        same_position_occurences_cnt += 1
     return same_position_occurences_cnt >= 3
 
 
@@ -313,4 +325,6 @@ async def is_stale(session: AsyncSession, game_id: int, last_ply_index: int) -> 
         desc(GamePlyEvent.ply_index)
     ))
     last_progressive_ply_index = result.first()
-    return last_ply_index - (last_progressive_ply_index or -1) >= 60
+    if last_progressive_ply_index is None:
+        last_progressive_ply_index = -1
+    return last_ply_index - last_progressive_ply_index >= 60

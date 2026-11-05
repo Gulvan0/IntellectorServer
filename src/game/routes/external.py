@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from common.dependencies import (
     MainConfigDependency,
@@ -20,16 +20,21 @@ from game.models.rest.external import (
     ExternalGameAppendPlyResponse,
     ExternalGameCreatePayload,
     ExternalGameEndPayload,
+    ExternalGameHeartbeatPayload,
     ExternalGameRollbackPayload,
 )
-from game.models.main import GameSummaryPublic
-from net.base_router import LoggingRoute
+from game.methods.presence import touch_uploader
+from game.models.main import Game, GameSummaryPublic
+from net.base_router import LoggingRoute, game_action, rate_limited
+from net.rate_limit import RateLimitGroup
+from net.utils.rest_error import RestErrorCode, RestException
 
 
 router = APIRouter(prefix="/game/external", route_class=LoggingRoute)
 
 
 @router.post("/create", response_model=GameSummaryPublic)
+@rate_limited(RateLimitGroup.GAME_CREATION)
 async def create(
     *,
     payload: ExternalGameCreatePayload,
@@ -39,7 +44,10 @@ async def create(
     main_config: MainConfigDependency,
     secret_config: SecretConfigDependency
 ) -> GameSummaryPublic:
-    return await create_external_game(
+    if state.shutdown_activated:
+        raise RestException(RestErrorCode.SERVER_RESTARTING, "Server is preparing to be restarted")
+
+    summary = await create_external_game(
         uploader=client,
         white_player_ref=payload.white_player_ref,
         black_player_ref=payload.black_player_ref,
@@ -51,14 +59,37 @@ async def create(
         main_config=main_config,
         secret_config=secret_config
     )
+    await touch_uploader(session, state, main_config, secret_config, summary.id)
+    return summary
+
+
+@router.post("/heartbeat", dependencies=[
+    CLIENT_IS_UPLOADER_DEPENDENCY,
+    GAME_IS_ONGOING_DEPENDENCY,
+])
+@game_action
+@rate_limited(RateLimitGroup.GAME_ACTION)
+async def heartbeat(
+    *,
+    payload: ExternalGameHeartbeatPayload,
+    session: SessionDependency,
+    state: MutableStateDependency,
+    main_config: MainConfigDependency,
+    secret_config: SecretConfigDependency
+) -> None:
+    """Tells the server the uploader is alive. Send it every ~20 seconds while the game is ongoing: the game gets suspended after a longer silence"""
+    await touch_uploader(session, state, main_config, secret_config, payload.game_id)
 
 
 @router.post("/append_ply", response_model=ExternalGameAppendPlyResponse, dependencies=[
     CLIENT_IS_UPLOADER_DEPENDENCY,
     GAME_IS_ONGOING_DEPENDENCY,
 ])
+@game_action
+@rate_limited(RateLimitGroup.GAME_ACTION)
 async def append_ply_route(
     *,
+    request: Request,
     payload: ExternalGameAppendPlyPayload,
     db_game: SummarizedGameDependency,
     session: SessionDependency,
@@ -67,6 +98,11 @@ async def append_ply_route(
     secret_config: SecretConfigDependency,
     openings: OpeningMappingDepencency,
 ) -> ExternalGameAppendPlyResponse:
+    await touch_uploader(session, state, main_config, secret_config, payload.game_id)  # also resumes a suspended game before the ply lands
+    # its commits expired the game the dependency loaded
+    reloaded_game = await session.get(Game, payload.game_id, options=Game.load_options(just_summary=True), populate_existing=True)
+    assert reloaded_game
+    db_game = reloaded_game
     try:
         outcome, _, _ = await append_ply(
             session,
@@ -76,7 +112,8 @@ async def append_ply_route(
             openings,
             payload,
             db_game,
-            payload.time_remainders
+            payload.time_remainders,
+            request.state.arrived_at
         )
     except TimeoutReachedException as e:
         await end_game(
@@ -102,6 +139,8 @@ async def append_ply_route(
     CLIENT_IS_UPLOADER_DEPENDENCY,
     GAME_IS_ONGOING_DEPENDENCY,
 ])
+@game_action
+@rate_limited(RateLimitGroup.GAME_ACTION)
 async def end(
     *,
     payload: ExternalGameEndPayload,
@@ -117,6 +156,8 @@ async def end(
     CLIENT_IS_UPLOADER_DEPENDENCY,
     GAME_IS_ONGOING_DEPENDENCY,
 ])
+@game_action
+@rate_limited(RateLimitGroup.GAME_ACTION)
 async def rollback(
     *,
     payload: ExternalGameRollbackPayload,
@@ -126,5 +167,6 @@ async def rollback(
     main_config: MainConfigDependency,
     secret_config: SecretConfigDependency
 ) -> None:
+    await touch_uploader(session, state, main_config, secret_config, payload.game_id)
     validation_results = await validate_rollback(session, payload.game_id, RollbackPlyCountInput(payload.new_ply_cnt))
     await perform_rollback(session, state, main_config, secret_config, payload.game_id, db_game, validation_results)

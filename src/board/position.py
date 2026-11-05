@@ -149,8 +149,6 @@ class Position:
                         continue
                     if destination.is_final_row_for(moved_piece.color):
                         plys += [Ply(departure, destination, promoted_piece_kind) for promoted_piece_kind in PieceKind.promotion_options()]
-                        if target_piece and target_piece.kind == PieceKind.INTELLECTOR:  # capturing it ends the game, so promoting is optional
-                            plys.append(Ply(departure, destination))
                     else:
                         plys.append(Ply(departure, destination))
             case PieceKind.LIBERATOR:

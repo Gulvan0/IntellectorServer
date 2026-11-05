@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from common.dependencies import MainConfigDependency, MutableStateDependency, OpeningMappingDepencency, SecretConfigDependency, SessionDependency
-from game.datatypes import OfferAction, OfferKind, OutcomeKind
+from game.datatypes import OfferAction, OfferKind, OutcomeKind, SimpleOutcome
 from game.dependencies import GAME_IS_INTERNAL_DEPENDENCY, GAME_IS_ONGOING_DEPENDENCY, FullGameDependency, GameDependency, PlayerColorDependency
 from game.methods.get import get_last_ply_event, get_latest_time_update
 from game.methods.ply import append_ply
@@ -9,7 +9,8 @@ from game.methods.end import end_game
 from game.methods.offer import accept_draw, accept_takeback, cancel_offer, create_offer, decline_offer
 from game.models.rest.internal import InternalGameAppendPlyPayload, InternalGameAppendPlyResponse, InternalGamePerformOfferActionPayload, InternalGameResignPayload
 from game.models.time_update import GameTimeUpdatePublic
-from net.base_router import LoggingRoute
+from net.base_router import LoggingRoute, game_action, rate_limited
+from net.rate_limit import RateLimitGroup
 from player.methods import resolve_player_refs
 from pubsub.models.state import GameStateRefresh
 
@@ -21,8 +22,11 @@ router = APIRouter(prefix="/game/internal", route_class=LoggingRoute)
     GAME_IS_INTERNAL_DEPENDENCY,
     GAME_IS_ONGOING_DEPENDENCY,
 ])
+@game_action
+@rate_limited(RateLimitGroup.GAME_ACTION)
 async def append_ply_route(
     *,
+    request: Request,
     payload: InternalGameAppendPlyPayload,
     db_game: FullGameDependency,
     client_color: PlayerColorDependency,
@@ -42,6 +46,7 @@ async def append_ply_route(
             payload,
             db_game,
             None,
+            request.state.arrived_at,
             client_color
         )
     except TimeoutReachedException as e:
@@ -56,6 +61,7 @@ async def append_ply_route(
             e.reached_at,
             pre_retrieved_db_game=db_game,
         )
+        return InternalGameAppendPlyResponse(outcome=SimpleOutcome(kind=OutcomeKind.TIMEOUT, winner=e.winner), sip_after=db_game.latest_sip, time_update=None)
     except PlyInvalidException as e:
         collected_refs = db_game.collect_refs(include_nested=True)
         resolved_refs = await resolve_player_refs(collected_refs, session)
@@ -78,6 +84,8 @@ async def append_ply_route(
     GAME_IS_INTERNAL_DEPENDENCY,
     GAME_IS_ONGOING_DEPENDENCY,
 ])
+@game_action
+@rate_limited(RateLimitGroup.GAME_ACTION)
 async def perform_offer_action(
     *,
     payload: InternalGamePerformOfferActionPayload,
@@ -106,6 +114,8 @@ async def perform_offer_action(
     GAME_IS_INTERNAL_DEPENDENCY,
     GAME_IS_ONGOING_DEPENDENCY,
 ])
+@game_action
+@rate_limited(RateLimitGroup.GAME_ACTION)
 async def resign(
     *,
     payload: InternalGameResignPayload,

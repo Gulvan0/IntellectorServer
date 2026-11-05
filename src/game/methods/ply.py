@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from fastapi import HTTPException
 
@@ -8,9 +8,10 @@ from common.time_control import TimeControlKind
 from config.models import MainConfig, SecretConfig
 from game.datatypes import OutcomeKind, SimpleOutcome, TimeRemainders
 from game.exceptions import PlyInvalidException, TimeoutReachedException
-from game.methods.event import append_event, get_next_event_index
+from game.methods.event import get_next_event_index
 from game.methods.get import get_current_sip_and_ply_cnt, get_last_ply_event, get_latest_time_update, has_occured_thrice, is_stale
 from game.methods.offer import cancel_all_active_offers
+from game.methods.ongoing import broadcast_ongoing_game_update
 from game.methods.timeout import plan_timeout_check
 from game.methods.end import end_game
 from game.models.main import Game
@@ -18,6 +19,8 @@ from game.models.ply import GamePlyEvent
 from game.models.polymorphous import PlyPayload
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from net.state import MutableState
+from pubsub.models.channel import GameEventChannel
+from pubsub.outgoing_event.update import NewPly
 from board.constants.sip import DEFAULT_STARTING_SIP
 from board.coords import HexCoordinates
 from board.deserializers.sip import position_from_sip
@@ -34,7 +37,14 @@ class PlyTimeRemainders:
     black_ms_after_execution: int | None = None
 
 
-async def _get_simple_outcome(session: AsyncSession, game_id: int, new_position: Position, new_sip: str, new_ply_index: int) -> SimpleOutcome | None:
+async def _get_simple_outcome(
+    session: AsyncSession,
+    game_id: int,
+    new_position: Position,
+    new_sip: str,
+    new_ply_index: int,
+    starting_sip: str
+) -> SimpleOutcome | None:
     match new_position.get_finality_group():
         case PositionFinalityGroup.FATUM:
             return SimpleOutcome(kind=OutcomeKind.FATUM, winner=new_position.color_to_move.opposite())
@@ -44,7 +54,7 @@ async def _get_simple_outcome(session: AsyncSession, game_id: int, new_position:
     if not new_position.available_plys():  # no legal moves is a loss for the side to move
         return SimpleOutcome(kind=OutcomeKind.STALEMATE, winner=new_position.color_to_move.opposite())
 
-    if await has_occured_thrice(session, game_id, new_sip):
+    if await has_occured_thrice(session, game_id, new_sip, starting_sip):
         return SimpleOutcome(kind=OutcomeKind.REPETITION)
 
     if await is_stale(session, game_id, new_ply_index):
@@ -76,7 +86,8 @@ async def _construct_new_ply_time_update(
     )
 
     if latest_time_update.ticking_side and latest_time_update.updated_at:  # a ticking clock always has its start recorded
-        ms_passed = int((ply_dt.replace(tzinfo=None) - latest_time_update.updated_at).total_seconds() * 1000)  # the stored one is naive UTC
+        # the stored time is rounded to seconds, and may be ahead of when this ply arrived
+        ms_passed = max(0, int((ply_dt - latest_time_update.updated_at).total_seconds() * 1000))
         if latest_time_update.ticking_side == PieceColor.WHITE:
             new_time_update.white_ms -= ms_passed
             remaining_time_at_check = new_time_update.white_ms
@@ -102,6 +113,7 @@ async def append_ply(
     payload: PlyPayload,
     db_game: Game,
     time_remainders: TimeRemainders | None,
+    ply_dt: datetime,
     assumed_moving_color: PieceColor | None = None
 ) -> tuple[SimpleOutcome | None, str, GameTimeUpdate | None]:
     prev_ply_event = await get_last_ply_event(session, payload.game_id)
@@ -124,12 +136,12 @@ async def append_ply(
     perform_ply_result = prev_position.perform_ply(ply)
     new_sip = get_sip(perform_ply_result.new_position)
 
-    ply_dt = datetime.now(UTC)
-
     # the commits below expire db_game, whose attributes can't be lazily reloaded in an async session
     is_external = db_game.external_uploader_ref is not None
     time_control_kind = db_game.time_control_kind
     increment_seconds = db_game.fischer_time_control.increment_seconds if db_game.fischer_time_control else None
+    custom_starting_sip = db_game.custom_starting_sip
+    starting_sip = get_sip(position_from_sip(custom_starting_sip)) if custom_starting_sip else DEFAULT_STARTING_SIP
 
     if not is_external:
         await cancel_all_active_offers(session, mutable_state, payload.game_id)
@@ -181,13 +193,14 @@ async def append_ply(
     if new_sip in openings.mapping:
         db_game.opening_sip = new_sip
     session.add(db_game)
+    session.add(event)
 
-    # commits before broadcasting: a premove fired by the broadcast must find the ply already stored
-    await append_event(session, mutable_state, event, payload.game_id)
-    await session.refresh(db_game)
+    # the mover gets it too: their other tabs know of the ply only from it
+    ply_broadcast = NewPly(event.to_broadcasted_data(), GameEventChannel(game_id=payload.game_id))
 
-    outcome = await _get_simple_outcome(session, payload.game_id, perform_ply_result.new_position, new_sip, new_ply_index)
+    outcome = await _get_simple_outcome(session, payload.game_id, perform_ply_result.new_position, new_sip, new_ply_index, starting_sip)
     if outcome:
+        # the ply and the outcome are stored together: there's no finished position in a game going on
         await end_game(
             session,
             mutable_state,
@@ -198,15 +211,24 @@ async def append_ply(
             outcome.winner,
             ply_dt,
             pre_retrieved_db_game=db_game,
-            pre_retrieved_latest_time_update=new_time_update
+            pre_retrieved_latest_time_update=new_time_update,
+            announced_first=ply_broadcast
         )
-    elif new_time_update:
-        await plan_timeout_check(
-            mutable_state,
-            main_config,
-            secret_config,
-            triggering_time_update=new_time_update,
-            game_id=payload.game_id,
-            is_external=is_external
-        )
+    else:
+        # commits before broadcasting: a premove fired by the broadcast must find the ply already stored
+        await session.commit()
+        mutable_state.concurrent_tasks.plan(mutable_state.ws_subscribers.broadcast(ply_broadcast))
+        await broadcast_ongoing_game_update(session, mutable_state, payload.game_id)
+
+    if new_time_update:
+        await session.refresh(new_time_update)
+        if not outcome:
+            await plan_timeout_check(
+                mutable_state,
+                main_config,
+                secret_config,
+                triggering_time_update=new_time_update,
+                game_id=payload.game_id,
+                is_external=is_external
+            )
     return outcome, new_sip, new_time_update

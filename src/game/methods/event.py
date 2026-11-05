@@ -4,7 +4,6 @@ from game.datatypes import OfferAction, OfferKind
 from game.models.chat import GameChatMessageEvent
 from game.models.main import Game
 from game.models.offer import GameOfferEvent
-from game.models.ply import GamePlyEvent
 from game.models.rollback import GameRollbackEvent
 from game.models.time_added import GameTimeAddedEvent
 from game.methods.ongoing import broadcast_ongoing_game_update
@@ -12,7 +11,7 @@ from net.state import MutableState
 from player.methods import resolve_player_refs
 from pubsub.models.channel import GameEventChannel
 from pubsub.outgoing_event.base import OutgoingEvent
-from pubsub.outgoing_event.update import NewChatMessage, NewPly, OfferActionPerformed, Rollback, TimeAdded
+from pubsub.outgoing_event.update import NewChatMessage, OfferActionPerformed, Rollback, TimeAdded
 from board.piece import PieceColor
 from utils.async_orm_session import AsyncSession
 
@@ -23,33 +22,29 @@ async def get_next_event_index(
     session: AsyncSession,
     game_id: int,
 ) -> int:
-    # MySQL has no RETURNING: the row lock the update takes keeps the read that follows it atomic
+    """Stored by the caller's commit along with the event. MySQL has no RETURNING: the row lock the update takes keeps the read atomic"""
     await session.execute(
         update(Game)
         .where(Game.id == game_id)  # type: ignore
         .values(event_cnt=Game.event_cnt + 1)
     )
     result = await session.execute(select(Game.event_cnt).where(Game.id == game_id))  # type: ignore
-    await session.commit()
     return result.scalar_one() - 1
 
 
 async def append_event(
     session: AsyncSession,
     mutable_state: MutableState,
-    event: GamePlyEvent | GameChatMessageEvent | GameOfferEvent | GameTimeAddedEvent,
+    event: GameChatMessageEvent | GameOfferEvent | GameTimeAddedEvent,
     game_id: int
 ) -> None:
     session.add(event)
 
     target_channel = GameEventChannel(game_id=game_id)
     match event:
-        case GamePlyEvent():
-            # the mover gets it too: their other tabs know of the ply only from it
-            ws_event: OutgoingEvent[Any, Any] = NewPly(event.to_broadcasted_data(), target_channel)
         case GameChatMessageEvent():
             resolved_refs = await resolve_player_refs({event.author_ref}, session)
-            ws_event = NewChatMessage(event.to_broadcasted_data(resolved_refs), target_channel)
+            ws_event: OutgoingEvent[Any, Any] = NewChatMessage(event.to_broadcasted_data(resolved_refs), target_channel)
         case GameOfferEvent():
             ws_event = OfferActionPerformed(event.to_broadcasted_data(), target_channel)
         case GameTimeAddedEvent():
@@ -57,9 +52,9 @@ async def append_event(
 
     # saved before it's announced: a client reacting to the event must find it stored
     await session.commit()
-    await mutable_state.ws_subscribers.broadcast(ws_event)
+    mutable_state.concurrent_tasks.plan(mutable_state.ws_subscribers.broadcast(ws_event))
 
-    if isinstance(event, GamePlyEvent | GameTimeAddedEvent):
+    if isinstance(event, GameTimeAddedEvent):
         await broadcast_ongoing_game_update(session, mutable_state, game_id)
 
 
@@ -99,5 +94,5 @@ async def append_rollback_event(
     await session.refresh(event, attribute_names=['time_update'])  # the broadcast reads it, and an async session can't load it lazily
 
     ws_event = Rollback(event.to_broadcasted_data(updated_sip), GameEventChannel(game_id=game_id))
-    await mutable_state.ws_subscribers.broadcast(ws_event)
+    mutable_state.concurrent_tasks.plan(mutable_state.ws_subscribers.broadcast(ws_event))
     await broadcast_ongoing_game_update(session, mutable_state, game_id)

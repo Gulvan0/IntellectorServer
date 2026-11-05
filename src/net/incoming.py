@@ -5,7 +5,7 @@ from pydantic import BaseModel, ValidationError
 
 from common.user_ref import UserReference
 from log.models import WSLog
-from net.utils.log_codecs import dump_ws_payload
+from net.utils.log_codecs import dump_ws_payload, redact_token
 from net.ws_wrapper import WebSocketWrapper
 from net.models import WebsocketIncomingMessage
 from net.utils.ws_error import ErrorKind, WebSocketException
@@ -62,9 +62,9 @@ class WebSocketHandlerCollection:
 
     @staticmethod
     def _redact_secrets(data: Any) -> Any:
-        """Keeps the session token out of the logs"""
+        """Keeps the session token out of the logs, but for the part that joins them"""
         if isinstance(data, dict) and isinstance(data.get("body"), dict) and data["body"].get("token"):
-            return {**data, "body": {**data["body"], "token": "***"}}
+            return {**data, "body": {**data["body"], "token": redact_token(str(data["body"]["token"]))}}
         return data
 
     async def handle(self, ws: WebSocketWrapper, data: Any) -> None:
@@ -81,17 +81,15 @@ class WebSocketHandlerCollection:
         try:
             message = WebsocketIncomingMessage.model_validate(data)
         except ValidationError as e:
-            async with ws.app.get_db_session() as session:
-                session.add(log_entry)
-                await session.commit()
-            await ws.send_validation_error(e)
+            ws.app.ws_log_buffer.add(log_entry)
+            ws.send_validation_error(e)
             return
 
         if message.event == "ping":
             last_activity_ts = message.body.get("last_activity")
             if last_activity_ts and isinstance(last_activity_ts, int):
                 ws.last_activity = min(max(ws.last_activity, last_activity_ts), now_ts)
-            await ws.send_pong()
+            ws.send_pong()
             return
 
         ws.last_activity = now_ts
@@ -100,22 +98,23 @@ class WebSocketHandlerCollection:
         if client:
             log_entry.authorized_as = client.reference
 
-        async with ws.app.get_db_session() as session:
-            session.add(log_entry)
-            await session.commit()
+        ws.app.ws_log_buffer.add(log_entry)
 
         handler = self._slug_to_handler.get(message.event)
         if not handler:
-            await ws.send_error(ErrorKind.UNKNOWN_EVENT, f"Event not found: {message.event}")
+            ws.send_error(ErrorKind.UNKNOWN_EVENT, f"Event not found: {message.event}")
             return
 
         try:
             payload = handler.payload_type.model_validate(message.body)
         except ValidationError as e:
-            await ws.send_validation_error(e)
+            ws.send_validation_error(e)
             return
 
         try:
             await handler.handler_callable(ws, client, payload)
         except WebSocketException as e:
-            await ws.send_error(e.kind, e.message, e.channel)
+            ws.send_error(e.kind, e.message, e.channel)
+        except Exception:
+            await ws.app.log_caught_failure(f"ws_handler:{message.event}")
+            ws.send_error(ErrorKind.PROCESSING_ERROR, "Internal server error")

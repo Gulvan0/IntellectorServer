@@ -4,7 +4,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Field, Relationship
 
 from common.datatypes import UserStatus
-from common.field_types import CurrentDatetime, CurrentTimestamp
+from common.field_types import CurrentTimestamp, UtcDateTime, current_datetime_field
 from common.models import UserActivity, UserRefWithNickname
 from player.datatypes import RankedGameStats, UserRestrictionKind, UserRole
 from common.time_control import TimeControlKind
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 class PlayerBase(CustomSQLModel):
     login: str = Field(primary_key=True, max_length=32)
-    joined_at: CurrentDatetime
+    joined_at: datetime = current_datetime_field()
     nickname: str
 
 
@@ -65,7 +65,7 @@ class PlayerPublic(PlayerBase):
 
 class PlayerRoleBase(CustomSQLModel):
     role: UserRole = Field(primary_key=True)
-    granted_at: CurrentDatetime
+    granted_at: datetime = current_datetime_field()
 
 
 class PlayerRole(PlayerRoleBase, table=True):
@@ -80,8 +80,8 @@ class PlayerRolePublic(PlayerRoleBase):
 
 class PlayerRestrictionBase(CustomSQLModel):
     id: int | None = Field(default=None, primary_key=True)
-    casted_at: CurrentDatetime
-    expires: datetime | None = None
+    casted_at: datetime = current_datetime_field()
+    expires: datetime | None = Field(default=None, sa_type=UtcDateTime)
     kind: UserRestrictionKind
 
 
@@ -98,13 +98,13 @@ class PlayerRestrictionPublic(PlayerRestrictionBase):
 class PlayerFollowedPlayer(CustomSQLModel, table=True):
     follower_login: str = Field(primary_key=True, foreign_key="player.login")
     followed_login: str = Field(primary_key=True, foreign_key="player.login")
-    follows_since: CurrentDatetime
+    follows_since: datetime = current_datetime_field()
 
 
 class PlayerEloProgress(CustomSQLModel, table=True):  # Used for: current elo retrieval, elo history plotting, antifraud checks
     id: int | None = Field(default=None, primary_key=True)
     login: str = Field(foreign_key="player.login")
-    ts: CurrentDatetime
+    ts: datetime = current_datetime_field()
     time_control_kind: TimeControlKind
     elo: int
     delta: int

@@ -1,33 +1,45 @@
 from typing import Any
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Request
 
 from challenge.methods.cancel import cancel_all_challenges
 from game.methods.get import get_ongoing_finite_game
-from other.datatypes import CompatibilityResolution
-from other.models import CompatibilityCheckPayload, CompatibilityResponse, MutableStatePublic, MutableStateRequestPayload
-from common.dependencies import MainConfigDependency, MutableStateDependency, SecretConfigDependency, SessionDependency, CLIENT_IS_ADMIN_DEPENDENCY
+from log.models import ClientErrorLog
+from net.base_router import RateLimitedRoute, get_client_ref, rate_limited
+from net.rate_limit import RateLimitGroup, client_host
+from other.api_version import API_VERSION
+from other.models import ClientErrorReport, MutableStatePublic, MutableStateRequestPayload, VersionResponse
+from common.dependencies import MutableStateDependency, SecretConfigDependency, SessionDependency, CLIENT_IS_ADMIN_DEPENDENCY
 from pubsub.models.channel import EveryoneEventChannel
 from pubsub.outgoing_event.update import ServerShutdown
 
 
-router = APIRouter(prefix="")
+router = APIRouter(prefix="", route_class=RateLimitedRoute)
 
 
-@router.post("/check_compatibility", response_model=CompatibilityResponse)
-async def check_compatibility(*, payload: CompatibilityCheckPayload, response: Response, main_config: MainConfigDependency) -> CompatibilityResponse:
-    resolution = CompatibilityResolution.COMPATIBLE
-    if payload.client_build < main_config.min_client_build:
-        response.status_code = 400
-        resolution = CompatibilityResolution.OUTDATED_CLIENT
-    elif payload.min_server_build > main_config.server_build:
-        response.status_code = 500
-        resolution = CompatibilityResolution.OUTDATED_SERVER
+@router.get("/version", response_model=VersionResponse)
+async def get_version() -> VersionResponse:
+    return VersionResponse(api=API_VERSION)
 
-    return CompatibilityResponse(
-        resolution=resolution,
-        min_client_build=main_config.min_client_build,
-        server_build=main_config.server_build
-    )
+
+@router.get("/health")
+async def get_health(session: SessionDependency) -> dict[str, str]:
+    """Stays healthy while the server is draining: a drain is not a failure"""
+    await session.exec_raw("SELECT 1")
+    return {"status": "ok"}
+
+
+@router.post("/client_error")
+@rate_limited(RateLimitGroup.CLIENT_ERROR)
+async def report_client_error(*, session: SessionDependency, request: Request, payload: ClientErrorReport) -> None:
+    session.add(ClientErrorLog(
+        client_host=client_host(request.client),
+        authorized_as=get_client_ref(request, request.app),
+        build_id=payload.build_id,
+        page_path=payload.page_path,
+        message=payload.message,
+        stack=payload.stack
+    ))
+    await session.commit()
 
 
 @router.post("/shutdown", dependencies=[CLIENT_IS_ADMIN_DEPENDENCY])
@@ -47,7 +59,7 @@ async def shutdown(
     await state.ws_subscribers.broadcast(event)
 
     if not await get_ongoing_finite_game(session):
-        raise KeyboardInterrupt  # A hack to break out of the FastAPI jail
+        state.exit_event.set()
 
 
 @router.get("/mutable_state", response_model=MutableStatePublic, dependencies=[CLIENT_IS_ADMIN_DEPENDENCY])

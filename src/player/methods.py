@@ -76,14 +76,18 @@ async def create_player(session: AsyncSession, login: str, nickname: str, commit
         await session.flush()
 
 
-async def is_banned_in_ranked(session: AsyncSession, caller: UserReference) -> bool:
+async def has_active_restriction(session: AsyncSession, caller: UserReference, kind: UserRestrictionKind) -> bool:
     return await exists(session, select(
         PlayerRestriction
     ).where(
-        PlayerRestriction.kind == UserRestrictionKind.RATED_GAMES,
+        PlayerRestriction.kind == kind,
         PlayerRestriction.login == caller.login,
         not_expired(PlayerRestriction.expires)
     ))
+
+
+async def is_banned_in_ranked(session: AsyncSession, caller: UserReference) -> bool:
+    return await has_active_restriction(session, caller, UserRestrictionKind.RATED_GAMES)
 
 
 async def get_follows_since(session: AsyncSession, follower_login: str, followed_login: str) -> datetime | None:
@@ -103,9 +107,7 @@ async def get_overall_ranked_game_stats_batch(
         return result
 
     subquery = select(
-        PlayerEloProgress.login,
-        PlayerEloProgress.time_control_kind,
-        func.max(PlayerEloProgress.ts).label("max_ts")
+        func.max(PlayerEloProgress.id).label("max_id")
     ).where(
         col(PlayerEloProgress.login).in_(player_logins)
     ).group_by(
@@ -117,11 +119,7 @@ async def get_overall_ranked_game_stats_batch(
         PlayerEloProgress
     ).join(
         subquery,
-        and_(
-            PlayerEloProgress.login == subquery.c.login,
-            PlayerEloProgress.time_control_kind == subquery.c.time_control_kind,
-            PlayerEloProgress.ts == subquery.c.max_ts,
-        )
+        col(PlayerEloProgress.id) == subquery.c.max_id
     ))
 
     for db_elo_entry in db_elo_entries:
@@ -335,20 +333,39 @@ async def search_players(
     )
 
 
+async def lock_players_for_rating_update(session: AsyncSession, player_logins: Collection[str]) -> None:
+    """Holds until the end of the transaction, so that of two games of a player ending at once, the latter one sees the rating
+    the former one has produced. Sorted, as two games with these players in the opposite order would deadlock otherwise"""
+    await session.exec(select(
+        col(Player.login)
+    ).where(
+        col(Player.login).in_(player_logins)
+    ).order_by(
+        col(Player.login)
+    ).with_for_update())
+
+
 async def get_ranked_game_stats_for_time_control(
     session: AsyncSession,
     main_config: MainConfig,
     player_login: str,
     time_control_kind: TimeControlKind,
+    for_rating_update: bool = False,
 ) -> RankedGameStats:
-    entries = await session.exec(select(
+    """`for_rating_update`: to be called under `lock_players_for_rating_update`. A plain read wouldn't do there: it sees
+    the transaction's snapshot, taken before the lock was obtained"""
+    # ordered by id: ts is in whole seconds, and a game flagged late has it earlier than the games that ended meanwhile
+    statement = select(
         PlayerEloProgress
     ).where(
         PlayerEloProgress.login == player_login,
         PlayerEloProgress.time_control_kind == time_control_kind
     ).order_by(
-        desc(PlayerEloProgress.ts)
-    ))
+        desc(PlayerEloProgress.id)
+    ).limit(1)
+    if for_rating_update:
+        statement = statement.with_for_update(read=True)
+    entries = await session.exec(statement)
     last_entry = entries.first()
 
     if not last_entry:

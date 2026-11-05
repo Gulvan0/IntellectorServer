@@ -1,0 +1,12 @@
+[Unit]
+Description=Restore the latest dump into a scratch database and sanity-check it
+PartOf=intellector.target
+Requires=mysql.service
+After=mysql.service
+OnFailure=intellector-alert@%n.service
+
+[Service]
+Type=oneshot
+# root: creates and drops the scratch database over the local socket
+Environment=RCLONE_CONFIG=/srv/intellector/rclone.conf
+ExecStart=/srv/intellector/infra/scripts/restore-test.sh

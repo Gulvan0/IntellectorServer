@@ -91,7 +91,7 @@ MandatoryPlayerLoginDependency = Annotated[str, Depends(get_mandatory_player_log
 
 
 async def verify_admin(client_login: MandatoryPlayerLoginDependency, session: SessionDependency) -> None:
-    if not session.get(PlayerRole, (UserRole.ADMIN, client_login)):
+    if not await session.get(PlayerRole, (UserRole.ADMIN, client_login)):
         raise HTTPException(status_code=403, detail="Forbidden")
 
 

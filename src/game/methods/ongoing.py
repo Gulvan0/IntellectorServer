@@ -52,10 +52,10 @@ async def broadcast_ongoing_game_update(session: AsyncSession, state: MutableSta
 
     update = await get_ongoing_game_update(session, game_id, db_game.custom_starting_sip)
     for channel in _player_channels(db_game):
-        await state.ws_subscribers.broadcast(OngoingGameUpdated(update, channel))
+        state.concurrent_tasks.plan(state.ws_subscribers.broadcast(OngoingGameUpdated(update, channel)))
 
 
 async def broadcast_ongoing_game_ended(state: MutableState, game: Game) -> None:
     assert game.id is not None
     for channel in _player_channels(game):
-        await state.ws_subscribers.broadcast(OngoingGameEnded(Id(id=game.id), channel))
+        state.concurrent_tasks.plan(state.ws_subscribers.broadcast(OngoingGameEnded(Id(id=game.id), channel)))

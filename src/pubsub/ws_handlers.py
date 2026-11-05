@@ -56,6 +56,7 @@ from utils.async_orm_session import AsyncSession
 
 
 RECENT_GAME_LIST_SIZE = 12
+MAX_LISTED_SUBSCRIBERS = 1000
 
 
 async def get_public_challenge_list_refresh(session: AsyncSession, main_config: MainConfig, channel: PublicChallengeListEventChannel) -> PublicChallengeListRefresh:
@@ -153,12 +154,14 @@ async def get_subscriber_list_refresh(session: AsyncSession, channel: Subscriber
         else:
             unauthenticated_subs_count += 1
 
-    resolved_refs = await resolve_player_refs(list(subscriber_refs)[:1000], session)
+    # guests are listed too, as the client needs to find a guest player among them; whoever doesn't fit is only counted
+    listed_refs = sorted(subscriber_refs, key=lambda ref: ref.is_guest())[:MAX_LISTED_SUBSCRIBERS]
+    resolved_refs = await resolve_player_refs(listed_refs, session)
 
     return SubscriberListRefresh(
         payload=SubscriberListChannelStateRefresh(
-            subscribers=resolved_refs.all_values(),
-            unauthenticated_subs_count=unauthenticated_subs_count
+            subscribers=[resolved_refs.get(ref) for ref in listed_refs],
+            unauthenticated_subs_count=unauthenticated_subs_count + len(subscriber_refs) - len(listed_refs)
         ),
         target_channel=channel
     )
@@ -204,51 +207,56 @@ async def subscribe(ws: WebSocketWrapper, client: UserReference | None, channels
     state = ws.app.mutable_state
     sub_storage = state.ws_subscribers
 
-    if client and any(isinstance(channel, IncomingChallengesEventChannel) for channel in channels):
-        timer = state.user_challenge_cancelling_timers.get(client)
+    if client and any(isinstance(channel, OutgoingChallengesEventChannel) and channel.user_ref == client.reference for channel in channels):
+        timer = state.user_challenge_cancelling_timers.pop(client, None)
         if timer:
             timer.cancel()
 
-    refresh_events: list[RefreshEvent[Any, Any]] = []
     announced_channels: list[SubscriberListedEventChannel] = []
 
-    # registered before the refreshes are computed: a change landing meanwhile is then in the refresh, and the client drops the events that precede it
+    # registered before the refreshes are computed: a change landing meanwhile reaches the client in the refresh, as an event, or both.
+    # The events wait until the channel's refresh is sent, so that none of them gets replaced by a refresh that doesn't have it
     newly_subscribed: dict[SubEligibleEventChannel, bool] = {}
     for channel in channels:
-        if sub_storage.has_ws_subscriber(ws, channel):
-            continue
-        # whoever is already there through another connection was announced then
-        newly_subscribed[channel] = not (client is not None and sub_storage.has_user_subscriber(state.token_to_user, client, channel))
-        sub_storage.subscribe(ws, channel)
+        if not sub_storage.has_ws_subscriber(ws, channel):
+            # whoever is already there through another connection was announced then
+            newly_subscribed[channel] = not (client is not None and sub_storage.has_user_subscriber(state.token_to_user, client, channel))
+            sub_storage.subscribe(ws, channel)
+        sub_storage.hold_events(ws, channel)
 
     # everything that needs the session stays inside the block: a session used after it's closed checks out a new connection that's never returned
-    async with ws.app.get_db_session() as session:
-        status_logins = [channel.watched_ref for channel in channels if isinstance(channel, PlayerStatusEventChannel)]
-        status_states = await track_player_statuses(session, state, status_logins)
+    try:
+        async with ws.app.get_db_session() as session:
+            status_logins = [channel.watched_ref for channel in channels if isinstance(channel, PlayerStatusEventChannel)]
+            status_states = await track_player_statuses(session, state, status_logins)
 
-        for channel in channels:
-            tags: set[SubscriberTag] = set()
-            try:
-                refresh_events.append(await get_refresh(session, ws.app.main_config, channel, client, sub_storage, tags, status_states))
-            except WebSocketException as e:
-                if channel in newly_subscribed:
-                    sub_storage.unsubscribe(ws, channel)
-                await ws.send_error(e.kind, e.message, channel)
-                continue
+            for channel in channels:
+                tags: set[SubscriberTag] = set()
+                try:
+                    refresh = await get_refresh(session, ws.app.main_config, channel, client, sub_storage, tags, status_states)
+                except WebSocketException as e:
+                    if channel in newly_subscribed:
+                        sub_storage.unsubscribe(ws, channel)
+                    else:
+                        sub_storage.release_events(ws, channel)
+                    ws.send_error(e.kind, e.message, channel)
+                    continue
 
-            if channel in newly_subscribed:
-                sub_storage.set_tags(ws, channel, tags)
-                if newly_subscribed[channel] and announces_subscribers(channel):
+                # nothing is awaited between the refresh being computed and sent
+                sub_storage.send_refresh(ws, channel, refresh, tags if channel in newly_subscribed else None)
+
+                if channel in newly_subscribed and newly_subscribed[channel] and announces_subscribers(channel):
                     announced_channels.append(channel)
 
-        state.concurrent_tasks.plan(ws.send_events(refresh_events))
-
-        if announced_channels:
-            subscriber_ref_with_nickname = await resolve_optional_player_ref(client, session)
-            for announced_channel in announced_channels:
-                state.concurrent_tasks.plan(sub_storage.broadcast(
-                    NewSubscriber(subscriber_ref_with_nickname, SubscriberListEventChannel(channel=announced_channel))
-                ))
+            if announced_channels:
+                subscriber_ref_with_nickname = await resolve_optional_player_ref(client, session)
+                for announced_channel in announced_channels:
+                    state.concurrent_tasks.plan(sub_storage.broadcast(
+                        NewSubscriber(subscriber_ref_with_nickname, SubscriberListEventChannel(channel=announced_channel))
+                    ))
+    finally:
+        for channel in channels:
+            sub_storage.release_events(ws, channel)  # whatever failed, the channels left held would never get events again
 
 
 async def unsubscribe(ws: WebSocketWrapper, client: UserReference | None, channels: list[SubEligibleEventChannel], *, confirm: bool = True) -> None:
@@ -260,7 +268,7 @@ async def unsubscribe(ws: WebSocketWrapper, client: UserReference | None, channe
         state.ws_subscribers.unsubscribe(ws, channel)
 
     if confirm:
-        state.concurrent_tasks.plan(ws.send_unsubscribed())
+        ws.send_unsubscribed()
 
     if any(isinstance(channel, OutgoingChallengesEventChannel) for channel in left_channels):
         state.concurrent_tasks.plan(ws.app.plan_challenge_cancellation_if_unwatched(client))

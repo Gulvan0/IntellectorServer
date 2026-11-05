@@ -2,7 +2,6 @@ from uuid import UUID
 from sqlmodel import Field
 
 from net.models import WebsocketWrapperDump
-from other.datatypes import CompatibilityResolution
 from pubsub.models.channel import EventChannel
 from utils.custom_model import CustomModel, CustomSQLModel
 
@@ -15,15 +14,15 @@ class SavedQuery(CustomSQLModel, table=True):
     text: str = Field(max_length=2000)
 
 
-class CompatibilityCheckPayload(CustomModel):
-    client_build: int
-    min_server_build: int
+class VersionResponse(CustomModel):
+    api: int
 
 
-class CompatibilityResponse(CustomModel):
-    resolution: CompatibilityResolution
-    server_build: int
-    min_client_build: int
+class ClientErrorReport(CustomModel):
+    message: str = Field(max_length=2000)
+    stack: str | None = Field(default=None, max_length=8000)
+    build_id: str = Field(max_length=64)
+    page_path: str = Field(max_length=512)
 
 
 class MutableStateRequestPayload(CustomModel):

@@ -1,0 +1,6 @@
+[Unit]
+Description=Intellector (server and its timers)
+Wants=intellector-server.service
+
+[Install]
+WantedBy=multi-user.target

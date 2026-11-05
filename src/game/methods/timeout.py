@@ -8,10 +8,13 @@ from config.models import MainConfig, SecretConfig
 from game.methods.end import end_game
 from game.models.main import Game
 from game.methods.get import get_latest_time_update
+from game.methods.presence import get_bot_color, is_uploader_alive
+from game.models.presence import GameUploaderPresence
 from game.datatypes import OutcomeKind
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
 from log.models import TimeoutCheckExecutedLog, TimeoutCheckPlannedLog
 from net.state import MutableState
+from board.deserializers.sip import color_to_move_from_sip
 from board.piece import PieceColor
 from utils.async_orm_session import AsyncSession
 
@@ -74,7 +77,7 @@ async def __delay_timeout_check(
     async def log_planned(session: AsyncSession) -> None:
         session.add(TimeoutCheckPlannedLog(
             game_id=game_id,
-            delay_ms=delay_secs
+            delay_ms=int(delay_secs * 1000)
         ))
         await session.commit()
 
@@ -105,6 +108,17 @@ async def check_timeout(
 ) -> TimeoutCheckResult | None:
     """Ends the game if its ticking side ran out of time, or aborts it if the side to move missed its first-move deadline;
     otherwise plans the next check"""
+    async with state.game_action(game_id):
+        return await _check_timeout(session, state, main_config, secret_config, game_id)
+
+
+async def _check_timeout(
+    session: AsyncSession,
+    state: MutableState,
+    main_config: MainConfig,
+    secret_config: SecretConfig,
+    game_id: int,
+) -> TimeoutCheckResult | None:
     latest_time_update = await get_latest_time_update(session, game_id)
     if not latest_time_update:
         return None
@@ -118,8 +132,13 @@ async def check_timeout(
         if not deadline_start or deadline_start.reason not in FIRST_MOVE_DEADLINE_REASONS or not deadline_start.updated_at:
             return None
 
-        deadline_dt = deadline_start.updated_at.replace(tzinfo=UTC) + timedelta(seconds=first_move_deadline_secs(main_config, is_external))
+        deadline_dt = deadline_start.updated_at + timedelta(seconds=first_move_deadline_secs(main_config, is_external))
         remaining_ms = int((deadline_dt - now_dt).total_seconds() * 1000)
+        if remaining_ms <= 0 and game and is_external and color_to_move_from_sip(game.latest_sip) == get_bot_color(game):
+            # a bot whose uploader is gone isn't late: the presence check suspends the game and the human abandons it
+            presence = await session.get(GameUploaderPresence, game_id, populate_existing=True)
+            if not is_uploader_alive(presence, main_config, now_dt):
+                return None
         if remaining_ms <= 0:
             await end_game(
                 session,
@@ -139,6 +158,12 @@ async def check_timeout(
         return TimeoutCheckResult(now_dt, remaining_ms, is_external, False)
 
     timeout_delta_threshold = -60000 if is_external else 0  # 1 minute grace time for external games to account for delays
+
+    if game and is_external and latest_time_update.ticking_side == get_bot_color(game):
+        # a bot whose uploader is gone isn't thinking: the presence check suspends the game instead of flagging the bot
+        presence = await session.get(GameUploaderPresence, game_id, populate_existing=True)
+        if not is_uploader_alive(presence, main_config, now_dt):
+            return None
 
     time_remainders = latest_time_update.get_actual_time_remainders(now_dt)
     timeout_delta_ms = time_remainders[latest_time_update.ticking_side]
@@ -177,7 +202,7 @@ async def plan_timeout_check(
     of the side to move missing its first-move deadline"""
     if not triggering_time_update.updated_at:
         return
-    passed_secs = time.time() - triggering_time_update.updated_at.replace(tzinfo=UTC).timestamp()
+    passed_secs = time.time() - triggering_time_update.updated_at.timestamp()
 
     if not triggering_time_update.ticking_side:
         if triggering_time_update.reason not in FIRST_MOVE_DEADLINE_REASONS:

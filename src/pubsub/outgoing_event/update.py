@@ -9,6 +9,7 @@ from game.models.main import GameSummaryPublic, OngoingGameUpdate
 from game.models.offer import OfferActionBroadcastedData
 from game.models.outcome import GameEndedBroadcastedData
 from game.models.ply import PlyBroadcastedData
+from game.models.presence import GameSuspensionBroadcastedData
 from game.models.rollback import RollbackBroadcastedData
 from game.models.time_added import TimeAddedBroadcastedData
 from game.samples import (
@@ -19,6 +20,7 @@ from game.samples import (
     ongoing_game_updates,
     ply_broadcasted_data,
     rollback_broadcasted_data,
+    suspension_broadcasted_data,
     time_added_broadcasted_data,
 )
 from player.models import PlayerStatusState
@@ -288,6 +290,22 @@ class TimeAdded(OutgoingEvent[TimeAddedBroadcastedData, GameEventChannel]):
     def payload_examples(cls) -> list[TimeAddedBroadcastedData]:
         return [
             time_added_broadcasted_data()
+            for _ in range(3)
+        ]
+
+
+class GameSuspensionChanged(OutgoingEvent[GameSuspensionBroadcastedData, GameEventChannel]):
+    @classmethod
+    def description(cls) -> str:
+        return (
+            "Broadcasted when an external game gets suspended because its uploader went silent while the bot was to move,"
+            " and when the uploader returns. While suspended, the bot's clock is frozen"
+        )
+
+    @classmethod
+    def payload_examples(cls) -> list[GameSuspensionBroadcastedData]:
+        return [
+            suspension_broadcasted_data()
             for _ in range(3)
         ]
 

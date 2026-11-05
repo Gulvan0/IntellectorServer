@@ -63,7 +63,7 @@ async def validate_rollback(
                     422,
                     f"New ply count (got: {new_ply_cnt}) should be strictly less than current ply count ({old_ply_cnt})"
                 )
-            if new_ply_cnt - old_ply_cnt % 2 == 0:
+            if (new_ply_cnt - old_ply_cnt) % 2 == 0:
                 requested_by = old_color_to_move
             else:
                 requested_by = old_color_to_move.opposite()

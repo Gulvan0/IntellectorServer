@@ -3,8 +3,7 @@ from fastapi import HTTPException
 from challenge.datatypes import ChallengeAcceptorColor
 from challenge.methods.get import get_active_challenge_cnt_by_players, get_identical_challenge, get_total_active_challenges_by_caller
 from challenge.models import ChallengeCreateDirect, ChallengeCreateOpen
-from board.constants.sip import DEFAULT_STARTING_SIP
-from board.deserializers.sip import position_from_sip
+from common.starting_sip import validated_starting_sip
 from player.methods import is_banned_in_ranked
 from player.models import Player
 from utils.async_orm_session import AsyncSession
@@ -25,11 +24,7 @@ def validate_special_conditions(challenge: ChallengeCreateOpen | ChallengeCreate
 
 
 def validate_startpos(challenge: ChallengeCreateOpen | ChallengeCreateDirect) -> None:
-    if challenge.custom_starting_sip:
-        if challenge.custom_starting_sip == DEFAULT_STARTING_SIP:
-            challenge.custom_starting_sip = None
-        elif not position_from_sip(challenge.custom_starting_sip).is_valid_starting():
-            raise HTTPException(status_code=422, detail="Invalid starting situation")
+    challenge.custom_starting_sip = validated_starting_sip(challenge.custom_starting_sip)
 
 
 async def validate_spam_limits(

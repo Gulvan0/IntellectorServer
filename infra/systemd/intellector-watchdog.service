@@ -1,0 +1,8 @@
+[Unit]
+Description=Restart the server after repeated failed health checks
+PartOf=intellector.target
+OnFailure=intellector-alert@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=/srv/intellector/infra/scripts/healthcheck.sh

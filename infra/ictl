@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Operator CLI for the Intellector VPS
+set -euo pipefail
+
+BASE=/srv/intellector
+RELEASES=$BASE/server/releases
+CURRENT=$BASE/server/current
+UNITS="intellector-server intellector-backup.timer intellector-restore-test.timer intellector-log-archive.timer intellector-watchdog.timer"
+
+usage() {
+    cat <<USAGE
+usage: ictl <command>
+  status                  units, timers' next/last runs, /health
+  logs [unit] [-f]        journald; all intellector units merged by default
+  start | stop            the whole target (stop drops the server immediately: use deploy's drain for a graceful one)
+  restart <unit>          e.g. restart intellector-server
+  backup                  dump the database offsite now
+  restore <dump> [db]     load db/<dump> into an empty database (default: main)
+  releases                the release folders, the current one marked
+  rollback                point current at the previous release and drain
+  apply                   install the configs from $BASE/infra
+USAGE
+}
+
+drain() { # asks the running server to finish ongoing games and exit; systemd then starts what current points at
+    local token
+    # shellcheck disable=SC1091
+    [ -f "$BASE/admin.env" ] && . "$BASE/admin.env"   # ADMIN_LOGIN, ADMIN_PASSWORD
+    if [ -z "${ADMIN_LOGIN:-}" ]; then
+        echo "No $BASE/admin.env: restarting the server immediately instead (ongoing games are cut)"
+        sudo systemctl restart intellector-server
+        return
+    fi
+    token="$(curl -fsS -X POST -H 'content-type: application/json'         -d "{\"login\": \"$ADMIN_LOGIN\", \"password\": \"$ADMIN_PASSWORD\"}"         http://127.0.0.1:${PORT:-8000}/auth/signin | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')"
+    curl -fsS -X POST -H "intellector-user-token: $token" http://127.0.0.1:${PORT:-8000}/shutdown
+    echo "Drain started"
+}
+
+case "${1:-}" in
+    status)
+        systemctl --no-pager status intellector.target $UNITS | grep -E "^(●|○|×)|Active:" || true
+        echo; systemctl list-timers --no-pager 'intellector-*'
+        echo; printf "health: "; curl -fsS -m 5 http://127.0.0.1:${PORT:-8000}/health || echo "DOWN"
+        echo ;;
+    logs)
+        shift; UNIT=""; ARGS=()
+        for a in "$@"; do case "$a" in -*) ARGS+=("$a");; *) UNIT="$a";; esac; done
+        if [ -n "$UNIT" ]; then journalctl -u "$UNIT" "${ARGS[@]}"; else journalctl -u 'intellector-*' "${ARGS[@]}"; fi ;;
+    start) sudo systemctl start intellector.target ;;
+    stop) sudo systemctl stop intellector.target ;;
+    restart) sudo systemctl restart "${2:?restart <unit>}" ;;
+    backup) sudo systemctl start intellector-backup.service && journalctl -u intellector-backup -n 3 --no-pager -o cat ;;
+    restore) shift; sudo "$BASE/infra/scripts/restore.sh" "$@" ;;
+    releases)
+        for d in "$RELEASES"/*/; do
+            n="$(basename "$d")"; [ "$(readlink -f "$CURRENT")" = "$(readlink -f "$d")" ] && echo "* $n" || echo "  $n"
+        done ;;
+    rollback)
+        PREV="$(ls -1 "$RELEASES" | grep -B1 -x "$(basename "$(readlink -f "$CURRENT")")" | head -1)"
+        [ -n "$PREV" ] && [ "$PREV" != "$(basename "$(readlink -f "$CURRENT")")" ] || { echo "No earlier release" >&2; exit 1; }
+        ln -sfn "$RELEASES/$PREV" "$CURRENT"
+        echo "current -> $PREV"
+        drain ;;
+    apply) sudo "$BASE/infra/apply.sh" ;;
+    *) usage ;;
+esac

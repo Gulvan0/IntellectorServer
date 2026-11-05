@@ -1,6 +1,6 @@
 from board.deserializers.sip import position_from_sip
-from board.piece import PieceKind
 from board.serializers.sip import get_sip
+from migration.study_repair import build_tree, flatten_tree, merge_duplicate_siblings, repair_tree
 from study.datatypes import StudyPublicity
 from study.models import Study, StudyTag, StudyPlyTreeNode
 
@@ -42,15 +42,20 @@ def process_study(study_id: int, data: dict) -> Study:
     starting_sip = get_sip(position_from_sip(parts[-1]))
     nodes = []
     if len(parts) > 1:
-        for raw_node in parts[0].split(";"):
-            path, raw_ply = raw_node.split("/")
+        tree = build_tree([(path, raw_ply) for path, raw_ply in (raw_node.split("/") for raw_node in parts[0].split(";"))])
+        merged_cnt = merge_duplicate_siblings(tree)
+        if merged_cnt:
+            print(f'Study {study_id}: merged {merged_cnt} duplicate plies')
+        for change in repair_tree(tree, position_from_sip(starting_sip)):
+            print(f'Study {study_id}: {change}')
+        for path, ply in flatten_tree(tree):
             nodes.append(StudyPlyTreeNode(
                 path=convert_path(path),
-                ply_from_i=raw_ply[0],
-                ply_from_j=raw_ply[1],
-                ply_to_i=raw_ply[2],
-                ply_to_j=raw_ply[3],
-                ply_morph_into=PieceKind(raw_ply[4:].lower()) if len(raw_ply) > 4 else None
+                ply_from_i=ply.departure.i,
+                ply_from_j=ply.departure.j,
+                ply_to_i=ply.destination.i,
+                ply_to_j=ply.destination.j,
+                ply_morph_into=ply.morph_into
             ))
 
     key_sip = data.get("keyPositionSIP")
@@ -62,7 +67,7 @@ def process_study(study_id: int, data: dict) -> Study:
         starting_sip=starting_sip,
         key_sip=get_sip(position_from_sip(key_sip)) if key_sip else starting_sip,
         id=study_id,
-        author_login=data.get("author"),
+        author_login=(data.get("author") or "").lower() or None,
         tags=[StudyTag(tag=tag) for tag in data.get("tags", [])],
         nodes=nodes
     )

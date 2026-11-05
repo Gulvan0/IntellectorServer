@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily log archive
+PartOf=intellector.target
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=intellector.target

@@ -1,0 +1,8 @@
+[mysqld]
+bind-address = 127.0.0.1
+mysqlx = OFF
+character-set-server = utf8mb4
+innodb_buffer_pool_size = 768M
+max_connections = 100
+# the default keeps binary logs for 30 days
+binlog_expire_logs_seconds = 172800

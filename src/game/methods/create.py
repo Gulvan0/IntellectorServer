@@ -16,6 +16,7 @@ from game.models.bot_settings import GameBotSettings
 from game.models.main import Game, GameSummaryPublic
 from game.models.time_control import GameFischerTimeControl
 from net.state import MutableState
+from common.starting_sip import validated_starting_sip
 from common.time_control import FischerTimeControlEntity, TimeControlKind
 from pubsub.outgoing_event.update import IncomingChallengeAccepted, NewActiveGame, OngoingGameStarted, OutgoingChallengeAccepted, PublicChallengeFulfilled
 from utils.async_orm_session import AsyncSession
@@ -54,12 +55,6 @@ async def create_game(
     deactivated_challenge: Challenge | None = None,
     bot_settings: GameBotSettings | None = None
 ) -> GameSummaryPublic:
-    if deactivated_challenge:
-        caller = UserReference(deactivated_challenge.caller_ref)
-        cancel_timer = state.user_challenge_cancelling_timers.get(UserReference.guest(caller.guest_id) if caller.is_guest() else UserReference.logged(caller.login))
-        if cancel_timer:
-            cancel_timer.cancel()
-
     started_at = datetime.now(UTC)
     starting_sip = custom_starting_sip or DEFAULT_STARTING_SIP
     time_control_kind = TimeControlKind.of(time_control)
@@ -112,7 +107,6 @@ async def create_game(
         session.add(initial_time_update)
 
     if deactivated_challenge:
-        deactivated_challenge.active = False
         deactivated_challenge.resulting_game = db_game
         session.add(deactivated_challenge)
 
@@ -155,9 +149,11 @@ async def create_internal_game(
     session: AsyncSession,
     state: MutableState,
     main_config: MainConfig,
-    secret_config: SecretConfig
+    secret_config: SecretConfig,
+    acceptor_color: ChallengeAcceptorColor | None = None
 ) -> GameSummaryPublic:
-    white_player_ref, black_player_ref = assign_player_colors(challenge.acceptor_color, challenge.caller_ref, acceptor.reference)
+    """The challenge must have been deactivated in this transaction by `deactivate_challenge`. `acceptor_color` overrides the challenge's own"""
+    white_player_ref, black_player_ref = assign_player_colors(acceptor_color or challenge.acceptor_color, challenge.caller_ref, acceptor.reference)
 
     # read before create_game commits: committing expires the challenge, and it can't be lazily reloaded here
     assert challenge.id
@@ -236,7 +232,7 @@ async def create_external_game(
         black_player_ref=black_player_ref,
         time_control=time_control,
         rated=False,
-        custom_starting_sip=custom_starting_sip,
+        custom_starting_sip=validated_starting_sip(custom_starting_sip),
         external_uploader_ref=uploader.reference,
         session=session,
         state=state,

@@ -1,9 +1,9 @@
-import asyncio
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from sqlmodel import or_, select
+from sqlmodel import col, or_, select
 from challenge.datatypes import ChallengeKind
+from challenge.methods.deactivate import deactivate_challenge
 from challenge.models import Challenge
 from common.models import Id, IdList
 from common.time_control import TimeControlKind
@@ -24,17 +24,21 @@ from pubsub.outgoing_event.update import (
 from utils.async_orm_session import AsyncSession
 
 
-async def cancel_challenge(challenge: Challenge, session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> None:
-    challenge_id = challenge.id
-    assert challenge_id
-
+def _plan_notification_deletion(challenge_id: int, state: MutableState, secret_config: SecretConfig) -> None:
     state.concurrent_tasks.plan_with_own_session(lambda task_session: delete_new_public_challenge_notifications(
         challenge_id=challenge_id,
         session=task_session,
         vk_token=secret_config.integrations.vk.token
     ))
 
-    challenge.active = False
+
+async def cancel_challenge(challenge: Challenge, session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> bool:
+    """False if something else has ended the challenge first"""
+    challenge_id = challenge.id
+    assert challenge_id
+
+    if not await deactivate_challenge(challenge_id, session):
+        return False
 
     event: OutgoingEvent[Any, Any] | None = None
     cancel_event_payload = Id(id=challenge_id)
@@ -44,30 +48,43 @@ async def cancel_challenge(challenge: Challenge, session: AsyncSession, state: M
     elif challenge.kind == ChallengeKind.DIRECT and challenge.callee_ref:
         event = IncomingChallengeCancelled(cancel_event_payload, IncomingChallengesEventChannel(user_ref=challenge.callee_ref))
 
+    await session.commit()
+
+    _plan_notification_deletion(challenge_id, state, secret_config)
     if event:
         state.concurrent_tasks.plan(state.ws_subscribers.broadcast(event))
 
-    await session.commit()
+    return True
 
 
 async def cancel_queried_challenges(query: SelectOfScalar[Challenge], session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> None:
     cancelled_challenges_by_caller = defaultdict(set)
     cancelled_challenges_by_callee = defaultdict(set)
     cancelled_public_challenges = set()
+    cancelled_ids = []
 
-    challenges = await session.exec(query)
-    coros = [cancel_challenge(challenge, session, state, secret_config) for challenge in challenges]
-    await asyncio.gather(*coros)
+    # by id: two bulk cancellations locking the same rows in one order can't deadlock
+    for challenge in list(await session.exec(query.order_by(col(Challenge.id)))):
+        challenge_id = challenge.id
+        assert challenge_id
 
-    for challenge in challenges:
-        if challenge.id is None:
+        if not await deactivate_challenge(challenge_id, session):
             continue
 
-        cancelled_challenges_by_caller[challenge.caller_ref].add(challenge.id)
+        cancelled_ids.append(challenge_id)
+        cancelled_challenges_by_caller[challenge.caller_ref].add(challenge_id)
         if challenge.callee_ref:
-            cancelled_challenges_by_callee[challenge.callee_ref].add(challenge.id)
+            cancelled_challenges_by_callee[challenge.callee_ref].add(challenge_id)
         if challenge.kind == ChallengeKind.PUBLIC:
-            cancelled_public_challenges.add(challenge.id)
+            cancelled_public_challenges.add(challenge_id)
+
+    await session.commit()
+
+    if not cancelled_ids:
+        return
+
+    for challenge_id in cancelled_ids:
+        _plan_notification_deletion(challenge_id, state, secret_config)
 
     for caller_ref, challenge_ids in cancelled_challenges_by_caller.items():
         outgoing_channel = OutgoingChallengesEventChannel(user_ref=caller_ref)
@@ -79,9 +96,10 @@ async def cancel_queried_challenges(query: SelectOfScalar[Challenge], session: A
         incoming_event = IncomingChallengesCancelledByServer(IdList(ids=list(challenge_ids)), incoming_channel)
         state.concurrent_tasks.plan(state.ws_subscribers.broadcast(incoming_event))
 
-    public_channel = PublicChallengeListEventChannel()
-    public_event = PublicChallengesCancelledByServer(IdList(ids=list(cancelled_public_challenges)), public_channel)
-    state.concurrent_tasks.plan(state.ws_subscribers.broadcast(public_event))
+    if cancelled_public_challenges:
+        public_channel = PublicChallengeListEventChannel()
+        public_event = PublicChallengesCancelledByServer(IdList(ids=list(cancelled_public_challenges)), public_channel)
+        state.concurrent_tasks.plan(state.ws_subscribers.broadcast(public_event))
 
 
 async def cancel_public_challenges_by_caller(caller: UserReference, session: AsyncSession, state: MutableState, secret_config: SecretConfig) -> None:

@@ -29,6 +29,7 @@ from board.piece import PieceColor
 from game.models.offer import GameOfferEventPublic, OfferActionBroadcastedData
 from game.models.outcome import GameEndedBroadcastedData, GameEndedEloUpdate, GameEndedEloUpdates, GameOutcomePublic
 from game.models.ply import GamePlyEventPublic, PlyBroadcastedData
+from game.models.presence import GameSuspensionBroadcastedData
 from game.models.rollback import RollbackBroadcastedData
 from game.models.time_added import GameTimeAddedEventPublic, TimeAddedBroadcastedData
 from game.models.time_control import GameFischerTimeControlPublic
@@ -96,6 +97,16 @@ def time_added_broadcasted_data() -> TimeAddedBroadcastedData:
         amount_seconds=randint(10, 15),
         receiver=piece_color(),
         time_update=sample_time_update(GameTimeUpdateReason.TIME_ADDED)
+    )
+
+
+def suspension_broadcasted_data() -> GameSuspensionBroadcastedData:
+    suspended = boolean()
+    return GameSuspensionBroadcastedData(
+        event_index=randint(0, 100),
+        suspended=suspended,
+        last_seen_at=past_datetime(min_offset_secs=100, max_offset_secs=600),
+        time_update=sample_time_update(GameTimeUpdateReason.SUSPENDED if suspended else GameTimeUpdateReason.RESUMED)
     )
 
 

@@ -50,6 +50,8 @@ async def get_identical_challenge(
             Challenge.kind == ChallengeKind.DIRECT,
             Challenge.callee_ref == challenge.callee_ref,
         ]
+    else:
+        conditions.append(Challenge.kind == challenge.kind())
 
     result = await session.exec(
         select(Challenge).where(*conditions)

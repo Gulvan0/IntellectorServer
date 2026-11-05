@@ -52,8 +52,7 @@ def validate_progressor_ply(ply: Ply, properties: DerivedPlyProperties, position
             __require(ply.destination.j == ply.departure.j)
     if ply.destination.is_final_row_for(properties.moving_piece.color):
         __require(properties.ply_kind != PlyKind.SWAP)
-        if ply.morph_into not in PieceKind.promotion_options():
-            __require(properties.target_piece and properties.target_piece.kind == PieceKind.INTELLECTOR and not ply.morph_into)
+        __require(ply.morph_into in PieceKind.promotion_options())
     else:
         __validate_capture_or_normal(ply, properties, position, allow_aura_captures)
 

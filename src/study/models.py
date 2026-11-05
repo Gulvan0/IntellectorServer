@@ -1,15 +1,33 @@
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
+from pydantic import AfterValidator, StringConstraints
 from sqlalchemy.orm import Load, selectinload
 from sqlmodel import Field, Relationship
 
 from common.models import UserRefWithNickname
 from board.piece import PieceKind
-from common.field_types import CurrentDatetime, PlayerLogin, Sip
+from common.field_types import PlayerLogin, Sip, current_datetime_field
 from common.resolved_refs import ResolvedRefs
 from player.models import Player
 from study.datatypes import StudyPublicity
 from utils.custom_model import CustomModel, CustomSQLModel
+
+
+MAX_STUDY_TAGS = 10
+MAX_STUDY_NODES = 2000
+
+
+def _without_duplicates(tags: list[str]) -> list[str]:
+    if len({tag.casefold() for tag in tags}) != len(tags):
+        raise ValueError("Duplicate tags")
+    return tags
+
+
+StudyTags = Annotated[
+    list[Annotated[str, StringConstraints(min_length=1, max_length=16)]],
+    Field(max_length=MAX_STUDY_TAGS),
+    AfterValidator(_without_duplicates)
+]
 
 
 class ApiHexCoords(CustomModel):
@@ -24,8 +42,11 @@ class ApiPly(CustomModel):
 
 
 class ApiPlyTreeNode(CustomModel):
-    path: str
+    path: str = Field(max_length=500)
     ply: ApiPly
+
+
+StudyNodes = Annotated[list[ApiPlyTreeNode], Field(max_length=MAX_STUDY_NODES)]
 
 
 class StudyTagBase(CustomSQLModel):
@@ -83,8 +104,8 @@ class StudyBase(CustomSQLModel):
 
 class Study(StudyBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    created_at: CurrentDatetime
-    modified_at: CurrentDatetime
+    created_at: datetime = current_datetime_field()
+    modified_at: datetime = current_datetime_field()
     author_login: str = Field(foreign_key="player.login")
     deleted: bool = False
 
@@ -126,8 +147,8 @@ class Study(StudyBase, table=True):
 
 
 class StudyCreate(StudyBase):
-    tags: list[str]
-    nodes: list[ApiPlyTreeNode]
+    tags: StudyTags
+    nodes: StudyNodes
 
     def build_table_model(self, author_login: str) -> Study:
         return Study(
@@ -148,11 +169,11 @@ class StudyUpdate(CustomSQLModel):
     name: str | None = Field(max_length=64, default=None)
     description: str | None = Field(max_length=2000, default=None)
     publicity: StudyPublicity | None = None
-    starting_sip: str | None = None
-    key_sip: str | None = None
+    starting_sip: str | None = Field(max_length=127, default=None)
+    key_sip: str | None = Field(max_length=127, default=None)
     key_path: str | None = Field(max_length=500, default=None)  # replaced together with nodes, cleared when null
-    tags: list[str] | None = None
-    nodes: list[ApiPlyTreeNode] | None = None
+    tags: StudyTags | None = None
+    nodes: StudyNodes | None = None
 
     def dump_plain_fields(self) -> dict[str, Any]:
         return self.model_dump(exclude={"tags", "nodes", "key_path"}, exclude_unset=True, exclude_none=True)

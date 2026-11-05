@@ -1,7 +1,9 @@
 from pydantic import Field as PydanticField
 from sqlalchemy import CHAR, Column, LargeBinary
 from sqlmodel import Field
-from common.field_types import CurrentDatetime, PlayerLogin
+from datetime import datetime
+
+from common.field_types import PlayerLogin, current_datetime_field
 from common.models import UserRefWithNickname
 from utils.custom_model import CustomModel, CustomSQLModel
 
@@ -28,7 +30,7 @@ class WhoamiResponse(UserRefWithNickname):
 # <private>
 class PlayerPassword(CustomSQLModel, table=True):
     login: str = Field(primary_key=True, foreign_key="player.login")
-    created_at: CurrentDatetime
+    created_at: datetime = current_datetime_field()
     password_hash: bytes = Field(sa_column=Column(LargeBinary))
     normal_md5: str | None = None
 

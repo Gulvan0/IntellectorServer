@@ -34,10 +34,15 @@ class ConcurrentTaskStorage:
             f.write(message + '\n\n')
 
         if self.on_failure:
+            # not planned as the rest: a failure to log a failure must not be logged in turn, or a DB outage would never end it
             db_task = asyncio.create_task(self.on_failure(task_name, message))
-            db_task.add_done_callback(
-                lambda t: print(t.exception()) if not t.cancelled() and t.exception() else None
-            )
+            self.__tasks.add(db_task)
+            db_task.add_done_callback(self.__on_failure_log_done)
+
+    def __on_failure_log_done(self, task: Task) -> None:
+        self.__tasks.discard(task)
+        if not task.cancelled() and task.exception():
+            print(task.exception())
 
     def plan(self, coroutine: Coroutine[Any, Any, Any], name: str | None = None) -> None:
         task = asyncio.create_task(coroutine, name=name or coroutine.__qualname__)

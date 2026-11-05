@@ -9,12 +9,16 @@ from game.methods.get import get_latest_time_update, search_games
 from game.methods.timeout import check_timeout, plan_timeout_check
 from game.models.chat import GameChatMessageEvent, GameSendChatMessagePayload
 from game.models.main import Game, GamePublic
+from game.models.presence import GameUploaderPresence
 from game.models.rest.common import GameSearchPayload, GameSearchResult
 from game.models.time_added import GameAddTimePayload, GameTimeAddedEvent
 from game.models.time_update import GameTimeUpdate, GameTimeUpdateReason
-from net.base_router import LoggingRoute
+from net.base_router import LoggingRoute, game_action, rate_limited
+from net.rate_limit import RateLimitGroup
 from net.sub_storage import SubscriberTag
-from player.methods import resolve_player_refs
+from net.utils.rest_error import RestErrorCode, RestException
+from player.datatypes import UserRestrictionKind
+from player.methods import has_active_restriction, resolve_player_refs
 from pubsub.models.channel import GameEventChannel
 from pubsub.outgoing_event.update import NewChatMessage
 
@@ -23,6 +27,7 @@ router = APIRouter(prefix="/game", route_class=LoggingRoute)
 
 
 @router.post("/search", response_model=GameSearchResult)
+@rate_limited(RateLimitGroup.SEARCH)
 async def search_games_route(
     *,
     session: SessionDependency,
@@ -49,11 +54,17 @@ async def get_game(
     collected_refs = db_game.collect_refs(include_nested=True)
     resolved_refs = await resolve_player_refs(collected_refs, session)
     latest_time_update = await get_latest_time_update(session, game_id)
-    return db_game.to_public(
+    public_game = db_game.to_public(
         resolved_refs,
         latest_time_update,
         include_spectator_messages=not is_player or db_game.outcome is not None  # players see them once the game is over
     )
+    if db_game.external_uploader_ref and not db_game.outcome:
+        presence = await session.get(GameUploaderPresence, game_id)
+        if presence:
+            public_game.suspended_since = presence.suspended_at
+            public_game.uploader_last_seen_at = presence.last_seen_at
+    return public_game
 
 
 @router.get("/{game_id}/check_timeout")
@@ -69,6 +80,8 @@ async def check_timeout_route(
 
 
 @router.post("/chat/send_message")
+@game_action  # takes the next event index
+@rate_limited(RateLimitGroup.CHAT)
 async def send_chat_message(
     *,
     session: SessionDependency,
@@ -77,6 +90,9 @@ async def send_chat_message(
     client: MandatoryUserDependency,
     payload: GameSendChatMessagePayload
 ) -> None:
+    if client.is_player() and await has_active_restriction(session, client, UserRestrictionKind.CHAT):
+        raise RestException(RestErrorCode.CHAT_RESTRICTED, "You are restricted from chatting")
+
     # read before the commit below expires db_game, which can't be lazily reloaded in an async session
     is_ongoing = db_game.outcome is None
     is_spectator = not is_ongoing or client.reference not in (db_game.white_player_ref, db_game.black_player_ref)
@@ -105,6 +121,8 @@ async def send_chat_message(
     GAME_IS_ONGOING_DEPENDENCY,
     CLIENT_IS_UPLOADER_IF_EXTERNAL_DEPENDENCY,
 ])
+@game_action
+@rate_limited(RateLimitGroup.GAME_ACTION)
 async def add_time(
     *,
     payload: GameAddTimePayload,

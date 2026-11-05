@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal
+from sqlalchemy import Column, Computed, Integer, UniqueConstraint
 from sqlalchemy.orm import Load, joinedload
 from sqlmodel import Field, Relationship
 
@@ -27,6 +28,8 @@ class GamePlyEventBase(CustomSQLModel):
 
 
 class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
+    __table_args__ = (UniqueConstraint("game_id", "live_ply_index", name="uq_live_ply"),)
+
     id: int | None = Field(default=None, primary_key=True)
     game_id: int = Field(foreign_key="game.id")
     is_cancelled: bool = False
@@ -36,6 +39,8 @@ class GamePlyEvent(GamePlyEventBase, table=True):  # Analytics-optimized
     target_piece: PieceKind | None = None
     sip_after: Sip
     time_update_id: int | None = Field(default=None, foreign_key="gametimeupdate.id")
+    # null for a cancelled ply: a game can't have two plies going on at one index
+    live_ply_index: int | None = Field(default=None, sa_column=Column(Integer, Computed("IF(is_cancelled, NULL, ply_index)", persisted=False)))
 
     game: Game = Relationship(back_populates="ply_events")
     time_update: GameTimeUpdate | None = Relationship()

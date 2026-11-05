@@ -6,8 +6,9 @@ from player.models import Player, PlayerFollowedPlayer, PlayerRole
 
 
 def process_player_file(login: str, data: dict) -> tuple[list[PlayerFollowedPlayer], int | None]:
+    """v1 logins were case-sensitive, v3 ones are lowercase: the file of a colliding pair is expected to be merged beforehand"""
     return [
-        PlayerFollowedPlayer(follower_login=login, followed_login=followed_login)
+        PlayerFollowedPlayer(follower_login=login.lower(), followed_login=followed_login.lower())
         for followed_login in data.get("friends", [])
     ], data.get("lastMessageTimestamp")
 
@@ -16,9 +17,19 @@ def process_passwords_file(data: dict[str, str], first_messages: dict[str, datet
     players = []
     passwords = []
 
-    for login, md5hash in data.items():
-        if login == "aleksandragabdrahmanova79gmailcom" or login in ("PaulNotIntellector", "Leo169", "KatziRina", "Kirill123"):  # Too long (first) and duplicate (second)
+    # v1 logins were case-sensitive, so some players exist twice (Divan and divan), or only with capitals (Groot).
+    # The lowercase login is the account; the capitalized spelling, if there is one, is kept as the nickname
+    nicknames: dict[str, str] = {}
+    for login in data:
+        if login != login.lower():
+            nicknames[login.lower()] = login
+
+    for original_login, md5hash in data.items():
+        login = original_login.lower()
+        if login == "aleksandragabdrahmanova79gmailcom" or original_login == "Kirill123":  # Too long (first) and duplicate (second)
             continue
+        if original_login != login and login in data:
+            continue  # the lowercase twin carries the account and its password
         if len(login) > 32:
             raise ValueError(login)
 
@@ -28,13 +39,11 @@ def process_passwords_file(data: dict[str, str], first_messages: dict[str, datet
         elif login in ("mrolegus", "agent", "pike", "lesha181", "canaconda", "grizzly"):
             roles = [UserRole.ANACONDA_DEVELOPER]
 
-        nickname = login
+        nickname = nicknames.get(login, login)
         if login == "gulvan":
             nickname = "Gulvan"
         elif login == "mrolegus":
             nickname = "MrOlegus"
-        elif login == "paulnotintellector":
-            nickname = "PaulNotIntellector"
 
         if login in first_messages:
             joined_at = first_messages[login]

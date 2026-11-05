@@ -2,9 +2,12 @@ from typing import Any
 import aiohttp
 
 
+REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=5)
+
+
 async def post_vk_message(chat_id: int, text: str, token: str) -> int | None:
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
             async with session.post(
                 'https://api.vk.ru/method/messages.send',
                 params=dict(
@@ -23,7 +26,7 @@ async def post_vk_message(chat_id: int, text: str, token: str) -> int | None:
 
 async def delete_vk_message(message_id: int, chat_id: int, token: str) -> None:
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
             response = await session.post(
                 'https://api.vk.ru/method/messages.delete',
                 params=dict(
@@ -41,7 +44,7 @@ async def delete_vk_message(message_id: int, chat_id: int, token: str) -> None:
 
 async def post_discord_webhook(url: str, text: str) -> None:
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
             response = await session.post(
                 url,
                 json=dict(content=text)

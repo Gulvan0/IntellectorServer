@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import StrEnum, auto
-from typing import Iterable
+from typing import Any, Iterable
 from uuid import UUID
 from pydantic import BaseModel
 
@@ -12,10 +12,6 @@ from pubsub.models.channel import EventChannel, EveryoneEventChannel
 from pubsub.outgoing_event.base import OutgoingEvent
 from utils.bijective_map import BijectiveMap
 
-import asyncio
-
-
-BROADCAST_SEND_TIMEOUT_SECS = 5
 
 
 class SubscriberTag(StrEnum):
@@ -24,9 +20,24 @@ class SubscriberTag(StrEnum):
 
 
 @dataclass
+class HeldEvent:
+    event: OutgoingEvent[Any, Any]
+    tag_whitelist: set[SubscriberTag] | None
+    tag_blacklist: set[SubscriberTag] | None
+
+
+@dataclass
 class Subscriber:
     ws: WebSocketWrapper
     tags: set[SubscriberTag]
+    held: list[HeldEvent] | None = None  # set while the subscriber's refresh is being computed: events wait for it, so they never reach the client ahead of it
+
+    def passes(self, tag_whitelist: set[SubscriberTag] | None, tag_blacklist: set[SubscriberTag] | None) -> bool:
+        if tag_whitelist and tag_whitelist.difference(self.tags):
+            return False
+        if tag_blacklist and self.tags.intersection(tag_blacklist):
+            return False
+        return True
 
 
 class SubscriberStorage:
@@ -59,10 +70,33 @@ class SubscriberStorage:
         self.subscribers.setdefault(channel, {})[websocket.uuid] = Subscriber(websocket, tags or set())
         self._channels_by_ws.setdefault(websocket.uuid, set()).add(channel)
 
-    def set_tags(self, websocket: WebSocketWrapper, channel: EventChannel, tags: set[SubscriberTag]) -> None:
+    def hold_events(self, websocket: WebSocketWrapper, channel: EventChannel) -> None:
+        """Until `send_refresh` or `release_events`, the events for the subscriber are kept back"""
         subscriber = self.subscribers.get(channel, {}).get(websocket.uuid)
-        if subscriber is not None:
+        if subscriber is not None and subscriber.held is None:
+            subscriber.held = []
+
+    def send_refresh(self, websocket: WebSocketWrapper, channel: EventChannel, refresh: OutgoingEvent[Any, Any], tags: set[SubscriberTag] | None) -> None:
+        """`tags` is None to keep the subscriber's. Sends the refresh, then the events that came while it was being computed (those may repeat what it already has)"""
+        subscriber = self.subscribers.get(channel, {}).get(websocket.uuid)
+        if subscriber is None:
+            return  # unsubscribed meanwhile
+
+        if tags is not None:
             subscriber.tags = tags
+        websocket.send_event(refresh)
+        self.release_events(websocket, channel)
+
+    def release_events(self, websocket: WebSocketWrapper, channel: EventChannel) -> None:
+        """Sends the held events, as the refresh isn't coming"""
+        subscriber = self.subscribers.get(channel, {}).get(websocket.uuid)
+        if subscriber is None or subscriber.held is None:
+            return
+
+        held, subscriber.held = subscriber.held, None
+        for held_event in held:
+            if subscriber.passes(held_event.tag_whitelist, held_event.tag_blacklist):
+                websocket.send_event(held_event.event)
 
     def unsubscribe(self, websocket_ref: WebSocketWrapper | UUID, channel: EventChannel) -> None:
         uuid = self._resolve_websocket_reference(websocket_ref)
@@ -149,25 +183,8 @@ class SubscriberStorage:
         tag_whitelist: set[SubscriberTag] | None = None,
         tag_blacklist: set[SubscriberTag] | None = None
     ) -> None:
-        sending_coroutines = []
         for subscriber in self.get_subscribers(event_instance.target_channel):
-            if tag_whitelist and tag_whitelist.difference(subscriber.tags):
-                continue
-            if tag_blacklist and subscriber.tags.intersection(tag_blacklist):
-                continue
-            sending_coroutines.append(self._send_or_drop(subscriber.ws, event_instance))
-        await asyncio.gather(*sending_coroutines)
-
-    @staticmethod
-    async def _send_or_drop(ws: WebSocketWrapper, event_instance: OutgoingEvent) -> None:
-        """Closes the connection if it can't take the event in time, so that one stalled client can't hold up a broadcast.
-
-        A send cancelled by the timeout may have written a partial frame, so the connection can't be reused afterwards;
-        the client reconnects and gets fresh snapshots on re-subscribing."""
-        try:
-            await asyncio.wait_for(ws.send_event(event_instance), BROADCAST_SEND_TIMEOUT_SECS)
-        except asyncio.TimeoutError:
-            try:
-                await asyncio.wait_for(ws.ws.close(), BROADCAST_SEND_TIMEOUT_SECS)
-            except Exception:
-                pass  # the connection is stalled, so a failed close handshake is expected
+            if subscriber.held is not None:
+                subscriber.held.append(HeldEvent(event_instance, tag_whitelist, tag_blacklist))
+            elif subscriber.passes(tag_whitelist, tag_blacklist):
+                subscriber.ws.send_event(event_instance)

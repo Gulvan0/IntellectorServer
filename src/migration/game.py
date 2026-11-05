@@ -206,6 +206,19 @@ def build_guest_renumbering(game_logs: list[tuple[int, str]]) -> dict[int, dict[
     return renumbering
 
 
+def promote_unpromoted_intellector_capture(ply: Ply, position: Position) -> None:
+    """The old client offered no promotion on a progressor capturing the Intellector on the last row; such a ply becomes a promotion to the Dominator"""
+    moving_piece = position.piece_arrangement.get(ply.departure)
+    target_piece = position.piece_arrangement.get(ply.destination)
+    if (
+        not ply.morph_into
+        and moving_piece and moving_piece.kind == PieceKind.PROGRESSOR
+        and target_piece and target_piece.kind == PieceKind.INTELLECTOR and target_piece.color != moving_piece.color
+        and ply.destination.is_final_row_for(moving_piece.color)
+    ):
+        ply.morph_into = PieceKind.DOMINATOR
+
+
 def parse_log(
     game_id: int,
     full_log: str,
@@ -243,7 +256,7 @@ def parse_log(
     rollback_events: list[GameRollbackEvent] = []
 
     # null if the log doesn't record it; the old logs never record when the other events happened, so theirs are null
-    started_at = get_datetime(full_log) or (datetime.fromisoformat(estimated_dt).replace(tzinfo=MSK_TZ) if estimated_dt else None)
+    started_at = get_datetime(full_log) or (datetime.fromisoformat(estimated_dt).replace(tzinfo=MSK_TZ).astimezone(UTC) if estimated_dt else None)
     event_index = 0
     time_update = GameTimeUpdate(
         updated_at=started_at,
@@ -383,6 +396,8 @@ def parse_log(
                             f"Invalid morph type ({raw_morph_into}) in ply {ply_num} (raw: {raw_ply})\n"
                             f"Game: {game_id}\n"
                         )
+
+        promote_unpromoted_intellector_capture(ply, position)
 
         try:
             ply_output = position.perform_ply(ply, validate=True, allow_progressor_aura=game_id < 100, pre_check_finality=True)

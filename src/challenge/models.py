@@ -7,7 +7,7 @@ from challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
 from common.models import UserRefWithNickname
 from common.resolved_refs import ResolvedRefs
 from common.time_control import FischerTimeControlEntity, TimeControlKind
-from common.field_types import CurrentDatetime, PlayerRef, OptionalSip, OptionalPlayerRef
+from common.field_types import current_datetime_field, PlayerRef, OptionalSip, OptionalPlayerRef
 from game.models.main import Game, GameSummaryPublic, PlayerRatingPublic
 from utils.custom_model import CustomModel, CustomSQLModel
 
@@ -20,7 +20,7 @@ class ChallengeBase(CustomSQLModel):
 
 class Challenge(ChallengeBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    created_at: CurrentDatetime
+    created_at: datetime = current_datetime_field()
     caller_ref: PlayerRef
     callee_ref: OptionalPlayerRef = None
     kind: ChallengeKind
@@ -106,15 +106,16 @@ class ChallengeCreateOpen(ChallengeBase):
     fischer_time_control: ChallengeFischerTimeControlCreate | None = None
     link_only: bool
 
-    def to_db_challenge(self, caller_ref: str) -> Challenge:
-        challenge_kind = ChallengeKind.LINK_ONLY if self.link_only else ChallengeKind.PUBLIC
+    def kind(self) -> ChallengeKind:
+        return ChallengeKind.LINK_ONLY if self.link_only else ChallengeKind.PUBLIC
 
+    def to_db_challenge(self, caller_ref: str) -> Challenge:
         return Challenge(
             acceptor_color=self.acceptor_color,
             custom_starting_sip=self.custom_starting_sip,
             rated=self.rated,
             caller_ref=caller_ref,
-            kind=challenge_kind,
+            kind=self.kind(),
             time_control_kind=TimeControlKind.of(self.fischer_time_control),
             fischer_time_control=ChallengeFischerTimeControl.cast(self.fischer_time_control)
         )

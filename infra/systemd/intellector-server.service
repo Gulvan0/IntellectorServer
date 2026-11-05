@@ -1,0 +1,24 @@
+[Unit]
+Description=Intellector server
+PartOf=intellector.target
+Requires=mysql.service
+After=mysql.service network-online.target
+OnFailure=intellector-alert@%n.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+User=intellector
+WorkingDirectory=/srv/intellector/server/current
+Environment=STAGE=prod
+Environment=RCLONE_CONFIG=/srv/intellector/rclone.conf
+# Migrations run here, so that they happen when a new release first starts after a drain
+ExecStartPre=/srv/intellector/infra/scripts/backup.sh --if-pending-migrations
+ExecStartPre=/srv/intellector/server/current/venv/bin/alembic upgrade head
+ExecStart=/srv/intellector/server/current/venv/bin/python src/main.py
+Restart=always
+RestartSec=3
+TimeoutStopSec=30
+
+[Install]
+WantedBy=intellector.target

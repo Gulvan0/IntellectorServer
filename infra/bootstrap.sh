@@ -89,6 +89,19 @@ SQL
     chown intellector:intellector "$BASE/db-app.password" "$BASE/mysql-backup.cnf"
 fi
 
+# for people (MySQL Workbench over an SSH tunnel): localhost only, so it is unreachable except through the tunnel.
+# Root-only password file: the app user must not be able to read it.
+if [ ! -f "$BASE/db-admin.password" ]; then
+    ADMIN_PW="$(openssl rand -hex 24)"
+    mysql <<SQL
+CREATE USER IF NOT EXISTS 'intellector_admin'@'localhost' IDENTIFIED BY '$ADMIN_PW';
+ALTER USER 'intellector_admin'@'localhost' IDENTIFIED BY '$ADMIN_PW';
+GRANT ALL ON main.* TO 'intellector_admin'@'localhost';
+GRANT ALL ON intellector_logs.* TO 'intellector_admin'@'localhost';
+SQL
+    (umask 077; echo "$ADMIN_PW" > "$BASE/db-admin.password")
+fi
+
 log "Caddy (installed, kept disabled until v1 gives up ports 80 and 443)"
 if ! command -v caddy >/dev/null; then
     # the key stays armored: apt rejects the dearmored one, whose signing subkey it cannot find

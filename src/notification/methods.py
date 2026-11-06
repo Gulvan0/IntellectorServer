@@ -70,26 +70,25 @@ async def send_new_public_challenge_notifications(
     integrations_config: IntegrationParams,
     session: AsyncSession
 ) -> None:
-    if await _vk_antispam_limit_reached_releasing_connection(integrations_config, session):
-        return
+    # the antispam limit concerns VK only: Discord is announced to regardless
+    if not await _vk_antispam_limit_reached_releasing_connection(integrations_config, session):
+        vk_chat_id = integrations_config.vk.community_chat_id
+        vk_announcement_text = get_vk_new_challenge_message(public_challenge)
+        vk_message_id = await post_vk_message(vk_chat_id, vk_announcement_text, integrations_config.vk.token)
 
-    vk_chat_id = integrations_config.vk.community_chat_id
-    vk_announcement_text = get_vk_new_challenge_message(public_challenge)
-    vk_message_id = await post_vk_message(vk_chat_id, vk_announcement_text, integrations_config.vk.token)
-
-    if vk_message_id:
-        notification = NewPublicChallengeNotification(
-            app=NotificationApp.VK,
-            chat_id=vk_chat_id,
-            message_id=vk_message_id,
-            is_permanent=False,
-            challenge_id=public_challenge.id
-        )
-        session.add(notification)
-        await session.commit()
+        if vk_message_id:
+            notification = NewPublicChallengeNotification(
+                app=NotificationApp.VK,
+                chat_id=vk_chat_id,
+                message_id=vk_message_id,
+                is_permanent=False,
+                challenge_id=public_challenge.id
+            )
+            session.add(notification)
+            await session.commit()
 
     discord_announcement_text = get_discord_new_challenge_message(public_challenge)
-    await post_discord_webhook(integrations_config.discord.webhook_url, discord_announcement_text)
+    await post_discord_webhook(integrations_config.proxy,discord_announcement_text)
 
 
 async def _delete_notifications[T: StoredNotificationBase](notification_type: type[T], notifications: list[T], session: AsyncSession, vk_token: str) -> None:
@@ -99,16 +98,22 @@ async def _delete_notifications[T: StoredNotificationBase](notification_type: ty
     # the HTTP calls may be slow, and must not hold a pooled connection meanwhile; the session picks up a new one for the DELETE
     await session.close()
 
+    # a notification stays stored unless its message is confirmed gone, so that the failure remains traceable
+    deleted_ids = []
     for notification in notifications:
         if notification.app == NotificationApp.VK:
-            await delete_vk_message(
+            if not await delete_vk_message(
                 message_id=notification.message_id,
                 chat_id=notification.chat_id,
                 token=vk_token
-            )
+            ):
+                continue
+        deleted_ids.append(notification.id)
 
-    notification_ids = [notification.id for notification in notifications]
-    await session.exec(delete(notification_type).where(col(notification_type.id).in_(notification_ids)))  # type: ignore[call-overload]
+    if not deleted_ids:
+        return
+
+    await session.exec(delete(notification_type).where(col(notification_type.id).in_(deleted_ids)))  # type: ignore[call-overload]
     await session.commit()
 
 

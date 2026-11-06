@@ -92,6 +92,12 @@ class TelegramParams(CustomModel):
     admin_chat_id: int
 
 
+class ProxyParams(CustomModel):
+    """The Cloudflare Worker relaying Discord and Telegram calls, disguised as VK API calls"""
+    url: str
+    key: str
+
+
 class AntispamWindowDefinition(CustomModel):
     window_size_seconds: int
     max_messages: int
@@ -106,6 +112,7 @@ class VkParams(CustomModel):
 class IntegrationParams(CustomModel):
     discord: DiscordParams
     telegram: TelegramParams
+    proxy: ProxyParams
     vk: VkParams
 
 

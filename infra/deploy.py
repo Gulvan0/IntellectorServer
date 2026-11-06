@@ -34,7 +34,7 @@ KEPT_CLIENT_VERSIONS = 3
 SHELL_FILES = ["index.html", "sw.js", "manifest.json", ".htaccess"]
 SERVER_PATHS = ["src", "alembic", "alembic.ini", "resources", "requirements.txt", "api.lock"]
 SERVER_EXCLUDES = ["__pycache__", ".mypy_cache", "resources/config/secret.yaml", "resources/cert"]
-CLIENT_FILES = ["bin/app.js", "bin/hxconda.js", "bin/version.json"]
+CLIENT_FILES = ["bin/app.js", "bin/hxconda.js", "bin/version.json", "manifest.json"]
 CLIENT_DIRS = ["assets"]
 
 

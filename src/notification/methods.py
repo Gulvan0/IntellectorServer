@@ -5,7 +5,7 @@ from sqlmodel import col, desc, select
 
 from challenge.models import ChallengePublic
 from common.user_ref import UserReference
-from config.models import IntegrationParams
+from config.models import AntispamWindowDefinition, IntegrationParams
 from game.models.main import GameSummaryPublic
 from notification.integration import delete_vk_message, post_discord_webhook, post_vk_message
 from notification.models import GameStartedNotification, NewPublicChallengeNotification, NotificationApp, StoredNotificationBase
@@ -41,10 +41,9 @@ async def nth_last_notification_send_times(ns: list[int], app: NotificationApp, 
     return {n: send_times[n - 1] for n in ns if len(send_times) >= n}
 
 
-async def vk_antispam_limit_reached(integrations_config: IntegrationParams, session: AsyncSession) -> bool:
+async def vk_antispam_limit_reached(antispam_windows: list[AntispamWindowDefinition], session: AsyncSession) -> bool:
     now_dt = datetime.now(UTC)
 
-    antispam_windows = integrations_config.vk.antispam_windows
     oldest_send_times = await nth_last_notification_send_times(
         [window.max_messages for window in antispam_windows],
         NotificationApp.VK,
@@ -58,9 +57,9 @@ async def vk_antispam_limit_reached(integrations_config: IntegrationParams, sess
     return False
 
 
-async def _vk_antispam_limit_reached_releasing_connection(integrations_config: IntegrationParams, session: AsyncSession) -> bool:
+async def _vk_antispam_limit_reached_releasing_connection(antispam_windows: list[AntispamWindowDefinition], session: AsyncSession) -> bool:
     """The HTTP calls that follow may be slow, and must not hold a pooled connection meanwhile. The session picks up a new one once it's needed again"""
-    limit_reached = await vk_antispam_limit_reached(integrations_config, session)
+    limit_reached = await vk_antispam_limit_reached(antispam_windows, session)
     await session.close()
     return limit_reached
 
@@ -68,10 +67,11 @@ async def _vk_antispam_limit_reached_releasing_connection(integrations_config: I
 async def send_new_public_challenge_notifications(
     public_challenge: ChallengePublic,
     integrations_config: IntegrationParams,
+    antispam_windows: list[AntispamWindowDefinition],
     session: AsyncSession
 ) -> None:
     # the antispam limit concerns VK only: Discord is announced to regardless
-    if not await _vk_antispam_limit_reached_releasing_connection(integrations_config, session):
+    if not await _vk_antispam_limit_reached_releasing_connection(antispam_windows, session):
         vk_chat_id = integrations_config.vk.community_chat_id
         vk_announcement_text = get_vk_new_challenge_message(public_challenge)
         vk_message_id = await post_vk_message(vk_chat_id, vk_announcement_text, integrations_config.vk.token)
@@ -132,9 +132,10 @@ async def send_game_started_notifications(
     black_player_ref: str,
     public_game: GameSummaryPublic,
     integrations_config: IntegrationParams,
+    antispam_windows: list[AntispamWindowDefinition],
     session: AsyncSession
 ) -> None:
-    if await _vk_antispam_limit_reached_releasing_connection(integrations_config, session):
+    if await _vk_antispam_limit_reached_releasing_connection(antispam_windows, session):
         return
 
     white_player = UserReference(white_player_ref)

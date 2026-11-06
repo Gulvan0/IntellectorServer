@@ -199,6 +199,7 @@ async def create_internal_game(
         black_player_ref,
         public_game,
         secret_config.integrations,
+        main_config.vk_antispam_windows,
         task_session
     ))
 

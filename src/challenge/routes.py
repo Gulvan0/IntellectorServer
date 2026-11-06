@@ -67,6 +67,7 @@ async def create_open_challenge(
         state.concurrent_tasks.plan_with_own_session(lambda task_session: send_new_public_challenge_notifications(
             public_challenge=public_challenge,
             integrations_config=secret_config.integrations,
+            antispam_windows=main_config.vk_antispam_windows,
             session=task_session
         ))
 

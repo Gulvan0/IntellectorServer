@@ -59,12 +59,18 @@ class RateLimitParams(CustomModel):
     max_ws_connections_per_ip: int
 
 
+class AntispamWindowDefinition(CustomModel):
+    window_size_seconds: int
+    max_messages: int
+
+
 class MainConfig(CustomModel):
     keep_alive: KeepAliveParams
     elo: EloParams
     rules: RuleParams
     limits: LimitParams
     rate_limits: RateLimitParams
+    vk_antispam_windows: list[AntispamWindowDefinition]
 
 
 class DBParams(CustomModel):
@@ -98,15 +104,9 @@ class ProxyParams(CustomModel):
     key: str
 
 
-class AntispamWindowDefinition(CustomModel):
-    window_size_seconds: int
-    max_messages: int
-
-
 class VkParams(CustomModel):
     token: str
     community_chat_id: int
-    antispam_windows: list[AntispamWindowDefinition]
 
 
 class IntegrationParams(CustomModel):

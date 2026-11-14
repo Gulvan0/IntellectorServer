@@ -3,6 +3,7 @@ OFFSITE="${OFFSITE:-B2:intellector-backup}"
 export RCLONE_CONFIG="${RCLONE_CONFIG:-/srv/intellector/rclone.conf}"
 OPS_ENV=/srv/intellector/ops.env   # HC_PING_URL=... (healthchecks.io), optional
 MAIN_DB=main
+SENSITIVE_DB=intellector_sensitive  # password hashes: dumped to db/<name>.sensitive.sql.zst beside main's db/<name>.sql.zst
 [ -f "$OPS_ENV" ] && . "$OPS_ENV"
 
 ping_healthcheck() {

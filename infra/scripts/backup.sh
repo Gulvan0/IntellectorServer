@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dumps the main database offsite as db/<YYYY-MM-DD>.sql.zst.
+# Dumps the main database offsite as db/<YYYY-MM-DD>.sql.zst, and the sensitive one as db/<YYYY-MM-DD>.sensitive.sql.zst.
 #   --if-pending-migrations   dumps as db/pre-deploy-<YYYY-MM-DD-HHMM>-<sha>.sql.zst, and only if the schema is behind
 #                             the release in `current` (run before the migrations of a starting server)
 set -euo pipefail
@@ -25,13 +25,19 @@ fi
 TMP="$(mktemp /var/tmp/intellector-dump.XXXXXX)"
 trap 'rm -f "$TMP"' EXIT
 
-# written to disk first: a dump that failed halfway must never reach the offsite storage
-mysqldump --defaults-extra-file=/srv/intellector/mysql-backup.cnf \
-    --single-transaction --quick --routines --triggers --events --no-tablespaces "$MAIN_DB" | zstd -q -3 -o "$TMP" -f
-rclone copyto "$TMP" "$OFFSITE/db/$NAME.sql.zst"
+dump() { # <database> <file name under db/>
+    # written to disk first: a dump that failed halfway must never reach the offsite storage
+    mysqldump --defaults-extra-file=/srv/intellector/mysql-backup.cnf \
+        --single-transaction --quick --routines --triggers --events --no-tablespaces "$1" | zstd -q -3 -o "$TMP" -f
+    rclone copyto "$TMP" "$OFFSITE/db/$2"
 
-SIZE="$(rclone lsf --format s --include "$NAME.sql.zst" "$OFFSITE/db/")"
-[ "$SIZE" = "$(stat -c %s "$TMP")" ] || { echo "Uploaded dump size mismatch" >&2; exit 1; }
-echo "Uploaded db/$NAME.sql.zst ($SIZE bytes)"
+    local size
+    size="$(rclone lsf --format s --include "$2" "$OFFSITE/db/")"
+    [ "$size" = "$(stat -c %s "$TMP")" ] || { echo "Uploaded dump size mismatch" >&2; exit 1; }
+    echo "Uploaded db/$2 ($size bytes)"
+}
+
+dump "$MAIN_DB" "$NAME.sql.zst"
+dump "$SENSITIVE_DB" "$NAME.sensitive.sql.zst"
 [ "$PING" = yes ] && ping_healthcheck
 exit 0

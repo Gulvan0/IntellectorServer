@@ -4,17 +4,16 @@ from sqlalchemy import CHAR
 from sqlalchemy.dialects.mysql import TEXT
 from sqlmodel import Field, Column
 
+from common.constants import DbSchema
 from common.field_types import current_datetime_field, indexed_optional_player_ref, precise_current_datetime_field
 from log.datatypes import RestMethod
 from utils.custom_model import CustomSQLModel
 
 
-LOG_SCHEMA = "intellector_logs"
-
-
 class LogTable(CustomSQLModel):
-    """The log tables live in their own database, so that restoring the main one never wipes the recent logs"""
-    __table_args__ = {"schema": LOG_SCHEMA}
+    """The log tables live in their own database, so that restoring the main one never wipes the recent logs.
+    Also protects these tables from public access, e.g. through intellector_search user"""
+    __table_args__ = {"schema": DbSchema.LOG}
 
 
 class ServerLaunch(CustomSQLModel, table=True):
@@ -22,7 +21,6 @@ class ServerLaunch(CustomSQLModel, table=True):
     launched_at: datetime = current_datetime_field()
 
 
-# <private>
 class RESTRequestLog(LogTable, table=True):
     id: int | None = Field(default=None, primary_key=True)
     ts: datetime = precise_current_datetime_field(index=True)
@@ -36,7 +34,6 @@ class RESTRequestLog(LogTable, table=True):
     response: str | None = Field(default=None, sa_column=Column(TEXT))
 
 
-# <private>
 class WSLog(LogTable, table=True):
     id: int | None = Field(default=None, primary_key=True)
     ts: datetime = precise_current_datetime_field(index=True)
@@ -46,7 +43,6 @@ class WSLog(LogTable, table=True):
     incoming: bool
 
 
-# <private>
 class ClientErrorLog(LogTable, table=True):
     id: int | None = Field(default=None, primary_key=True)
     ts: datetime = precise_current_datetime_field(index=True)
@@ -58,7 +54,6 @@ class ClientErrorLog(LogTable, table=True):
     stack: str | None = Field(default=None, sa_column=Column(TEXT))
 
 
-# <private>
 class TimeoutCheckExecutedLog(LogTable, table=True):
     id: int | None = Field(default=None, primary_key=True)
     event_time: datetime = current_datetime_field(index=True)
@@ -68,7 +63,6 @@ class TimeoutCheckExecutedLog(LogTable, table=True):
     is_external: bool
 
 
-# <private>
 class TimeoutCheckPlannedLog(LogTable, table=True):
     id: int | None = Field(default=None, primary_key=True)
     event_time: datetime = current_datetime_field(index=True)
@@ -76,7 +70,6 @@ class TimeoutCheckPlannedLog(LogTable, table=True):
     delay_ms: int
 
 
-# <private>
 class TaskFailureLog(LogTable, table=True):
     id: int | None = Field(default=None, primary_key=True)
     ts: datetime = current_datetime_field(index=True)

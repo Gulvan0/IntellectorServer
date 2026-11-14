@@ -7,10 +7,10 @@ from sqlalchemy import create_engine, pool
 from sqlmodel import SQLModel
 
 import net.core  # noqa: F401  # imports every model module, which registers the tables in SQLModel.metadata
+from common.constants import DbSchema
 from common.field_types import PreciseUtcDateTime, UtcDateTime
 from config.loader import load
 from config.models import SecretConfig
-from log.models import LOG_SCHEMA
 
 
 config = context.config
@@ -27,9 +27,9 @@ def database_name() -> str | None:
 
 
 def include_name(name: str | None, type_: str, parent_names: dict[str, str | None]) -> bool:
-    """Only the main database (the connection's default schema) and the logs one are managed"""
+    """Only the main database (the connection's default schema), the logs one and the sensitive one are managed"""
     if type_ == "schema":
-        return name in (None, LOG_SCHEMA)
+        return name in (None, DbSchema.LOG, DbSchema.SENSITIVE)
     return True
 
 

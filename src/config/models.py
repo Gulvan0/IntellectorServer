@@ -34,6 +34,7 @@ class LimitParams(CustomModel):
     max_guest_tokens: int
     db_pool_size: int
     db_pool_max_overflow: int
+    search_timeout_ms: int  # a game archive search or export query running longer is stopped
 
 
 class RateLimitRule(CustomModel):
@@ -53,6 +54,7 @@ class RateLimitParams(CustomModel):
     chat: RateLimitRule  # by user
     write: RateLimitRule  # by user
     search: RateLimitRule  # by user
+    export: RateLimitRule  # by user
     ws_connect: RateLimitRule  # by IP
     ws_message: RateLimitRule  # by connection, pings included
     client_error: RateLimitRule  # by user, or IP without a valid token
@@ -124,4 +126,5 @@ class SSLParams(CustomModel):
 class SecretConfig(CustomModel):
     db: DBParams
     integrations: IntegrationParams
+    search_db: DBParams | None = None  # a read-only user for the game archive searches; the main one if unset
     ssl: SSLParams | None = None  # set for the test stage only: in prod, Caddy terminates TLS

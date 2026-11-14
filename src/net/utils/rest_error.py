@@ -18,6 +18,10 @@ class RestErrorCode(StrEnum):
     RATE_LIMITED = auto()  # extra fields: retry_after_secs
     PAYLOAD_TOO_LARGE = auto()  # extra fields: max_bytes
     CHAT_RESTRICTED = auto()
+    SEARCH_TIMEOUT = auto()
+    INVALID_FORMULA = auto()
+    FILTER_NOT_FOUND = auto()
+    FILTER_NAME_TAKEN = auto()
 
 
 STATUS_CODES: dict[RestErrorCode, int] = {
@@ -32,6 +36,10 @@ STATUS_CODES: dict[RestErrorCode, int] = {
     RestErrorCode.RATE_LIMITED: 429,
     RestErrorCode.PAYLOAD_TOO_LARGE: 413,
     RestErrorCode.CHAT_RESTRICTED: 403,
+    RestErrorCode.SEARCH_TIMEOUT: 503,
+    RestErrorCode.INVALID_FORMULA: 422,
+    RestErrorCode.FILTER_NOT_FOUND: 404,
+    RestErrorCode.FILTER_NAME_TAKEN: 409,
 }
 
 

@@ -23,6 +23,7 @@ from game.models.rollback import *  # noqa: F401, F403
 from game.models.time_added import *  # noqa: F401, F403
 from game.models.time_control import *  # noqa: F401, F403
 from game.models.time_update import *  # noqa: F401, F403
+from game.archive.models import *  # noqa: F401, F403
 from log.models import *  # noqa: F401, F403
 from net.models import *  # type: ignore[no-redef]  # noqa: F401, F403
 from notification.models import *  # noqa: F401, F403
@@ -97,6 +98,8 @@ class App(FastAPI):
         await asyncio.gather(*background_tasks, return_exceptions=True)
         await self.ws_log_buffer.flush()
         await self.db_engine.dispose()  # or the pooled connections are closed by their finalizers, after the event loop is gone
+        if self.search_db_engine is not self.db_engine:
+            await self.search_db_engine.dispose()
 
     async def stale_challenge_cancelation_loop(self) -> None:
         while True:
@@ -162,6 +165,13 @@ class App(FastAPI):
             max_overflow=self.main_config.limits.db_pool_max_overflow,
             pool_pre_ping=True  # a MySQL restart would otherwise leave dead connections in the pool
         )
+        search_db = self.secret_config.search_db
+        self.search_db_engine: AsyncEngine = create_async_engine(
+            search_db.url,
+            pool_size=self.main_config.limits.db_pool_size,
+            max_overflow=self.main_config.limits.db_pool_max_overflow,
+            pool_pre_ping=True
+        ) if search_db else self.db_engine
         self.mutable_state.concurrent_tasks.db_engine = self.db_engine
         self.ws_log_buffer: WSLogBuffer = WSLogBuffer(self.db_engine)
 

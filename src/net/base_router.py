@@ -3,7 +3,7 @@ import json
 
 from fastapi import BackgroundTasks, HTTPException, Response, Request
 from starlette.background import BackgroundTask
-from starlette.responses import StreamingResponse
+from starlette.responses import FileResponse, StreamingResponse
 from fastapi.routing import APIRoute
 from sqlalchemy import update
 from sqlmodel import col
@@ -150,7 +150,9 @@ class LoggingRoute(RateLimitedRoute):
                 raise
             existing_task = response.background
 
-            if isinstance(response, StreamingResponse):
+            if isinstance(response, FileResponse):  # streamed from disk as is: a file isn't worth keeping in memory or in the log
+                task = BackgroundTask(log_response, request_id, response.status_code, b"", request.app)
+            elif isinstance(response, StreamingResponse):
                 chunks = []
                 async for chunk in response.body_iterator:
                     chunks.append(chunk)

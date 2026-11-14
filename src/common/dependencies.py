@@ -32,6 +32,15 @@ async def get_session(app: AppDependency) -> AsyncGenerator[AsyncSession, None]:
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 
 
+async def get_search_session(app: AppDependency) -> AsyncGenerator[AsyncSession, None]:
+    """As the read-only user, for the queries built from a client's game archive formula"""
+    async with AsyncSession(app.search_db_engine) as session:
+        yield session
+
+
+SearchSessionDependency = Annotated[AsyncSession, Depends(get_search_session)]
+
+
 async def get_mutable_state(app: AppDependency) -> MutableState:
     return app.mutable_state
 

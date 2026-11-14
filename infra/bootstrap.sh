@@ -102,6 +102,28 @@ SQL
     (umask 077; echo "$ADMIN_PW" > "$BASE/db-admin.password")
 fi
 
+# secrets (password hashes) live apart from main, so that SELECT on all of main can be granted to the search user.
+# Outside the blocks above, so that a server bootstrapped before this database existed gets it too
+mysql <<SQL
+CREATE DATABASE IF NOT EXISTS intellector_sensitive CHARACTER SET utf8mb4;
+GRANT ALL ON intellector_sensitive.* TO 'intellector_app'@'localhost';
+GRANT SELECT, SHOW VIEW, TRIGGER, EVENT, LOCK TABLES ON intellector_sensitive.* TO 'intellector_backup'@'localhost';
+GRANT ALL ON intellector_sensitive.* TO 'intellector_admin'@'localhost';
+SQL
+
+# for the game archive searches, which run user-built queries: read-only, on main alone (never the logs or the
+# sensitive database), so every table added to main later is covered. Goes into secret.yaml's search_db
+if [ ! -f "$BASE/db-search.password" ]; then
+    SEARCH_PW="$(openssl rand -hex 24)"
+    mysql <<SQL
+CREATE USER IF NOT EXISTS 'intellector_search'@'localhost' IDENTIFIED BY '$SEARCH_PW';
+ALTER USER 'intellector_search'@'localhost' IDENTIFIED BY '$SEARCH_PW';
+SQL
+    (umask 077; echo "$SEARCH_PW" > "$BASE/db-search.password")
+    chown intellector:intellector "$BASE/db-search.password"
+fi
+mysql -e "GRANT SELECT ON main.* TO 'intellector_search'@'localhost';"
+
 log "Caddy (installed, kept disabled until v1 gives up ports 80 and 443)"
 if ! command -v caddy >/dev/null; then
     # the key stays armored: apt rejects the dearmored one, whose signing subkey it cannot find

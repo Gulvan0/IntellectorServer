@@ -14,8 +14,8 @@ usage: ictl <command>
   logs [unit] [-f]        journald; all intellector units merged by default
   start | stop            the whole target (stop drops the server immediately: use deploy's drain for a graceful one)
   restart <unit>          e.g. restart intellector-server
-  backup                  dump the database offsite now
-  restore <dump> [db]     load db/<dump> into an empty database (default: main)
+  backup                  dump the main and the sensitive databases offsite now
+  restore <dump> [db]     load db/<dump> into an empty database (default: main, or intellector_sensitive for *.sensitive dumps)
   releases                the release folders, the current one marked
   rollback                point current at the previous release and drain
   apply                   install the configs from $BASE/infra

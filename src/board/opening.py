@@ -8,6 +8,7 @@ from board.serializers.sip import get_sip
 
 @dataclass
 class Entry:
+    id: int  # stable: saved filters refer to openings by it, so entries are only ever appended
     code: str
     sip: str
     other_sip: str
@@ -18,11 +19,13 @@ class Entry:
 @dataclass
 class OpeningMapping:
     mapping: dict[str, Entry] = field(default_factory=dict)
+    entries: list[Entry] = field(default_factory=list)  # by id
 
     def save(self, position: Position, code: str, name_en: str, name_ru: str) -> None:
         sip = get_sip(position)
         other_sip = mirrored_sip(position)
-        entry = Entry(code, sip, other_sip, name_en, name_ru)
+        entry = Entry(len(self.entries), code, sip, other_sip, name_en, name_ru)
+        self.entries.append(entry)
         self.mapping[sip] = entry
         self.mapping[other_sip] = entry
 
@@ -66,6 +69,7 @@ def proceed(orig_position: Position, hex_from: str, hex_to: str, morph: bool = F
 
 
 def generate_mapping() -> OpeningMapping:
+    """New openings go to the end: an entry's id is its position in this sequence"""
     mapping = OpeningMapping()
 
     starting_position = Position.default_starting()
@@ -86,25 +90,25 @@ def generate_mapping() -> OpeningMapping:
     mapping.save(central_prog, "P1", "Central Advancement", "Центральное продвижение")
 
     double_central_prog = proceed(central_prog, "e6", "e5")
-    mapping.save(double_central_prog, "P1", "Symmetric Central Advancement", "Двойное центральное продвижение")
+    mapping.save(double_central_prog, "P2", "Symmetric Central Advancement", "Двойное центральное продвижение")
 
     bongcloud = proceed(double_central_prog, "e1", "e2")
-    mapping.save(bongcloud, "P1", "Central Opening", "Центральный дебют")
+    mapping.save(bongcloud, "P3", "Central Opening", "Центральный дебют")
 
     dobule_bongcloud = proceed(bongcloud, "e7", "e6")
-    mapping.save(dobule_bongcloud, "P1", "Symmetric Central Opening", "Двойной центральный дебют")
+    mapping.save(dobule_bongcloud, "P4", "Symmetric Central Opening", "Двойной центральный дебют")
 
-    mapping.save(proceed(starting_position, "e2", "d2"), "P2", "Open Intellector Opening", "Дебют вскрытого интеллектора")
-    mapping.save(proceed(starting_position, "c2", "d2"), "P3", "Inward Progressor Opening", "Центростремительный дебют прогрессора")
-    mapping.save(proceed(starting_position, "c2", "b2"), "P4", "Outward Progressor Opening", "Центробежный дебют прогрессора")
-    mapping.save(proceed(starting_position, "c2", "c3"), "P5", "Forward Progressor Opening", "Прямой дебют прогрессора")
-    mapping.save(proceed(starting_position, "a2", "b2"), "P6", "Channel Opening", "Дебют канала")
+    mapping.save(proceed(starting_position, "e2", "d2"), "P5", "Open Intellector Opening", "Дебют вскрытого интеллектора")
+    mapping.save(proceed(starting_position, "c2", "d2"), "P6", "Inward Progressor Opening", "Центростремительный дебют прогрессора")
+    mapping.save(proceed(starting_position, "c2", "b2"), "P7", "Outward Progressor Opening", "Центробежный дебют прогрессора")
+    mapping.save(proceed(starting_position, "c2", "c3"), "P8", "Forward Progressor Opening", "Прямой дебют прогрессора")
+    mapping.save(proceed(starting_position, "a2", "b2"), "P9", "Channel Opening", "Дебют канала")
 
     mapping.save(proceed(starting_position, "c1", "b2"), "A1", "Pulsum Opening", "Дебют пульсума")
     mapping.save(proceed(starting_position, "c1", "a4"), "U1", "a4/i4 Sac", "Жертва на a4/i4")
     mapping.save(proceed(starting_position, "c1", "d2"), "A2", "Central Aggressor Opening", "Дебют центрального агрессора")
-    mapping.save(proceed(starting_position, "c1", "e4"), "U2", "Central Aggressor Opening", "Дебют центрального агрессора")
-    mapping.save(proceed(starting_position, "c1", "f5"), "U3", "e4 Sac", "Жертва на e4")
+    mapping.save(proceed(starting_position, "c1", "e4"), "U2", "Central Sac", "Центральная жертва")
+    mapping.save(proceed(starting_position, "c1", "f5"), "U3", "Fifth Rank Sac", "Жертва на пятой горизонтали")
 
     exchange = proceed(starting_position, "c1", "g7")
     mapping.save(exchange, "A3", "Exchange Opening", "Разменный дебют")

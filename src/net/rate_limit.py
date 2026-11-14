@@ -25,6 +25,7 @@ class RateLimitGroup(StrEnum):
     CHAT = auto()
     WRITE = auto()
     SEARCH = auto()
+    EXPORT = auto()
     WS_CONNECT = auto()
     WS_MESSAGE = auto()
     CLIENT_ERROR = auto()

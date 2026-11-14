@@ -42,7 +42,7 @@ Domain packages share a common layout; each part exists only where needed:
 
 Domains:
 
-- `auth` - guest tokens, sign-in, registration, `whoami`
+- `auth` - guest tokens, sign-in, registration, `whoami`. Password hashes are kept in the `intellector_sensitive` database, where every table holding secrets belongs: the read-only search user may read all of `main`
 - `challenge` - challenges: validation, creation, merging a matching pair into a game, cancellation
 - `game` - games
     - `routes` - `common` (search, reading a game, chat, adding time, ...), `internal` (games between two connected players: plies, offers, resignation), `external` (games computed on a client, such as bot games, and uploaded ply by ply)
@@ -114,8 +114,8 @@ Run everything from the repo root, with `STAGE=test` environment variable set.
 
 2. MySQL
 
-    - Create `main` and `intellector_logs` databases
-    - Give one user full rights on both
+    - Create `main`, `intellector_logs` and `intellector_sensitive` databases
+    - Give one user full rights on all three
 
 3. Certificate
 

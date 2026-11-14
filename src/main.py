@@ -8,6 +8,7 @@ from typing import Any
 
 from auth import routes as auth_routes
 from challenge import routes as challenge_routes
+from game.archive import routes as game_archive_routes
 from game.routes import common as main_game_routes
 from game.routes import external as external_game_routes
 from game.routes import internal as internal_game_routes
@@ -33,6 +34,7 @@ app = App(
         auth_routes.router,
         challenge_routes.router,
         external_game_routes.router,
+        game_archive_routes.router,
         internal_game_routes.router,
         main_game_routes.router,
         player_routes.router,

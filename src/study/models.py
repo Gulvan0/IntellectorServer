@@ -218,6 +218,8 @@ class StudyPublic(StudyBase):
 class ListStudiesPayload(CustomModel):
     author_login: PlayerLogin | None = None
     tags: list[str] | None = None  # a study must have all of them
+    name: str | None = Field(default=None, max_length=64)  # a part of the name, case-insensitively
+    public_only: bool = False  # without it, an author's own and profile-listed studies are included too
 
 
 class ListStudiesResult(CustomModel):

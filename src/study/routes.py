@@ -8,7 +8,7 @@ from sqlmodel import col, desc, func, select
 
 from net.base_router import LoggingRoute, rate_limited
 from net.rate_limit import RateLimitGroup
-from player.methods import resolve_player_refs
+from player.methods import escape_like, resolve_player_refs
 from study.models import ListStudiesPayload, ListStudiesResult, Study, StudyCreate, StudyPublic, StudyTag, StudyUpdate, StudySummaryPublic
 from study.datatypes import StudyPublicity
 from study.validation import validate_sip, validate_ply_tree
@@ -59,20 +59,25 @@ async def list_studies(
 
     if payload.author_login is not None:
         conditions.append(Study.author_login == payload.author_login)
-        if client_login != payload.author_login:
-            conditions.append(col(Study.publicity).in_([StudyPublicity.PUBLIC, StudyPublicity.PROFILE_AND_LINK_ONLY]))
-    else:
+
+    if payload.author_login is None or payload.public_only:
         conditions.append(Study.publicity == StudyPublicity.PUBLIC)
+    elif client_login != payload.author_login:
+        conditions.append(col(Study.publicity).in_([StudyPublicity.PUBLIC, StudyPublicity.PROFILE_AND_LINK_ONLY]))
 
     for tag in payload.tags or []:
         conditions.append(col(Study.id).in_(select(StudyTag.study_id).where(StudyTag.tag == tag)))
+
+    name_part = (payload.name or "").strip().lower()
+    if name_part:
+        conditions.append(func.lower(col(Study.name)).like(f"%{escape_like(name_part)}%", escape="\\"))
 
     db_studies = list(await session.exec(select(
         Study
     ).where(
         *conditions
     ).order_by(
-        desc(Study.created_at),
+        desc(Study.modified_at),
         desc(Study.id)
     ).offset(
         offset

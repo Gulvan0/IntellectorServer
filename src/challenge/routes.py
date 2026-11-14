@@ -5,7 +5,7 @@ from challenge.methods.merge import try_merging
 from challenge.methods.validation import perform_common_validations, validate_direct_callee
 from challenge.methods.cancel import cancel_challenge as cancel_specific_challenge
 from challenge.methods.deactivate import deactivate_challenge
-from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengePublic
+from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengeCreateResponse, ChallengeFischerTimeControl, ChallengePublic, PublicChallengeFilter
 from common.dependencies import AppDependency, MainConfigDependency, MandatoryUserDependency, MutableStateDependency, SecretConfigDependency, SessionDependency
 from common.models import Id
 from game.methods.create import create_internal_game
@@ -127,9 +127,16 @@ async def create_direct_challenge(
     return ChallengeCreateResponse(result="CREATED", challenge=public_challenge, callee_online=callee_online, callee_session_lost=callee_session_lost)
 
 
-@router.get("/public", response_model=list[ChallengePublic])
-async def get_public_challenges(*, session: SessionDependency, main_config: MainConfigDependency, offset: int = 0, limit: int = Query(default=50, le=50)) -> list[ChallengePublic]:
-    return await get_active_public_challenges(session, main_config, offset, limit)
+@router.post("/public/search", response_model=list[ChallengePublic])
+async def search_public_challenges(
+    *,
+    session: SessionDependency,
+    main_config: MainConfigDependency,
+    offset: int = 0,
+    limit: int = Query(default=50, le=50),
+    payload: PublicChallengeFilter = PublicChallengeFilter()
+) -> list[ChallengePublic]:
+    return await get_active_public_challenges(session, main_config, offset, limit, payload)
 
 
 @router.get("/my_direct", response_model=list[ChallengePublic])

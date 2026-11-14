@@ -151,6 +151,14 @@ class ChallengePublic(ChallengeBase):
     caller_rating: PlayerRatingPublic | None = None  # filled for rated challenges of players (listed public ones, and GET /challenge/{id}): the rating the caller would play at
 
 
+class PublicChallengeFilter(CustomModel):
+    """Null facets match any challenge; a list matches a challenge having any of its values"""
+    time_control_kinds: list[TimeControlKind] | None = None
+    rated: bool | None = None
+    custom_start: bool | None = None
+    acceptor_colors: list[ChallengeAcceptorColor] | None = None
+
+
 class ChallengeCreateResponse(CustomModel):
     result: Literal["CREATED", "MERGED"]
     challenge: ChallengePublic | None = None

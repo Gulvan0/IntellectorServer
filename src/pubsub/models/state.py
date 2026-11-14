@@ -13,7 +13,7 @@ class ChallengeListStateRefresh(CustomModel):
 
 
 class PublicChallengeListStateRefresh(CustomModel):
-    """The newest public challenges, a head window of the list: the further ones come from GET /challenge/public"""
+    """The newest public challenges, a head window of the list: the further ones come from POST /challenge/public/search"""
     challenges: list[ChallengePublic]
     total: int
     has_more: bool

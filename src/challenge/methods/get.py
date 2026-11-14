@@ -2,7 +2,7 @@ from sqlmodel import and_, desc, or_, select, func, col
 from sqlmodel.sql.expression import SelectOfScalar
 
 from challenge.datatypes import ChallengeAcceptorColor, ChallengeKind
-from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic
+from challenge.models import Challenge, ChallengeCreateDirect, ChallengeCreateOpen, ChallengePublic, PublicChallengeFilter
 from challenge.sql import time_control_equality_conditions
 from common.user_ref import UserReference
 from config.models import MainConfig
@@ -150,6 +150,19 @@ def _active_public_challenge_conditions() -> list:
     ]
 
 
+def _public_challenge_filter_conditions(challenge_filter: PublicChallengeFilter) -> list:
+    conditions: list = []
+    if challenge_filter.time_control_kinds is not None:
+        conditions.append(col(Challenge.time_control_kind).in_(challenge_filter.time_control_kinds))
+    if challenge_filter.rated is not None:
+        conditions.append(Challenge.rated == challenge_filter.rated)
+    if challenge_filter.custom_start is not None:
+        conditions.append(Challenge.custom_starting_sip != None if challenge_filter.custom_start else Challenge.custom_starting_sip == None)  # noqa
+    if challenge_filter.acceptor_colors is not None:
+        conditions.append(col(Challenge.acceptor_color).in_(challenge_filter.acceptor_colors))
+    return conditions
+
+
 async def fill_caller_rating(session: AsyncSession, main_config: MainConfig, challenge: ChallengePublic) -> None:
     """Sets the rating a rated challenge's caller would play at; guests and casual challenges get none"""
     caller = UserReference(challenge.caller.user_ref)
@@ -159,12 +172,20 @@ async def fill_caller_rating(session: AsyncSession, main_config: MainConfig, cha
     challenge.caller_rating = PlayerRatingPublic(elo=stats.elo or main_config.elo.default, provisional=stats.is_elo_provisional)
 
 
-async def get_active_public_challenges(session: AsyncSession, main_config: MainConfig, offset: int = 0, limit: int = 50) -> list[ChallengePublic]:
+async def get_active_public_challenges(
+    session: AsyncSession,
+    main_config: MainConfig,
+    offset: int = 0,
+    limit: int = 50,
+    challenge_filter: PublicChallengeFilter | None = None
+) -> list[ChallengePublic]:
     """Newest first; the id breaks ties, so that offset paging neither skips nor repeats challenges of the same instant"""
+    filter_conditions = _public_challenge_filter_conditions(challenge_filter) if challenge_filter else []
     challenges = await _query_challenges_as_public(session, select(
         Challenge
     ).where(
-        *_active_public_challenge_conditions()
+        *_active_public_challenge_conditions(),
+        *filter_conditions
     ).order_by(
         desc(Challenge.created_at),
         desc(Challenge.id)

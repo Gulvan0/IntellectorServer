@@ -137,6 +137,7 @@ fi
 log "Python 3.14 (uv)"
 sudo -u intellector bash -s <<'USER_SCRIPT'
 set -euo pipefail
+cd /srv/intellector # uv reads uv.toml from the working directory, which may be root's unreadable home
 [ -x /srv/intellector/tools/bin/uv ] || {
     python3 -m venv /srv/intellector/tools
     /srv/intellector/tools/bin/pip install -q uv

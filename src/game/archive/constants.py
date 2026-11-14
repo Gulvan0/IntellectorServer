@@ -1,4 +1,4 @@
-"""Caps on a game archive formula. Mirrored by hand in the client's `client.logic.games.FormulaCaps`"""
+"""Caps on a game archive formula (mirrored by hand in the client's `client.logic.games.FormulaCaps`), and other request limits"""
 
 FORMULA_VERSION = 1
 
@@ -13,3 +13,6 @@ MAX_PAGE_SIZE = 50
 MAX_SORT_LEVELS = 3
 
 SAVED_FILTER_NAME_PATTERN = r"^[\w ]{1,32}$"  # Python's \w is Unicode-aware, matching the client's [\p{L}\p{N}_ ] closely enough
+
+GAME_ID_PLACEHOLDER = "{game_id}"
+GAME_URL_TEMPLATE_PATTERN = r"^https?://\S*\{game_id\}\S*$"

@@ -10,7 +10,7 @@ from common.field_types import current_datetime_field
 from common.models import UserRefWithNickname
 from common.time_control import TimeControlKind
 from board.piece import PieceColor
-from game.archive.constants import MAX_PAGE_SIZE, MAX_SORT_LEVELS, SAVED_FILTER_NAME_PATTERN
+from game.archive.constants import GAME_URL_TEMPLATE_PATTERN, MAX_PAGE_SIZE, MAX_SORT_LEVELS, SAVED_FILTER_NAME_PATTERN
 from game.archive.query import SortColumn
 from game.datatypes import OutcomeKind
 from game.models.main import PlayerRatingPublic
@@ -18,6 +18,7 @@ from utils.custom_model import CustomModel, CustomSQLModel
 
 
 SavedFilterName = Annotated[str, StringConstraints(strip_whitespace=True, pattern=SAVED_FILTER_NAME_PATTERN)]
+GameUrlTemplate = Annotated[str, StringConstraints(max_length=512, pattern=GAME_URL_TEMPLATE_PATTERN)]
 
 
 class SavedGameFilter(CustomSQLModel, table=True):
@@ -94,6 +95,7 @@ class ArchiveExportPayload(CustomModel):
     sort: Annotated[list[SortLevelPayload], Field(max_length=MAX_SORT_LEVELS)] = []
     columns: Annotated[list[ArchiveColumn], Field(min_length=1)]  # in the table's order
     include_moves: bool = False
+    game_url_template: GameUrlTemplate  # the `Link` column's URL, with `{game_id}` in place of the id
     locale: str = "en"
     timezone: str = "UTC"  # IANA
 

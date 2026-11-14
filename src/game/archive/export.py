@@ -21,6 +21,7 @@ from board.position import Position
 from board.serializers.notation import write_ply
 from common.bots import LEGACY_ANACONDA_NAME, registered_bot_display_name
 from common.user_ref import UserReference
+from game.archive.constants import GAME_ID_PLACEHOLDER
 from game.archive.formula import AndNode
 from game.archive.methods import filtered_query, stream_archive_rows, translated_timeouts, with_time_limit
 from game.archive.models import ArchiveColumn, ArchiveGameRow
@@ -31,7 +32,6 @@ from net.utils.rest_error import RestErrorCode, RestException
 from utils.async_orm_session import AsyncSession
 
 
-GAME_URL_TEMPLATE = "https://intellector.info/game/?p=live/{game_id}"
 MS_PER_DAY = 24 * 60 * 60 * 1000
 
 
@@ -198,8 +198,9 @@ CellWriter = Callable[[Any, int, int, ArchiveGameRow], None]
 
 
 class _RowWriter:
-    def __init__(self, workbook: Any, openings: OpeningMapping, locale: str, timezone: str) -> None:
+    def __init__(self, workbook: Any, openings: OpeningMapping, game_url_template: str, locale: str, timezone: str) -> None:
         self.formats = _Formats(workbook)
+        self.game_url_template = game_url_template
         self.openings = openings
         self.russian = locale.lower().startswith("ru")
         self.texts, self.time_control_names = texts_for(locale)
@@ -223,7 +224,7 @@ class _RowWriter:
             case ArchiveColumn.ID:
                 sheet.write_number(row, col, game.id)
             case ArchiveColumn.LINK:
-                sheet.write_url(row, col, GAME_URL_TEMPLATE.format(game_id=game.id))
+                sheet.write_url(row, col, self.game_url_template.replace(GAME_ID_PLACEHOLDER, str(game.id)))
             case ArchiveColumn.WHITE:
                 sheet.write_string(row, col, player_name(game.white_player.user_ref, game.white_player.nickname, texts))
             case ArchiveColumn.BLACK:
@@ -313,6 +314,7 @@ async def export_archive(
     levels: list[SortLevel],
     columns: list[ArchiveColumn],
     include_moves: bool,
+    game_url_template: str,
     locale: str,
     timezone: str,
     timeout_ms: int
@@ -325,7 +327,7 @@ async def export_archive(
     workbook = xlsxwriter.Workbook(path, {"constant_memory": True, "remove_timezone": True})
     try:
         sheet = workbook.add_worksheet()
-        writer = _RowWriter(workbook, openings, locale, timezone)
+        writer = _RowWriter(workbook, openings, game_url_template, locale, timezone)
 
         for column_index, column in enumerate(columns):
             sheet.write_string(0, column_index, writer.texts.columns[column], writer.formats.header)

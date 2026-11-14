@@ -70,6 +70,7 @@ async def export_route(
         sort_levels(payload.sort),
         payload.columns,
         payload.include_moves,
+        payload.game_url_template,
         payload.locale,
         payload.timezone,
         main_config.limits.search_timeout_ms

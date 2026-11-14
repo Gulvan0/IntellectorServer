@@ -33,6 +33,13 @@ from utils.async_orm_session import AsyncSession
 
 
 MS_PER_DAY = 24 * 60 * 60 * 1000
+MS_PER_HOUR = 60 * 60 * 1000
+DAYS_FORMAT_LIMIT_MS = 5 * MS_PER_DAY  # where the table switches to whole days
+DATETIME_TEXT_LENGTH = len("dd.mm.yyyy hh:mm:ss")
+MIN_COLUMN_WIDTH = 6
+MAX_COLUMN_WIDTH = 60
+COLUMN_PADDING = 2
+HEADER_WIDTH_FACTOR = 1.1  # bold text is wider
 
 
 @dataclass(frozen=True)
@@ -189,12 +196,58 @@ class _Formats:
     def __init__(self, workbook: Any) -> None:
         self.header = workbook.add_format({"bold": True})
         self.datetime = workbook.add_format({"num_format": "dd.mm.yyyy hh:mm:ss"})
-        self.duration = workbook.add_format({"num_format": "[h]:mm:ss"})
+        # as the result table shows durations: the leading zero components stripped down to M:SS
+        self.minutes = workbook.add_format({"num_format": "[m]:ss"})
+        self.hours = workbook.add_format({"num_format": "[h]:mm:ss"})
+        self.days = workbook.add_format({"num_format": "d:hh:mm:ss"})  # day of the month, so below 32 days only
         self.elo = workbook.add_format({"num_format": "0"})
         self.provisional_elo = workbook.add_format({"num_format": '0"?"'})
 
 
 CellWriter = Callable[[Any, int, int, ArchiveGameRow], None]
+
+
+class _MeasuredSheet:
+    """A worksheet that remembers each column's widest displayed text, to size the columns once written.
+    Excel's own autofit can't run on a file written in constant memory mode."""
+
+    def __init__(self, sheet: Any, formats: _Formats) -> None:
+        self.sheet = sheet
+        self.formats = formats
+        self.widths: dict[int, float] = {}
+
+    def _note(self, col: int, length: float) -> None:
+        self.widths[col] = max(self.widths.get(col, 0), length)
+
+    def write_string(self, row: int, col: int, text: str, cell_format: Any = None) -> None:
+        self.sheet.write_string(row, col, text, cell_format)
+        self._note(col, len(text) * (HEADER_WIDTH_FACTOR if cell_format is self.formats.header else 1))
+
+    def write_url(self, row: int, col: int, url: str) -> None:
+        self.sheet.write_url(row, col, url)
+        self._note(col, len(url))
+
+    def write_datetime(self, row: int, col: int, value: datetime, cell_format: Any) -> None:
+        self.sheet.write_datetime(row, col, value, cell_format)
+        self._note(col, DATETIME_TEXT_LENGTH)
+
+    def write_number(self, row: int, col: int, value: float, cell_format: Any = None) -> None:
+        self.sheet.write_number(row, col, value, cell_format)
+        if cell_format is self.formats.minutes:
+            text = f"{int(value * 24 * 60)}:00"
+        elif cell_format is self.formats.hours:
+            text = f"{int(value * 24)}:00:00"
+        elif cell_format is self.formats.days:
+            text = "0:00:00:00"
+        elif cell_format is self.formats.provisional_elo:
+            text = f"{value:.0f}?"
+        else:
+            text = f"{value:g}"
+        self._note(col, len(text))
+
+    def fit_columns(self) -> None:
+        for column_index, length in self.widths.items():
+            self.sheet.set_column(column_index, column_index, min(MAX_COLUMN_WIDTH, max(MIN_COLUMN_WIDTH, length + COLUMN_PADDING)))
 
 
 class _RowWriter:
@@ -211,8 +264,16 @@ class _RowWriter:
             sheet.write_datetime(row, col, value.astimezone(self.zone).replace(tzinfo=None), self.formats.datetime)
 
     def _duration(self, sheet: Any, row: int, col: int, ms: int | None) -> None:
-        if ms is not None:
-            sheet.write_number(row, col, ms / MS_PER_DAY, self.formats.duration)
+        if ms is None:
+            return
+        whole_ms = ms // 1000 * 1000  # whole seconds, as the table shows them
+        if whole_ms < MS_PER_HOUR:
+            cell_format = self.formats.minutes
+        elif whole_ms < MS_PER_DAY or whole_ms >= DAYS_FORMAT_LIMIT_MS:
+            cell_format = self.formats.hours
+        else:
+            cell_format = self.formats.days
+        sheet.write_number(row, col, whole_ms / MS_PER_DAY, cell_format)
 
     def _elo(self, sheet: Any, row: int, col: int, elo: Any) -> None:
         if elo is not None:
@@ -326,8 +387,8 @@ async def export_archive(
     os.close(descriptor)
     workbook = xlsxwriter.Workbook(path, {"constant_memory": True, "remove_timezone": True})
     try:
-        sheet = workbook.add_worksheet()
         writer = _RowWriter(workbook, openings, game_url_template, locale, timezone)
+        sheet = _MeasuredSheet(workbook.add_worksheet(), writer.formats)
 
         for column_index, column in enumerate(columns):
             sheet.write_string(0, column_index, writer.texts.columns[column], writer.formats.header)
@@ -344,6 +405,7 @@ async def export_archive(
                 for move_index, notation in enumerate(notations.get(game.id, [])[:move_columns]):
                     sheet.write_string(row_index, len(columns) + move_index, notation)
                 row_index += 1
+        sheet.fit_columns()
     finally:
         workbook.close()
     return path

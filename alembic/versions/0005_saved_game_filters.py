@@ -22,9 +22,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 ONGOING_CONDITION = {"property": "result", "values": ["ongoing"]}
+ABORTED_CONDITION = {"property": "outcome", "values": ["ABORT"]}
 AUTHORLESS_FILTERS = [
     ("ongoing", "Ongoing games", {"version": 1, "root": {"and": [ONGOING_CONDITION]}}),
-    ("archive", "Game archive", {"version": 1, "root": {"and": [{"not": ONGOING_CONDITION}]}}),
+    ("archive", "Game archive", {"version": 1, "root": {"and": [{"not": ONGOING_CONDITION}, {"not": ABORTED_CONDITION}]}}),
 ]
 
 

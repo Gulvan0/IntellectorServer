@@ -58,7 +58,7 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=[SERVER_TIME_HEADER],
+    expose_headers=[SERVER_TIME_HEADER, "Content-Disposition"],
 )
 
 

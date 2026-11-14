@@ -24,7 +24,7 @@ common:
     max_guest_tokens: 100000
     db_pool_size: 10
     db_pool_max_overflow: 20
-    search_timeout_ms: 10000
+    search_timeout_ms: 8000
   rate_limits:
     http_by_ip: {max_requests: 1200, window_secs: 60}
     general: {max_requests: 300, window_secs: 60}
